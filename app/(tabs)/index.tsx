@@ -13,6 +13,8 @@ import { buildPackingList, Category } from '../../lib/packingList';
 import { Card } from '../../components/Card';
 import { SectionHeader } from '../../components/SectionHeader';
 import { SegmentedControl } from '../../components/SegmentedControl';
+import { LinearGradient } from 'expo-linear-gradient';
+import { WeatherBackground } from '../../components/WeatherEffects';
 
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -49,6 +51,14 @@ const getAqiLabel = (aqiIndex: number) => {
   return labels[aqiIndex - 1] || 'Unknown';
 };
 
+const getSeverity = (cond: string) => {
+  if (cond === 'Thunderstorm') return 5;
+  if (cond === 'Snow') return 4;
+  if (cond === 'Rain' || cond === 'Drizzle') return 3;
+  if (['Clouds', 'Mist', 'Fog', 'Haze'].includes(cond)) return 2;
+  return 1; // Sunny / Clear Night
+};
+
 const getDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -82,6 +92,44 @@ export default function PlanScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { profile, toggleSavedLocation, hydrated } = useProfile();
+
+  const [liveWeather, setLiveWeather] = useState<{
+    temp: number;
+    tempLow: number;
+    tempHigh: number;
+    blockMin?: number;
+    blockMax?: number;
+    humidity: number;
+    aqiLabel: string;
+    condition: string;
+    displayCondition?: string;
+  } | null>(null);
+
+  const [trueLiveWeather, setTrueLiveWeather] = useState<any>(null);
+
+  const heroTheme = useMemo(() => {
+    if (!liveWeather) return { bg: colors.primary, accent: colors.accent, muted: '#a8c2c0' };
+
+    const cond = liveWeather.condition;
+    // Premium, clinical weather themes
+    if (cond === 'Sunny' || cond === 'Clear') {
+      return { bg: '#075985', accent: '#FDE047', muted: '#bae6fd' }; // Deep Sky
+    }
+    if (cond === 'Clear Night') {
+      return { bg: '#1e1b4b', accent: '#E2E8F0', muted: '#94a3b8' }; // Midnight Indigo
+    }
+    if (['Rain', 'Drizzle', 'Thunderstorm'].includes(cond)) {
+      return { bg: '#334155', accent: '#F1F5F9', muted: '#94a3b8' }; // Storm Slate
+    }
+    if (cond === 'Snow') {
+      return { bg: '#475569', accent: '#FFFFFF', muted: '#cbd5e1' }; // Frost Gray
+    }
+    if (['Clouds', 'Mist', 'Fog', 'Haze'].includes(cond)) {
+      return { bg: '#475569', accent: '#E2E8F0', muted: '#cbd5e1' }; // Muted Overcast
+    }
+
+    return { bg: colors.primary, accent: colors.accent, muted: '#a8c2c0' };
+  }, [liveWeather, colors]);
 
   const [forecast, setForecast] = useState<any[]>([]);
   const [showForecastSheet, setShowForecastSheet] = useState(false);
@@ -261,7 +309,7 @@ export default function PlanScreen() {
         });
       }
 
-      // 3. Helper to summarize a block's arrays into a single clean object
+      // Sync the true live weather
       const summarizeBlock = (block: any, fallbackData: any, fallbackAqi: number, dayMin: number, dayMax: number) => {
         if (block.items.length === 0) {
           // If the block has passed (e.g. morning is over today), fallback safely
@@ -273,6 +321,7 @@ export default function PlanScreen() {
             tempHigh: Math.round(dayMax !== -Infinity ? dayMax : fallbackData.tempHigh),
             humidity: fallbackData.humidity,
             condition: fallbackData.condition,
+            displayCondition: fallbackData.displayCondition || fallbackData.condition,
             aqiLabel: getAqiLabel(fallbackAqi)
           };
         }
@@ -281,20 +330,46 @@ export default function PlanScreen() {
         const avgTemp = Math.round(block.items.reduce((acc: number, i: any) => acc + i.main.temp, 0) / block.items.length);
         const avgHumidity = Math.round(block.items.reduce((acc: number, i: any) => acc + i.main.humidity, 0) / block.items.length);
 
-        // Pick a representative weather condition from the middle of the block
-        const repItem = block.items[Math.floor(block.items.length / 2)];
-        const mainCond = repItem.weather[0].main;
-        const iconCode = repItem.weather[0].icon;
-        const condition = mainCond === 'Clear' ? (iconCode.includes('n') ? 'Clear Night' : 'Sunny') : mainCond;
+        // 1. Extract conditions in strict CHRONOLOGICAL order
+        const chronologicalConditions: string[] = [];
+        block.items.forEach((item: any) => {
+          item.weather.forEach((w: any) => {
+            let condName = w.main;
+            if (condName === 'Clear') condName = w.icon.includes('n') ? 'Clear Night' : 'Sunny';
+
+            // Only add to list if it's a new weather shift (prevents "Sunny → Sunny")
+            if (chronologicalConditions[chronologicalConditions.length - 1] !== condName) {
+              chronologicalConditions.push(condName);
+            }
+          });
+        });
+
+        // 2. Sort a copy by severity to drive the background theme
+        const sortedBySeverity = [...chronologicalConditions].sort((a, b) => getSeverity(b) - getSeverity(a));
+        const mostSevereCondition = sortedBySeverity[0] || 'Sunny';
+
+        // 3. Format the chronological text string with a progression arrow
+        let displayCondition = chronologicalConditions[0] || 'Sunny';
+
+        if (chronologicalConditions.length > 1) {
+          const startCond = chronologicalConditions[0];
+          const endCond = chronologicalConditions[chronologicalConditions.length - 1];
+
+          // Ensure we don't accidentally output "Clouds → Clouds" if it shifted back and forth
+          if (startCond !== endCond) {
+            displayCondition = `${startCond} → ${endCond}`;
+          }
+        }
 
         return {
           temp: avgTemp,
           blockMin: Math.round(block.min),
           blockMax: Math.round(block.max),
-          tempLow: Math.round(dayMin), // Still pass the full day variance to the AI packing list
+          tempLow: Math.round(dayMin),
           tempHigh: Math.round(dayMax),
           humidity: avgHumidity,
-          condition: condition,
+          condition: mostSevereCondition, // Drives the background animations and theme (Highest Threat)
+          displayCondition: displayCondition, // Drives the text UI (Chronological Timeline)
           aqiLabel: getAqiLabel(block.aqi || fallbackAqi)
         };
       };
@@ -402,18 +477,7 @@ export default function PlanScreen() {
     }
   }, [hydrated, hasSetInitialCity, savedLocations]);
 
-  const [liveWeather, setLiveWeather] = useState<{
-    temp: number;
-    tempLow: number;
-    tempHigh: number;
-    blockMin?: number;
-    blockMax?: number;
-    humidity: number;
-    aqiLabel: string;
-    condition: string;
-  } | null>(null);
 
-  const [trueLiveWeather, setTrueLiveWeather] = useState<any>(null);
 
   useEffect(() => {
     if (selectedDayIndex === -1) return;
@@ -427,6 +491,7 @@ export default function PlanScreen() {
         blockMax: weather.blockMax,
         humidity: weather.humidity,
         condition: weather.condition,
+        displayCondition: weather.displayCondition,
         aqiLabel: weather.aqiLabel || 'Good'
       });
     }
@@ -619,8 +684,14 @@ export default function PlanScreen() {
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={openSheet}
-            style={[styles.heroCard, { backgroundColor: colors.primary }]}
+            style={[styles.heroCard, { backgroundColor: heroTheme.bg }]}
           >
+            <WeatherBackground condition={liveWeather?.condition} />
+            <LinearGradient
+              colors={['rgba(0,0,0,0.3)', 'transparent']}
+              style={StyleSheet.absoluteFillObject}
+              pointerEvents="none"
+            />
             <View style={styles.heroDecoOuter}>
               <View style={[styles.heroDecoCircle, { borderColor: 'rgba(245,185,98,0.06)' }]} />
               <View style={[styles.heroDecoCircleSm, { borderColor: 'rgba(245,185,98,0.04)' }]} />
@@ -662,10 +733,10 @@ export default function PlanScreen() {
                 else if (condition === 'Mist' || condition === 'Fog' || condition === 'Haze') iconName = 'cloud';
 
                 return (
-                  <View style={[styles.weatherBadge, { backgroundColor: isClear ? colors.accent : 'rgba(245,185,98,0.15)' }]}>
-                    <Feather name={iconName} size={11} color={isClear ? '#0a1f1e' : colors.accent} />
-                    <Text style={[styles.weatherBadgeText, { color: isClear ? '#0a1f1e' : colors.accent }]}>
-                      {condition}
+                  <View style={[styles.weatherBadge, { backgroundColor: isClear ? heroTheme.accent : 'rgba(255,255,255,0.15)' }]}>
+                    <Feather name={iconName} size={11} color={isClear ? heroTheme.bg : heroTheme.accent} />
+                    <Text style={[styles.weatherBadgeText, { color: isClear ? heroTheme.bg : heroTheme.accent }]}>
+                      {liveWeather.displayCondition || condition}
                     </Text>
                   </View>
                 );
@@ -674,7 +745,7 @@ export default function PlanScreen() {
 
             {/* Destination Name + Heart Button */}
             <View style={styles.heroDestinationRow}>
-              <Text style={[styles.heroDestination, { color: colors.accent }]} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={[styles.heroDestination, { color: heroTheme.accent }]} numberOfLines={1} adjustsFontSizeToFit>
                 {destination.name}
               </Text>
               <TouchableOpacity
@@ -685,16 +756,16 @@ export default function PlanScreen() {
                 <Ionicons
                   name={isSaved ? "heart" : "heart-outline"}
                   size={24}
-                  color={isSaved ? '#ef4444' : colors.accent}
+                  color={isSaved ? '#ef4444' : heroTheme.accent}
                 />
               </TouchableOpacity>
             </View>
 
             <View style={styles.statsGrid}>
-              <View style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
+              <View style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
                 <View style={styles.statIconRow}>
-                  <Feather name="thermometer" size={13} color="#a8c2c0" />
-                  <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Temperature</Text>
+                  <Feather name="thermometer" size={13} color={heroTheme.muted} />
+                  <Text style={[styles.statLabel, { color: heroTheme.muted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Temperature</Text>
                 </View>
                 <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                   {liveWeather
@@ -705,20 +776,20 @@ export default function PlanScreen() {
                 </Text>
               </View>
 
-              <View style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
+              <View style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
                 <View style={styles.statIconRow}>
-                  <Feather name="droplet" size={13} color="#a8c2c0" />
-                  <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Humidity</Text>
+                  <Feather name="droplet" size={13} color={heroTheme.muted} />
+                  <Text style={[styles.statLabel, { color: heroTheme.muted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Humidity</Text>
                 </View>
                 <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                   {liveWeather ? `${liveWeather.humidity}%` : '—'}
                 </Text>
               </View>
 
-              <View style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
+              <View style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
                 <View style={styles.statIconRow}>
-                  <Feather name="wind" size={13} color="#a8c2c0" />
-                  <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Air Quality</Text>
+                  <Feather name="wind" size={13} color={heroTheme.muted} />
+                  <Text style={[styles.statLabel, { color: heroTheme.muted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Air Quality</Text>
                 </View>
                 <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                   {liveWeather ? liveWeather.aqiLabel : '—'}
@@ -880,9 +951,16 @@ export default function PlanScreen() {
                         <View key={item.id}>
                           {index > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
                           <View style={styles.packingRow}>
-                            <View style={[styles.priorityDot, { backgroundColor: dotColor }]} />
+
                             <View style={styles.packingContent}>
-                              <Text style={[styles.packingTitle, { color: colors.foreground }]}>{item.title}</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                {item.emoji && (
+                                  <Text style={{ fontSize: 14 }}>{item.emoji}</Text>
+                                )}
+                                <Text style={[styles.packingTitle, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>
+                                  {item.title}
+                                </Text>
+                              </View>
                               <Text style={[styles.packingReason, { color: colors.mutedForeground }]}>{item.reason}</Text>
                             </View>
                           </View>
@@ -962,7 +1040,7 @@ export default function PlanScreen() {
                   >
                     <View style={{ gap: 4 }}>
                       <Text style={styles.forecastDayName}>{dayName}</Text>
-                      <Text style={[styles.forecastCondition, { color: colors.mutedForeground }]}>{weather.condition}</Text>
+                      <Text style={[styles.forecastCondition, { color: colors.mutedForeground }]}>{weather.displayCondition || weather.condition}</Text>
                     </View>
                     <Text style={[styles.forecastTemp, { color: colors.foreground }]}>
                       {weather.blockMin === weather.blockMax ? `${weather.blockMin}°` : `${weather.blockMin}°–${weather.blockMax}°`}
@@ -1005,7 +1083,7 @@ const styles = StyleSheet.create({
   statsGrid: { flexDirection: 'row', gap: 8 },
   statCard: { flex: 1, borderRadius: 14, padding: 12, gap: 8, justifyContent: 'center', alignItems: 'center', },
   statIconRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statLabel: { flex: 1, color: '#a8c2c0', fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', },
+  statLabel: { color: '#a8c2c0', fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', },
   statValue: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16, textTransform: 'capitalize' },
   searchSection: { paddingHorizontal: 20, paddingTop: 14, gap: 12 },
   searchPill: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, gap: 12 },

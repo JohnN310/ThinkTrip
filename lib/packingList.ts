@@ -35,6 +35,7 @@ export interface PackingItem {
   reason: string;
   priority: Priority;
   category: Category;
+  emoji: string;
 }
 
 export interface LiveWeatherContext {
@@ -53,8 +54,8 @@ export const buildPackingList = (
   const items: PackingItem[] = [];
   let idCounter = 0;
 
-  const add = (priority: Priority, category: Category, title: string, reason: string) => {
-    items.push({ id: `item_${idCounter++}`, priority, category, title, reason });
+  const add = (priority: Priority, category: Category, title: string, reason: string, emoji: string) => {
+    items.push({ id: `item_${idCounter++}`, priority, category, title, reason, emoji });
   };
 
   // 1. Determine which data source to use
@@ -73,59 +74,59 @@ export const buildPackingList = (
   // ─── RESPIRATORY & CLIMATE HEALTH ───
 
   if (aqi === 'Poor' || aqi === 'Very Poor') {
-    add('essential', 'Climate & Respiratory', 'N95 / KN95 Respirator Masks', `Current air quality is ${aqi}. Protect your respiratory baseline.`);
-    add('recommended', 'Climate & Respiratory', 'Sterile saline nasal flush', 'Clears airborne particulate matter from sinus passages after exposure.');
+    add('essential', 'Climate & Respiratory', 'N95 / KN95 Respirator Masks', `Current air quality is ${aqi}. Protect your respiratory baseline.`, '😷');
+    add('recommended', 'Climate & Respiratory', 'Sterile saline nasal flush', 'Clears airborne particulate matter from sinus passages after exposure.', '👃');
   }
 
   if (humidity <= 30) {
-    add('essential', 'Climate & Respiratory', 'Hydrating eye drops & nasal spray', `Humidity ${humidity}% will rapidly dehydrate mucous membranes.`);
-    add('recommended', 'Climate & Respiratory', 'Occlusive skin barrier repair', 'Prevents extreme transepidermal water loss in dry climates.');
+    add('essential', 'Climate & Respiratory', 'Hydrating eye drops & nasal spray', `Humidity ${humidity}% will rapidly dehydrate mucous membranes.`, '💧');
+    add('recommended', 'Climate & Respiratory', 'Occlusive skin barrier repair', 'Prevents extreme transepidermal water loss in dry climates.', '🧴');
   } else if (humidity >= 70) {
     if (profile.usesChemicalExfoliants || profile.usesRetinoids) {
-      add('recommended', 'Climate & Respiratory', 'Pause topical actives', `High humidity (${humidity}%) increases absorption and risks chemical burns.`);
+      add('recommended', 'Climate & Respiratory', 'Pause topical actives', `High humidity (${humidity}%) increases absorption and risks chemical burns.`, '⚠️');
     }
   }
 
   if (tempLow <= coldThreshold) {
-    add('essential', 'Climate & Respiratory', 'Thermal base layers', `Core temperature regulation for lows around ${tempLow}${tempUnit}.`);
+    add('essential', 'Climate & Respiratory', 'Thermal base layers', `Core temperature regulation for lows around ${tempLow}${tempUnit}.`, '🧥');
   }
 
   if (tempHigh >= hotThreshold) {
-    add('recommended', 'Climate & Respiratory', 'Daily electrolyte packets', `Highs around ${tempHigh}${tempUnit} will accelerate sodium depletion through sweat.`);
+    add('recommended', 'Climate & Respiratory', 'Daily electrolyte packets', `Highs around ${tempHigh}${tempUnit} will accelerate sodium depletion through sweat.`, '⚡');
   }
 
   if (condition === 'Sunny' || condition === 'Clear') {
-    add('essential', 'Climate & Respiratory', 'Broad-spectrum SPF 50+', 'Essential daily cellular protection against UV radiation.');
+    add('essential', 'Climate & Respiratory', 'Broad-spectrum SPF 50+', 'Essential daily cellular protection against UV radiation.', '🧴');
   }
 
   if (condition === 'Rain' || condition === 'Drizzle' || condition === 'Thunderstorm') {
-    add('essential', 'Climate & Respiratory', 'Compact travel umbrella', 'Active precipitation detected. Maintain external dryness to prevent rapid core heat loss.');
+    add('essential', 'Climate & Respiratory', 'Compact travel umbrella', 'Active precipitation detected. Maintain external dryness to prevent rapid core heat loss.', '☂️');
   }
 
   // ─── SYSTEMIC & DIETARY HEALTH ───
 
   if (profile.shellfishAllergy || profile.peanutAllergy) {
-    add('essential', 'Systemic & Dietary', 'EpiPen (2x) & Antihistamines', 'Critical anaphylaxis protocol. Keep in your personal carry-on item at all times.');
-    add('essential', 'Systemic & Dietary', 'Translated allergy medical cards', 'Ensure exact communication of severe allergies in local dining environments.');
+    add('essential', 'Systemic & Dietary', 'EpiPen (2x) & Antihistamines', 'Critical anaphylaxis protocol. Keep in your personal carry-on item at all times.', '💉');
+    add('essential', 'Systemic & Dietary', 'Translated allergy medical cards', 'Ensure exact communication of severe allergies in local dining environments.', '📇');
   }
 
   if (profile.glutenFree || profile.dairyFree) {
-    add('recommended', 'Systemic & Dietary', 'Broad-spectrum digestive enzymes', 'Mitigates inflammatory response from cross-contamination in restaurant kitchens.');
+    add('recommended', 'Systemic & Dietary', 'Broad-spectrum digestive enzymes', 'Mitigates inflammatory response from cross-contamination in restaurant kitchens.', '💊');
   }
 
   if (profile.sodiumSensitive) {
-    add('recommended', 'Systemic & Dietary', 'Potassium-rich snacks', 'Balances cellular hydration, as travel dining heavily exceeds daily sodium baselines.');
+    add('recommended', 'Systemic & Dietary', 'Potassium-rich snacks', 'Balances cellular hydration, as travel dining heavily exceeds daily sodium baselines.', '🍌');
   }
 
   if (profile.caffeineLimit) {
-    add('optional', 'Systemic & Dietary', 'Magnesium glycinate / Melatonin', 'Supports circadian rhythm adjustment without relying on morning caffeine spikes.');
+    add('optional', 'Systemic & Dietary', 'Magnesium glycinate / Melatonin', 'Supports circadian rhythm adjustment without relying on morning caffeine spikes.', '💤');
   }
 
   // ─── PHYSICAL CONDITIONING ───
 
   if (profile.activityLevel === 'high' || profile.travelType === 'adventure') {
-    add('essential', 'Physical & Transit', 'Hydrocolloid blister dressings', 'Pre-empts structural foot damage from elevated daily step counts.');
-    add('recommended', 'Physical & Transit', 'Graduated compression socks', 'Aids vascular return and reduces lower-extremity edema during transit.');
+    add('essential', 'Physical & Transit', 'Hydrocolloid blister dressings', 'Pre-empts structural foot damage from elevated daily step counts.', '🩹');
+    add('recommended', 'Physical & Transit', 'Graduated compression socks', 'Aids vascular return and reduces lower-extremity edema during transit.', '🧦');
   }
 
   return items;
