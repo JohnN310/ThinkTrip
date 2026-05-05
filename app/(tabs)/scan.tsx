@@ -207,12 +207,12 @@ export default function ScanScreen() {
 
       **USER INQUIRY (OPTIONAL):**
       ${searchQuery.trim() !== ''
-        ? `The user asked a specific question: "${searchQuery}". You MUST provide a direct answer to this question in the 'userAnswer' field of the JSON. Break your answer into short paragraphs or use bullet points ("- ") for maximum readability.`
+        ? `The user asked a specific question: "${searchQuery}". You MUST provide a direct answer to this question in the 'userAnswer' field of the JSON. Break your answer into short paragraphs or use bullet points ("- ") for maximum readability. Do NOT duplicate information in the 'userAnswer' that will already be covered in the 'notes' or 'badges' arrays. Do NOT ask the user for additional information or further guidance in the response.`
         : `No specific question was asked. Omit the 'userAnswer' field entirely.`}
 
       **CRITICAL RULES:**
       1. **IMAGE FIRST:** Extract text, context, and environment details exclusively from the image.
-      2. **TONE:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS, no playful language. Do not output any symbols like 🔠 or 🪂.
+      2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS, no playful language. STRICTLY NO MARKDOWN FORMATTING (do not use **asterisks** or underscores for bolding or italics). Output pure, unformatted text only. Do not output any symbols like 🔠 or 🪂.
       3. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
       4. **CULTURAL CONFIDENCE:** Provide intuitive, English-approximated phonetic pronunciations (in parentheses). DO NOT provide literal, word-by-word English translations of foreign dish names. Instead, provide a clear culinary description.
 
