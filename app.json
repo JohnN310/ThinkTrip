@@ -15,7 +15,7 @@
     },
     "ios": {
       "infoPlist": {
-        "NSCameraUsageDescription": "ThinkTrip uses your camera to translate menus, decode payment etiquette, and read transit signage."
+        "NSCameraUsageDescription": "ThinkTrip uses your camera to decode menu ingredients, explain payment etiquette, and read transit signage."
       }
     },
     "android": {
@@ -33,10 +33,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "ThinkTrip uses your camera to translate menus, decode payment etiquette, and read transit signage."
+          "cameraPermission": "ThinkTrip uses your camera to decode menu ingredients, explain payment etiquette, and read transit signage."
         }
-      ],
-      "expo-localization"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

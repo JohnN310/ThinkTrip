@@ -256,12 +256,14 @@ export default function ScanScreen() {
       }
     `;
 
+    console.log("Prompt: ", prompt);
+
     let contentResult;
     try {
       contentResult = await model.generateContent([prompt, { inlineData: { data: base64Image, mimeType: "image/jpeg" } }]);
     } catch (e) {
-      console.warn("Fallback to gemini-2.5-flash:", e);
-      model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", generationConfig });
+      console.warn("Fallback to gemini-2.5-flash-lite:", e);
+      model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite", generationConfig });
       contentResult = await model.generateContent([prompt, { inlineData: { data: base64Image, mimeType: "image/jpeg" } }]);
     }
     const responseText = contentResult.response.text().trim();

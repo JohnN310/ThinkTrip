@@ -588,9 +588,19 @@ export default function PlanScreen() {
           <View style={styles.headerRow}>
             <View style={styles.headerTextCol}>
               <View>
-                <Text style={[styles.greetingText, { color: colors.foreground }]}>
+                {/* <Text style={[styles.greetingText, { color: colors.foreground }]}>
+                  Where to next{firstName ? `, ${firstName}` : ''}?
+                </Text> */}
+
+                <Text
+                  style={styles.greetingText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.65}
+                >
                   Where to next{firstName ? `, ${firstName}` : ''}?
                 </Text>
+
                 <Text style={[styles.dateText, { color: colors.mutedForeground }]}>{getDateString()}</Text>
               </View>
             </View>
@@ -684,9 +694,9 @@ export default function PlanScreen() {
               <View style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
                 <View style={styles.statIconRow}>
                   <Feather name="thermometer" size={13} color="#a8c2c0" />
-                  <Text style={styles.statLabel}>Temperature</Text>
+                  <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Temperature</Text>
                 </View>
-                <Text style={styles.statValue}>
+                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                   {liveWeather
                     ? (liveWeather.blockMin && liveWeather.blockMin !== liveWeather.blockMax
                       ? `${liveWeather.blockMin}°–${liveWeather.blockMax}°`
@@ -698,9 +708,9 @@ export default function PlanScreen() {
               <View style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
                 <View style={styles.statIconRow}>
                   <Feather name="droplet" size={13} color="#a8c2c0" />
-                  <Text style={styles.statLabel}>Humidity</Text>
+                  <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Humidity</Text>
                 </View>
-                <Text style={styles.statValue}>
+                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                   {liveWeather ? `${liveWeather.humidity}%` : '—'}
                 </Text>
               </View>
@@ -708,9 +718,9 @@ export default function PlanScreen() {
               <View style={[styles.statCard, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
                 <View style={styles.statIconRow}>
                   <Feather name="wind" size={13} color="#a8c2c0" />
-                  <Text style={styles.statLabel}>Air Quality</Text>
+                  <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Air Quality</Text>
                 </View>
-                <Text style={styles.statValue}>
+                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                   {liveWeather ? liveWeather.aqiLabel : '—'}
                 </Text>
               </View>
@@ -972,7 +982,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerArea: { paddingHorizontal: 20, paddingBottom: 0 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  headerTextCol: { height: 60, justifyContent: 'space-between', paddingVertical: 2 },
+  headerTextCol: { flex: 1, paddingRight: 16, height: 60, justifyContent: 'space-between', paddingVertical: 2 },
   greetingText: { fontFamily: 'Inter_700Bold', fontSize: 26, letterSpacing: -0.2, opacity: 0.6 },
   headerAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   headerAvatarText: { fontFamily: 'Inter_700Bold', fontSize: 16, letterSpacing: -0.3 },
@@ -995,7 +1005,7 @@ const styles = StyleSheet.create({
   statsGrid: { flexDirection: 'row', gap: 8 },
   statCard: { flex: 1, borderRadius: 14, padding: 12, gap: 8, justifyContent: 'center', alignItems: 'center', },
   statIconRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statLabel: { color: '#a8c2c0', fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', },
+  statLabel: { flex: 1, color: '#a8c2c0', fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', },
   statValue: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16, textTransform: 'capitalize' },
   searchSection: { paddingHorizontal: 20, paddingTop: 14, gap: 12 },
   searchPill: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, gap: 12 },
