@@ -108,7 +108,7 @@ export default function PlanScreen() {
   const [trueLiveWeather, setTrueLiveWeather] = useState<any>(null);
 
   const heroTheme = useMemo(() => {
-    if (!liveWeather) return { bg: colors.primary, accent: colors.accent, muted: '#a8c2c0' };
+    if (!liveWeather) return { bg: colors.muted, accent: colors.mutedForeground, muted: colors.mutedForeground };
 
     const cond = liveWeather.condition;
     // Premium, clinical weather themes
@@ -714,9 +714,9 @@ export default function PlanScreen() {
                 }
                 if (!liveWeather) {
                   return (
-                    <View style={[styles.weatherBadge, { backgroundColor: 'rgba(245,185,98,0.15)' }]}>
-                      <Feather name="loader" size={11} color={colors.accent} />
-                      <Text style={[styles.weatherBadgeText, { color: colors.accent }]}>Loading...</Text>
+                    <View style={[styles.weatherBadge, { backgroundColor: 'rgba(0,0,0,0.05)' }]}>
+                      <Feather name="loader" size={11} color={heroTheme.accent} />
+                      <Text style={[styles.weatherBadgeText, { color: heroTheme.accent }]}>Loading...</Text>
                     </View>
                   );
                 }
@@ -767,7 +767,7 @@ export default function PlanScreen() {
                   <Feather name="thermometer" size={13} color={heroTheme.muted} />
                   <Text style={[styles.statLabel, { color: heroTheme.muted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Temperature</Text>
                 </View>
-                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                <Text style={[styles.statValue, { color: heroTheme.accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                   {liveWeather
                     ? (liveWeather.blockMin && liveWeather.blockMin !== liveWeather.blockMax
                       ? `${liveWeather.blockMin}°–${liveWeather.blockMax}°`
@@ -781,7 +781,7 @@ export default function PlanScreen() {
                   <Feather name="droplet" size={13} color={heroTheme.muted} />
                   <Text style={[styles.statLabel, { color: heroTheme.muted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Humidity</Text>
                 </View>
-                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                <Text style={[styles.statValue, { color: heroTheme.accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                   {liveWeather ? `${liveWeather.humidity}%` : '—'}
                 </Text>
               </View>
@@ -791,7 +791,7 @@ export default function PlanScreen() {
                   <Feather name="wind" size={13} color={heroTheme.muted} />
                   <Text style={[styles.statLabel, { color: heroTheme.muted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Air Quality</Text>
                 </View>
-                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+                <Text style={[styles.statValue, { color: heroTheme.accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                   {liveWeather ? liveWeather.aqiLabel : '—'}
                 </Text>
               </View>
@@ -814,12 +814,12 @@ export default function PlanScreen() {
               editable={!isSearching}
             />
             <TouchableOpacity
-              style={[styles.searchButton, { backgroundColor: isSearching ? colors.muted : colors.primary }]}
+              style={[styles.searchButton, { backgroundColor: isSearching ? colors.muted : heroTheme.bg }]}
               onPress={handleSearch}
               activeOpacity={0.8}
               disabled={isSearching}
             >
-              <Feather name="arrow-right" size={18} color={isSearching ? colors.mutedForeground : colors.accent} />
+              <Feather name="arrow-right" size={18} color={isSearching ? colors.mutedForeground : heroTheme.accent} />
             </TouchableOpacity>
           </View>
 
@@ -837,8 +837,8 @@ export default function PlanScreen() {
                   style={[
                     styles.chip,
                     {
-                      backgroundColor: isActive ? colors.primary : colors.card,
-                      borderColor: isActive ? colors.primary : colors.border,
+                      backgroundColor: isActive ? heroTheme.bg : colors.card,
+                      borderColor: isActive ? heroTheme.bg : colors.border,
                     }
                   ]}
                 >
@@ -850,7 +850,7 @@ export default function PlanScreen() {
                       style={{ marginRight: 6 }}
                     />
                   )}
-                  <Text style={[styles.chipText, { color: isActive ? colors.accent : colors.foreground }]}>
+                  <Text style={[styles.chipText, { color: isActive ? heroTheme.accent : colors.foreground }]}>
                     {city}
                   </Text>
                 </TouchableOpacity>
