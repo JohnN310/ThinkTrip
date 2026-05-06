@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, TextInput, Keyboard, LayoutAnimation, UIManager } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, TextInput, Keyboard, LayoutAnimation, UIManager, Linking } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -21,6 +21,7 @@ type Mode = 'Menu' | 'Payment' | 'Transit';
 interface ScanResult {
   title: string;
   userAnswer?: string;
+  mapLocationName?: string;
   badges: { type: 'warn' | 'good' | 'info'; text: string }[];
   notes: { title: string; body: string }[];
 }
@@ -85,6 +86,25 @@ export default function ScanScreen() {
         cameraRef.current.resumePreview();
       }
     });
+  };
+
+  const openMap = async (query: string) => {
+    const encodedQuery = encodeURIComponent(query);
+    const url = Platform.select({
+      ios: `maps://?q=${encodedQuery}`,
+      android: `google.navigation:q=${encodedQuery}`
+    });
+
+    try {
+      const supported = await Linking.canOpenURL(url!);
+      if (supported) {
+        await Linking.openURL(url!);
+      } else {
+        Alert.alert("Map Unavailable", "Could not open the map application.");
+      }
+    } catch (error) {
+      console.error("Linking error:", error);
+    }
   };
 
   const CAPTIONS = [
@@ -222,6 +242,7 @@ export default function ScanScreen() {
       3. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
       4. **CULTURAL CONFIDENCE:** Provide intuitive, English-approximated phonetic pronunciations (in parentheses). DO NOT provide literal, word-by-word English translations of foreign dish names. Instead, provide a clear culinary description.
       5. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question. Do not summarize or repeat your recommended options, strict avoids, or behavioral norms in the 'userAnswer'. Keep the structured data strictly isolated within the 'notes' array.
+      6. **GEOGRAPHIC SPECIFICITY & DEEP ROUTING:** If the user's inquiry or the image context specifies a highly granular sub-location (e.g., "Departures 3", "Gate B12", "Platform 4"), your 'mapLocationName' MUST be as specific as possible. To do this securely, you MUST combine the specific sub-location with the FULL, OFFICIAL parent POI name or building name (e.g., "Departures 3, Hartsfield-Jackson Airport" or "Platform 4, Gare du Nord"). Do NOT just return the generic parent airport or station name if a deeper, specific destination is known. However, STILL DO NOT generate map locations for generic local bus stops or ambiguous street signs (e.g., "M41").
 
       **MODE ADAPTATION:**
       If Mode is 'Menu':
@@ -254,7 +275,7 @@ export default function ScanScreen() {
       {
         "title": "Short Title (In English)",
         "userAnswer": "Formatted direct answer using \\n for paragraph breaks and '- ' for bullet points. Do NOT duplicate 'notes' content here (omit if no inquiry was made)",
-        "badges": [
+        "mapLocationName": "The EXACT name of a major transit POI or specific terminal/gate combined with the FULL, OFFICIAL parent location name (e.g., 'Gate B12, Hartsfield-Jackson Atlanta International Airport'). MUST BE OMITTED if the image is a generic bus stop, street sign, or ambiguous local location.",        "badges": [
           { "type": "good" | "warn" | "info", "text": "Short badge text" }
         ],
         "notes": [
@@ -701,6 +722,31 @@ export default function ScanScreen() {
                 </View>
               )}
 
+              {mode === 'Transit' && result?.mapLocationName && (
+                <TouchableOpacity
+                  style={[styles.mapsButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => openMap(result.mapLocationName!)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.mapsIconBox, { backgroundColor: colors.primary }]}>
+                    <Feather name="navigation" size={16} color={colors.primaryForeground} />
+                  </View>
+
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <Text style={[styles.mapsButtonTitle, { color: colors.foreground }]}>Open in Maps</Text>
+                    <Text
+                      style={[styles.mapsButtonSubtitle, { color: colors.mutedForeground }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {result.mapLocationName}
+                    </Text>
+                  </View>
+
+                  <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              )}
+
               <View style={styles.badgeRow}>
                 {result?.badges.map((b, i) => {
                   let bg = colors.muted;
@@ -846,4 +892,22 @@ const styles = StyleSheet.create({
   userAnswerBox: { padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 18, gap: 6 },
   userAnswerLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.2 },
   userAnswerText: { fontFamily: 'Inter_500Medium', fontSize: 14, lineHeight: 20 },
+  mapsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 20
+  },
+  mapsIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12
+  },
+  mapsButtonTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  mapsButtonSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 1 },
 });
