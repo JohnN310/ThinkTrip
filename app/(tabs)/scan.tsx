@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, TextInput, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, TextInput, Keyboard, LayoutAnimation, UIManager } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +9,11 @@ import { useProfile } from '../../contexts/ProfileContext';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { BlurView } from 'expo-blur';
+const { width, height } = Dimensions.get('window');
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 
 type Mode = 'Menu' | 'Payment' | 'Transit';
@@ -28,6 +33,7 @@ export default function ScanScreen() {
   const { profile } = useProfile();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
 
   const [mode, setMode] = useState<Mode>('Menu');
   const [analyzing, setAnalyzing] = useState(false);
@@ -193,7 +199,7 @@ export default function ScanScreen() {
     const generationConfig = {
       responseMimeType: "application/json",
     };
-    let model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", generationConfig });
+    let model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview", generationConfig });
 
     const prompt = `
       You are the intelligence engine for "ThinkTrip", a premium, clinical, biometrically-aware travel OS. 
@@ -207,14 +213,15 @@ export default function ScanScreen() {
 
       **USER INQUIRY (OPTIONAL):**
       ${searchQuery.trim() !== ''
-        ? `The user asked a specific question: "${searchQuery}". You MUST provide a direct answer to this question in the 'userAnswer' field of the JSON. Break your answer into short paragraphs or use bullet points ("- ") for maximum readability. Do NOT duplicate information in the 'userAnswer' that will already be covered in the 'notes' or 'badges' arrays. Do NOT ask the user for additional information or further guidance in the response.`
+        ? `The user asked a specific question: "${searchQuery}". You MUST provide a direct answer to this question in the 'userAnswer' field of the JSON. Break your answer into short paragraphs or use bullet points ("- ") for maximum readability. Do NOT ask the user for additional information or further guidance in the response.`
         : `No specific question was asked. Omit the 'userAnswer' field entirely.`}
 
       **CRITICAL RULES:**
       1. **IMAGE FIRST:** Extract text, context, and environment details exclusively from the image.
-      2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS, no playful language. STRICTLY NO MARKDOWN FORMATTING (do not use **asterisks** or underscores for bolding or italics). Output pure, unformatted text only. Do not output any symbols like 🔠 or 🪂.
+      2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS, no playful language. STRICTLY NO MARKDOWN FORMATTING (do not use **asterisks** or underscores for bolding or italics). Output pure, unformatted text only. Do not output any symbols like 🔠 or 🪂. Break your answer into short paragraphs or use bullet points ("- ") for maximum readability.
       3. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
       4. **CULTURAL CONFIDENCE:** Provide intuitive, English-approximated phonetic pronunciations (in parentheses). DO NOT provide literal, word-by-word English translations of foreign dish names. Instead, provide a clear culinary description.
+      5. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question. Do not summarize or repeat your recommended options, strict avoids, or behavioral norms in the 'userAnswer'. Keep the structured data strictly isolated within the 'notes' array.
 
       **MODE ADAPTATION:**
       If Mode is 'Menu':
@@ -223,8 +230,8 @@ export default function ScanScreen() {
         - Analyze the menu collectively against the User's Baseline.
         - Badges: Flag high-level context (e.g., "warn" for "Heavy Dairy Use", "info" for "English Spoken", "good" for "Diet-Friendly Options").
         - Notes: Provide exactly three notes:
-           1. "Recommended Options": 2-3 specific safe dishes matching the Baseline. Include the original name and a simple phonetic pronunciation so the user can order confidently.
-           2. "Strict Avoids": Hidden ingredients or specific dishes that violate their Baseline.
+           1. "Recommended Options": 2-3 specific safe dishes matching the Baseline. Include the original name and a simple phonetic pronunciation so the user can order confidently. Use bullet points ("- ").
+           2. "Strict Avoids": Hidden ingredients or specific dishes that violate their Baseline. Use bullet points ("- ").
            3. "Ordering & Interactions": Practical advice on how to order. If suggesting a phrase, provide ONE short, culturally accurate phrase (like requesting a modification) with a clear English-approximated phonetic spelling (e.g., "To request no cilantro, say 'Không ngò' (kohng ngo)"). Focus on behavior over complex language.
 
       If Mode is 'Payment':
@@ -246,25 +253,31 @@ export default function ScanScreen() {
       **REQUIRED JSON STRUCTURE:**
       {
         "title": "Short Title (In English)",
-        "userAnswer": "Formatted direct answer using \\n for paragraph breaks and '- ' for bullet points (omit if no inquiry was made)",
+        "userAnswer": "Formatted direct answer using \\n for paragraph breaks and '- ' for bullet points. Do NOT duplicate 'notes' content here (omit if no inquiry was made)",
         "badges": [
           { "type": "good" | "warn" | "info", "text": "Short badge text" }
         ],
         "notes": [
-          { "title": "Category (e.g., Behavioral Norms)", "body": "Clinical, concise explanation with phonetic phrasing if needed. Use \\n for paragraph breaks and '- ' for bullet points." }
+          { "title": "Category (e.g., Behavioral Norms)", "body": "Clinical, concise explanation with phonetic phrasing if needed. CRITICAL: Use \\n for paragraph breaks and '- ' for bullet points." }
         ]
       }
     `;
 
     console.log("Prompt: ", prompt);
 
-    let contentResult;
+    let contentResult: any;
     try {
       contentResult = await model.generateContent([prompt, { inlineData: { data: base64Image, mimeType: "image/jpeg" } }]);
     } catch (e) {
       console.warn("Fallback to gemini-2.5-flash-lite:", e);
-      model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite", generationConfig });
-      contentResult = await model.generateContent([prompt, { inlineData: { data: base64Image, mimeType: "image/jpeg" } }]);
+
+      try {
+        model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite", generationConfig });
+        contentResult = await model.generateContent([prompt, { inlineData: { data: base64Image, mimeType: "image/jpeg" } }]);
+      } catch (e) {
+        console.warn("Both models failed :( ", e);
+        throw new Error("AI analysis failed after multiple attempts.");
+      }
     }
     const responseText = contentResult.response.text().trim();
     return JSON.parse(responseText) as ScanResult;
@@ -566,22 +579,58 @@ export default function ScanScreen() {
 
       {/* ─── TOP SEARCH BAR & PILL ─── */}
       <View style={[styles.topOverlay, { paddingTop: insets.top || 20 }]}>
-        <View style={styles.searchBar}>
-          <Feather name="search" size={18} color="#fff" style={{ opacity: 0.8 }} />
+        <View style={[styles.searchBar, isSearchExpanded && styles.searchBarExpanded]}>
+
+          {/* 1. Wrap the icon in a static View so it doesn't stretch vertically */}
+          <View style={{ paddingTop: Platform.OS === 'android' ? 4 : 2 }}>
+            <Feather
+              name="search"
+              size={18}
+              color="#fff"
+              style={{ opacity: 0.8 }}
+            />
+          </View>
+
           <TextInput
+            // 2. CRITICAL: Remove the dynamic array. Use ONLY the static style.
             style={styles.searchInput}
             placeholder="Ask a specific question (optional)..."
             placeholderTextColor="rgba(255,255,255,0.6)"
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="done"
+            blurOnSubmit={true}
+            multiline={true}
+            textAlignVertical="top"
             onSubmitEditing={Keyboard.dismiss}
+            onFocus={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setIsSearchExpanded(true);
+            }}
+            onBlur={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setIsSearchExpanded(false);
+            }}
           />
+
+          {isSearchExpanded && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={Keyboard.dismiss}
+              style={styles.promptActionBtn}
+            >
+              <Feather name="arrow-up" size={18} color="#0a1f1e" />
+            </TouchableOpacity>
+          )}
         </View>
-        <View style={styles.topPill}>
-          <View style={styles.liveDot} />
-          <Text style={styles.topPillText}>LIVE • {mode.toUpperCase()}</Text>
-        </View>
+
+        {/* Hide the pill when expanded to keep the UI clean */}
+        {!isSearchExpanded && (
+          <View style={styles.topPill}>
+            <View style={styles.liveDot} />
+            <Text style={styles.topPillText}>LIVE • {mode.toUpperCase()}</Text>
+          </View>
+        )}
       </View>
 
       {/* Spacer to push bottom bar down */}
@@ -702,18 +751,42 @@ const styles = StyleSheet.create({
   topOverlay: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 20, zIndex: 10 },
   searchBar: {
     flexDirection: 'row',
-    alignItems: 'center',
+    // Change this to stretch so the TextInput grows naturally with the parent
+    alignItems: 'stretch',
     backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    // 1. Lock the padding here permanently so it never shifts
+    paddingVertical: 14,
     gap: 12,
     width: '100%',
     marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  searchInput: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15, color: '#fff' },
+  searchBarExpanded: {
+    height: Dimensions.get('window').height * 0.35,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+    color: '#fff',
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  promptActionBtn: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5b962',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   topPill: { backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#f5b962' },
   topPillText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.2, color: '#fff' },
