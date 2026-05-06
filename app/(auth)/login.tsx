@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Animated,
-  Keyboard
+  Keyboard,
+  Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -125,8 +126,11 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={[styles.iconContainer, { backgroundColor: colors.primary }]}>
-            <Feather name="compass" size={32} color={colors.accent} />
+          <View style={styles.iconContainer}>
+            <Image 
+              source={require('../../assets/images/icon.png')} 
+              style={{ width: 64, height: 64, borderRadius: 18 }} 
+            />
           </View>
           <Text style={[styles.title, { color: colors.foreground }]}>ThinkTrip</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
