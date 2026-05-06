@@ -692,7 +692,7 @@ export default function ScanScreen() {
               <Text style={[styles.sheetTitle, { color: colors.foreground }]}>{result?.title}</Text>
 
               {result?.userAnswer && (
-                <View style={[styles.userAnswerBox, { backgroundColor: 'rgba(13, 59, 58, 0.08)', borderColor: 'rgba(13, 59, 58, 0.12)' }]}>
+                <View style={[styles.userAnswerBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                   <Text style={[styles.userAnswerLabel, { color: colors.primary }]}>DIRECT ANSWER</Text>
                   {/* Apply formatting to the direct answer too */}
                   <View style={{ marginTop: 4 }}>
@@ -707,9 +707,13 @@ export default function ScanScreen() {
                   let dot = colors.primary;
                   let label = colors.foreground;
                   if (b.type === 'warn') {
-                    bg = '#fdf2dc'; dot = '#a76b18'; label = '#7a4f12';
+                    bg = colors.isDark ? 'rgba(245, 185, 98, 0.15)' : '#fdf2dc';
+                    dot = colors.isDark ? '#f5b962' : '#a76b18';
+                    label = colors.isDark ? '#f5b962' : '#7a4f12';
                   } else if (b.type === 'good') {
-                    bg = '#dff1e1'; dot = '#15803d'; label = '#14532d';
+                    bg = colors.isDark ? 'rgba(21, 128, 61, 0.2)' : '#dff1e1';
+                    dot = colors.isDark ? '#4ade80' : '#15803d';
+                    label = colors.isDark ? '#4ade80' : '#14532d';
                   }
                   return (
                     <View key={i} style={[styles.badge, { backgroundColor: bg }]}>

@@ -24,6 +24,7 @@ export interface ProfileContextState {
   expoPushToken?: string;
   avatarEmoji?: string;
   avatarColor?: string;
+  themePreference?: "system" | "light" | "dark";
 }
 
 export type Priority = 'essential' | 'recommended' | 'optional';

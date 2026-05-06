@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, useColorScheme } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useColors } from '../../hooks/useColors';
 import { Feather } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { SymbolView } from 'expo-symbols';
 
 export default function TabLayout() {
   const colors = useColors();
+  const colorScheme = useColorScheme();
 
   return (
     <Tabs
@@ -37,11 +38,11 @@ export default function TabLayout() {
         tabBarBackground: () =>
           Platform.OS === 'ios' ? (
             <BlurView
-              tint="light"
+              tint={colors.isDark ? 'dark' : 'light'}
               intensity={100}
               style={{
                 ...StyleSheet.absoluteFillObject,
-                borderTopColor: 'rgba(0,0,0,0.05)',
+                borderTopColor: colors.border,
                 borderTopWidth: StyleSheet.hairlineWidth,
               }}
             />

@@ -28,6 +28,7 @@ const DEFAULT_PROFILE: ProfileContextState = {
   savedLocations: [],
   avatarEmoji: '',
   avatarColor: '#0d3b3a',
+  themePreference: 'system',
 };
 
 interface ProfileContextValue {

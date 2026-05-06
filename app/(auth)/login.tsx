@@ -136,16 +136,16 @@ export default function LoginScreen() {
 
         <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {errorMsg ? (
-            <View style={[styles.errorBox, { backgroundColor: '#fbe7da', borderColor: colors.destructive + '33' }]}>
+            <View style={[styles.errorBox, { backgroundColor: colors.isDark ? 'rgba(224, 90, 40, 0.15)' : '#fbe7da', borderColor: colors.destructive + '33' }]}>
               <Feather name="alert-triangle" size={16} color={colors.destructive} />
               <Text style={[styles.errorText, { color: colors.destructive }]}>{errorMsg}</Text>
             </View>
           ) : null}
 
           {successMsg ? (
-            <View style={[styles.errorBox, { backgroundColor: '#dff1e1', borderColor: '#15803d33' }]}>
-              <Feather name="check-circle" size={16} color="#15803d" />
-              <Text style={[styles.errorText, { color: '#14532d' }]}>{successMsg}</Text>
+            <View style={[styles.errorBox, { backgroundColor: colors.isDark ? 'rgba(21, 128, 61, 0.2)' : '#dff1e1', borderColor: colors.isDark ? 'rgba(21, 128, 61, 0.3)' : '#15803d33' }]}>
+              <Feather name="check-circle" size={16} color={colors.isDark ? '#4ade80' : '#15803d'} />
+              <Text style={[styles.errorText, { color: colors.isDark ? '#4ade80' : '#14532d' }]}>{successMsg}</Text>
             </View>
           ) : null}
 

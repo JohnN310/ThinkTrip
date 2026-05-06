@@ -658,7 +658,7 @@ export default function PlanScreen() {
                 </Text> */}
 
                 <Text
-                  style={styles.greetingText}
+                  style={[styles.greetingText, { color: colors.foreground }]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.65}
@@ -877,11 +877,11 @@ export default function PlanScreen() {
                 let icon: any = 'info';
 
                 if (alert.level === 'warn') {
-                  bg = '#fdf2dc';
+                  bg = colors.isDark ? 'rgba(245, 185, 98, 0.12)' : '#fdf2dc';
                   accent = '#a76b18';
                   icon = 'alert-triangle';
                 } else if (alert.level === 'critical') {
-                  bg = '#fbe7da';
+                  bg = colors.isDark ? 'rgba(224, 90, 40, 0.15)' : '#fbe7da';
                   accent = colors.destructive;
                   icon = 'alert-octagon';
                 }
@@ -992,7 +992,7 @@ export default function PlanScreen() {
               transform: [{ translateY: slideAnim }] // Drives the spring upward
             }
           ]}>
-            <View style={styles.sheetHandle} />
+            <View style={[styles.sheetHandle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]} />
 
             <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -1039,7 +1039,7 @@ export default function PlanScreen() {
                     style={[styles.forecastItem, { borderColor: index === selectedDayIndex ? colors.accent : colors.border }]}
                   >
                     <View style={{ gap: 4 }}>
-                      <Text style={styles.forecastDayName}>{dayName}</Text>
+                      <Text style={[styles.forecastDayName, { color: colors.foreground }]}>{dayName}</Text>
                       <Text style={[styles.forecastCondition, { color: colors.mutedForeground }]}>{weather.displayCondition || weather.condition}</Text>
                     </View>
                     <Text style={[styles.forecastTemp, { color: colors.foreground }]}>
@@ -1115,7 +1115,7 @@ const styles = StyleSheet.create({
   divider: { height: 1 },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 14 },
-  sheetHandle: { width: 38, height: 4, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  sheetHandle: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   forecastItem: {
     flexDirection: 'row',
     alignItems: 'center',

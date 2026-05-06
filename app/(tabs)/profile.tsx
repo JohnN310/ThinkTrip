@@ -26,7 +26,7 @@ const AVATAR_EMOJIS = [
   '🌵', '🍣', '🍷', '🏕️', '🌅', '🚲', '🍕', '🏄'
 ];
 
-type SheetType = 'Account' | 'Skin' | 'Diet' | 'Travel' | 'Units' | 'About' | null;
+type SheetType = 'Account' | 'Skin' | 'Diet' | 'Travel' | 'Units' | 'About' | 'Theme' | null;
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -348,7 +348,20 @@ export default function ProfileScreen() {
         </View>
       );
     }
-    return null;
+    if (activeSheet === 'Theme') {
+      return (
+        <View style={{ gap: 18 }}>
+          <SegmentedControl 
+            options={['system', 'light', 'dark']} 
+            value={draft.themePreference || 'system'} 
+            onChange={(v: any) => setDraft({ themePreference: v })} 
+          />
+          <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.mutedForeground, textAlign: 'center', marginTop: 4 }}>
+            System mode will automatically adapt to your device's control center settings.
+          </Text>
+        </View>
+      );
+    }
   };
 
   const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -390,24 +403,24 @@ export default function ProfileScreen() {
 
         <SettingsGroup title="HEALTH BASELINE">
           <SettingsRow
-            icon={<Feather name="droplet" size={16} color="#1d4e89" />}
-            iconBackgroundColor="#e9eef3"
+            icon={<Feather name="droplet" size={16} color={colors.isDark ? '#bae6fd' : '#1d4e89'} />}
+            iconBackgroundColor={colors.muted}
             label="Skin & body"
             description={`${capitalize(profile.skinType)}${skinActiveCount > 0 ? ` • ${skinActiveCount} active` : ''}`}
             rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />}
             onPress={() => setActiveSheet('Skin')}
           />
           <SettingsRow
-            icon={<Feather name="coffee" size={16} color="#a76b18" />}
-            iconBackgroundColor="#f5e9d6"
+            icon={<Feather name="coffee" size={16} color={colors.accent} />}
+            iconBackgroundColor={colors.muted}
             label="Diet & allergies"
             description={dietActiveCount > 0 ? `${dietActiveCount} restriction(s) active` : 'None set'}
             rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />}
             onPress={() => setActiveSheet('Diet')}
           />
           <SettingsRow
-            icon={<Feather name="briefcase" size={16} color="#15803d" />}
-            iconBackgroundColor="#e6f0ec"
+            icon={<Feather name="briefcase" size={16} color={colors.isDark ? '#86efac' : '#15803d'} />}
+            iconBackgroundColor={colors.muted}
             label="Travel context"
             description={`${capitalize(profile.travelType)} • ${capitalize(profile.activityLevel)} activity`}
             rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />}
@@ -458,6 +471,17 @@ export default function ProfileScreen() {
               />
             }
           />
+          <SettingsRow
+            icon={<Feather name="moon" size={16} color={colors.foreground} />}
+            label="Appearance"
+            rightElement={
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 15, color: colors.mutedForeground }}>{capitalize(profile.themePreference || 'system')}</Text>
+                <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+              </View>
+            }
+            onPress={() => setActiveSheet('Theme')}
+          />
         </SettingsGroup>
 
         <SettingsGroup title="PRIVACY & DATA">
@@ -495,8 +519,8 @@ export default function ProfileScreen() {
           <View style={{ flex: 1 }} onTouchEnd={handleCancel} />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[styles.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 20 }]}>
-              <View style={styles.sheetHandle} />
-              <View style={styles.sheetHeader}>
+              <View style={[styles.sheetHandle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]} />
+              <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
                 <TouchableOpacity onPress={handleCancel} style={{ flex: 1 }}><Text style={[styles.sheetActionText, { color: colors.mutedForeground }]}>Cancel</Text></TouchableOpacity>
                 <Text style={[styles.sheetTitle, { color: colors.foreground }]}>{activeSheet}</Text>
                 <TouchableOpacity onPress={handleSave} disabled={!isDirty || activeSheet === 'About' || isSaving} style={{ flex: 1, alignItems: 'flex-end' }}>
@@ -535,8 +559,8 @@ const styles = StyleSheet.create({
 
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 10 },
-  sheetHandle: { width: 38, height: 4, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(0,0,0,0.1)' },
+  sheetHandle: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth },
   sheetActionText: { fontFamily: 'Inter_500Medium', fontSize: 15 },
   sheetTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
 
