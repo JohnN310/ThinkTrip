@@ -523,16 +523,16 @@ export default function ScanScreen() {
 
   if (!permission.granted) {
     return (
-      <View style={[styles.deniedContainer, { backgroundColor: colors.card, paddingTop: insets.top + 40 }]}>
-        <View style={styles.deniedIconBox}>
-          <Feather name="camera" size={28} color={colors.accent} />
+      <View style={[styles.deniedContainer, { backgroundColor: colors.card, paddingBottom: insets.bottom + 80 }]}>
+        <View style={[styles.deniedIconBox, { backgroundColor: colors.primary }]}>
+          <Feather name="camera" size={28} color={colors.primaryForeground} />
         </View>
         <Text style={[styles.deniedTitle, { color: colors.foreground }]}>Enable Camera Access</Text>
         <Text style={[styles.deniedBody, { color: colors.mutedForeground }]}>
           Camera access powers menu translation, payment etiquette, and transit decoding. Photos never leave your device.
         </Text>
         <TouchableOpacity style={[styles.enableBtn, { backgroundColor: colors.primary }]} onPress={requestPermission}>
-          <Text style={[styles.enableBtnText, { color: colors.accent }]}>Enable Camera</Text>
+          <Text style={[styles.enableBtnText, { color: colors.primaryForeground }]}>Enable Camera</Text>
         </TouchableOpacity>
       </View>
     );
@@ -544,10 +544,10 @@ export default function ScanScreen() {
 
       {/* ─── RETICLE FRAME (From Sketch) ─── */}
       <View style={styles.reticleContainer} pointerEvents="none">
-        <View style={[styles.corner, styles.topLeft, { borderColor: colors.accent }]} />
-        <View style={[styles.corner, styles.topRight, { borderColor: colors.accent }]} />
-        <View style={[styles.corner, styles.bottomLeft, { borderColor: colors.accent }]} />
-        <View style={[styles.corner, styles.bottomRight, { borderColor: colors.accent }]} />
+        <View style={[styles.corner, styles.topLeft, { borderColor: colors.primary }]} />
+        <View style={[styles.corner, styles.topRight, { borderColor: colors.primary }]} />
+        <View style={[styles.corner, styles.bottomLeft, { borderColor: colors.primary }]} />
+        <View style={[styles.corner, styles.bottomRight, { borderColor: colors.primary }]} />
       </View>
 
       {/* ─── CAPTURE BLUR SURROUND ─── */}
@@ -569,7 +569,7 @@ export default function ScanScreen() {
 
           {/* Central Content */}
           <View style={{ alignItems: 'center', gap: 20 }}>
-            <ActivityIndicator size="large" color={colors.accent} />
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.analyzingCaption}>
               {captionIndex < CAPTIONS.length ? CAPTIONS[captionIndex] : 'Almost there....'}
             </Text>
@@ -649,12 +649,12 @@ export default function ScanScreen() {
               return (
                 <TouchableOpacity
                   key={m}
-                  style={[styles.modeBtn, isActive && { backgroundColor: colors.accent }]}
+                  style={[styles.modeBtn, isActive && { backgroundColor: colors.primary }]}
                   onPress={() => setMode(m)}
                   disabled={analyzing}
                 >
-                  <Feather name={icon} size={14} color={isActive ? '#0a1f1e' : '#fff'} />
-                  <Text style={[styles.modeBtnText, { color: isActive ? '#0a1f1e' : '#fff' }]}>{m}</Text>
+                  <Feather name={icon} size={14} color={isActive ? colors.primaryForeground : '#fff'} />
+                  <Text style={[styles.modeBtnText, { color: isActive ? colors.primaryForeground : '#fff' }]}>{m}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -670,7 +670,7 @@ export default function ScanScreen() {
             {analyzing ? (
               <ActivityIndicator color="#0a1f1e" />
             ) : (
-              <Feather name="zap" size={22} color="#0a1f1e" />
+              <Feather name="zap" size={22} color="#f4fffeff" />
             )}
           </View>
         </TouchableOpacity>
@@ -737,7 +737,7 @@ export default function ScanScreen() {
               </View>
 
               <TouchableOpacity style={[styles.gotItBtn, { backgroundColor: colors.primary }]} onPress={closeSheet}>
-                <Text style={[styles.gotItText, { color: colors.accent }]}>Got it</Text>
+                <Text style={[styles.gotItText, { color: colors.primaryForeground }]}>Got it</Text>
               </TouchableOpacity>
             </ScrollView>
           </Animated.View>
@@ -787,26 +787,26 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f5b962',
+    backgroundColor: '#5c7ce5',
     alignItems: 'center',
     justifyContent: 'center',
   },
   topPill: { backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#f5b962' },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#5c7ce5' },
   topPillText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.2, color: '#fff' },
 
   // -- Bracket Reticle --
   reticleContainer: { position: 'absolute', top: '16%', bottom: '32%', left: '10%', right: '10%', zIndex: 5 },
-  corner: { position: 'absolute', width: 40, height: 40, borderColor: '#f5b962' },
+  corner: { position: 'absolute', width: 40, height: 40, borderColor: '#5c7ce5' },
   topLeft: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 16 },
   topRight: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 16 },
   bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 16 },
   bottomRight: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 16 },
 
-  deniedContainer: { flex: 1, paddingHorizontal: 28, alignItems: 'center' },
-  deniedIconBox: { width: 64, height: 64, backgroundColor: '#0d3b3a', borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  deniedTitle: { fontFamily: 'Inter_700Bold', fontSize: 22, letterSpacing: -0.4, textAlign: 'center', marginTop: 12, marginBottom: 24 },
-  deniedBody: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: 28 },
+  deniedContainer: { flex: 1, paddingHorizontal: 28, alignItems: 'center', justifyContent: 'center' },
+  deniedIconBox: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  deniedTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, letterSpacing: -0.5, textAlign: 'center', marginTop: 24, marginBottom: 12 },
+  deniedBody: { fontFamily: 'Inter_400Regular', fontSize: 16, lineHeight: 24, textAlign: 'center', marginBottom: 32, opacity: 0.8 },
   enableBtn: { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 12 },
   enableBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
 
@@ -819,7 +819,7 @@ const styles = StyleSheet.create({
   modeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
 
   shutterRing: { width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  shutterInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#f5b962', alignItems: 'center', justifyContent: 'center' },
+  shutterInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#5c7ce5', alignItems: 'center', justifyContent: 'center' },
   captionText: { color: '#fff', fontFamily: 'Inter_500Medium', fontSize: 12, opacity: 0.8, letterSpacing: 1 },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

@@ -16,9 +16,9 @@ import { ToggleRow } from '../../components/ToggleRow';
 import { SegmentedControl } from '../../components/SegmentedControl';
 
 const AVATAR_COLORS = [
-  '#0d3b3a', '#1d4e89', '#a76b18', '#15803d', '#c2410c', '#b91c1c', 
-  '#4338ca', '#6b21a8', '#be185d', '#0f766e', '#3f6212', '#1e3a8a', 
-  '#581c87', '#9f1239', '#b45309', '#475569'
+  '#5c7ce5', '#4338ca', '#1d4e89', '#2563eb', '#4f46e5', '#6366f1',
+  '#a76b18', '#15803d', '#c2410c', '#b91c1c', '#6b21a8', '#be185d',
+  '#0f766e', '#3f6212', '#1e3a8a', '#581c87', '#9f1239', '#b45309', '#475569'
 ];
 
 const AVATAR_EMOJIS = [
@@ -508,8 +508,8 @@ export default function ProfileScreen() {
 
       {showToast && (
         <View style={[styles.toast, { backgroundColor: colors.primary, bottom: insets.bottom + 100 }]}>
-          <Feather name="check" size={14} color={colors.accent} />
-          <Text style={[styles.toastText, { color: colors.accent }]}>Saved</Text>
+          <Feather name="check" size={14} color={colors.primaryForeground} />
+          <Text style={[styles.toastText, { color: colors.primaryForeground }]}>Saved</Text>
         </View>
       )}
 

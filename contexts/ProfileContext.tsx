@@ -27,7 +27,7 @@ const DEFAULT_PROFILE: ProfileContextState = {
   liveAlertsEnabled: false,
   savedLocations: [],
   avatarEmoji: '',
-  avatarColor: '#0d3b3a',
+  avatarColor: '#5c7ce5',
   themePreference: 'system',
 };
 
