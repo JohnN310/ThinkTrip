@@ -18,6 +18,26 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 type Mode = 'Menu' | 'Payment' | 'Transit';
 
+const PROMPT_SUGGESTIONS: Record<Mode, string[]> = {
+  Menu: [
+    "What is the most traditional dish on this page?",
+    "Which of these takes the longest to prepare?",
+    "Are any of these dishes meant to be shared?",
+    "What is a standard drink pairing for the top item?"
+  ],
+  Payment: [
+    "Do they accept international Visa/Mastercard?",
+    "Is it polite to split the bill (go Dutch) here?",
+    "Do I pay at the table or at the register?"
+  ],
+  Transit: [
+    "How do I get to Terminal...",
+    "Where is Gate...",
+    "Is it polite to talk on the phone on this train?",
+    "Do I need to buy a ticket before boarding?"
+  ]
+};
+
 interface ScanResult {
   title: string;
   userAnswer?: string;
@@ -564,12 +584,14 @@ export default function ScanScreen() {
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="back" />
 
       {/* ─── RETICLE FRAME (From Sketch) ─── */}
-      <View style={styles.reticleContainer} pointerEvents="none">
-        <View style={[styles.corner, styles.topLeft, { borderColor: colors.primary }]} />
-        <View style={[styles.corner, styles.topRight, { borderColor: colors.primary }]} />
-        <View style={[styles.corner, styles.bottomLeft, { borderColor: colors.primary }]} />
-        <View style={[styles.corner, styles.bottomRight, { borderColor: colors.primary }]} />
-      </View>
+      {!isSearchExpanded && (
+        <View style={styles.reticleContainer} pointerEvents="none">
+          <View style={[styles.corner, styles.topLeft, { borderColor: colors.primary }]} />
+          <View style={[styles.corner, styles.topRight, { borderColor: colors.primary }]} />
+          <View style={[styles.corner, styles.bottomLeft, { borderColor: colors.primary }]} />
+          <View style={[styles.corner, styles.bottomRight, { borderColor: colors.primary }]} />
+        </View>
+      )}
 
       {/* ─── CAPTURE BLUR SURROUND ─── */}
       {isCaptured && (
@@ -602,46 +624,71 @@ export default function ScanScreen() {
       <View style={[styles.topOverlay, { paddingTop: insets.top || 20 }]}>
         <View style={[styles.searchBar, isSearchExpanded && styles.searchBarExpanded]}>
 
-          {/* 1. Wrap the icon in a static View so it doesn't stretch vertically */}
-          <View style={{ paddingTop: Platform.OS === 'android' ? 4 : 2 }}>
-            <Feather
-              name="search"
-              size={18}
-              color="#fff"
-              style={{ opacity: 0.8 }}
+          {/* Top Row: Icon & Input */}
+          <View style={styles.searchInputWrapper}>
+            <View style={{ paddingTop: Platform.OS === 'android' ? 4 : 2 }}>
+              <Feather
+                name="search"
+                size={18}
+                color="#fff"
+                style={{ opacity: 0.8 }}
+              />
+            </View>
+
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Ask a specific question (optional)..."
+              placeholderTextColor="rgba(255,255,255,0.6)"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="done"
+              blurOnSubmit={true}
+              multiline={true}
+              textAlignVertical="top"
+              onSubmitEditing={Keyboard.dismiss}
+              onFocus={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setIsSearchExpanded(true);
+              }}
+              onBlur={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setIsSearchExpanded(false);
+              }}
             />
+
+            {/* Submit / Minimize Button — lives in the row so it never overlaps suggestions */}
+            {isSearchExpanded && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={Keyboard.dismiss}
+                style={styles.promptActionBtn}
+              >
+                <Feather name="arrow-up" size={18} color="#0a1f1e" />
+              </TouchableOpacity>
+            )}
           </View>
 
-          <TextInput
-            // 2. CRITICAL: Remove the dynamic array. Use ONLY the static style.
-            style={styles.searchInput}
-            placeholder="Ask a specific question (optional)..."
-            placeholderTextColor="rgba(255,255,255,0.6)"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="done"
-            blurOnSubmit={true}
-            multiline={true}
-            textAlignVertical="top"
-            onSubmitEditing={Keyboard.dismiss}
-            onFocus={() => {
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-              setIsSearchExpanded(true);
-            }}
-            onBlur={() => {
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-              setIsSearchExpanded(false);
-            }}
-          />
-
+          {/* Bottom Area: Suggested Prompts */}
           {isSearchExpanded && (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={Keyboard.dismiss}
-              style={styles.promptActionBtn}
-            >
-              <Feather name="arrow-up" size={18} color="#0a1f1e" />
-            </TouchableOpacity>
+            <View style={styles.suggestionsWrapper}>
+              <Text style={styles.suggestionsTitle}>SUGGESTED</Text>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.suggestionsScrollContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                {PROMPT_SUGGESTIONS[mode].map((sug, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.suggestionChip}
+                    onPress={() => setSearchQuery(sug)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.suggestionChipText}>{sug}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
           )}
         </View>
 
@@ -800,23 +847,23 @@ const styles = StyleSheet.create({
   // -- Top Overlay & Search Bar --
   topOverlay: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 20, zIndex: 10 },
   searchBar: {
-    flexDirection: 'row',
-    // Change this to stretch so the TextInput grows naturally with the parent
-    alignItems: 'stretch',
+    flexDirection: 'column',
     backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 16,
     paddingHorizontal: 16,
-    // 1. Lock the padding here permanently so it never shifts
     paddingVertical: 14,
-    gap: 12,
     width: '100%',
     marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
   searchBarExpanded: {
-    height: Dimensions.get('window').height * 0.35,
     backgroundColor: 'rgba(0,0,0,0.85)',
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 12,
   },
   searchInput: {
     flex: 1,
@@ -825,17 +872,45 @@ const styles = StyleSheet.create({
     color: '#fff',
     paddingTop: 0,
     paddingBottom: 0,
+    maxHeight: 80,
   },
   promptActionBtn: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
+    alignSelf: 'center',
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: '#5c7ce5',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // ─── Suggestion Chips ───
+  suggestionsWrapper: {
+    marginTop: 16,
+  },
+  suggestionsTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    letterSpacing: 1.2,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 10,
+  },
+  suggestionsScrollContent: {
+    gap: 8,
+    paddingBottom: 12,
+  },
+  suggestionChip: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  suggestionChipText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    color: '#fff',
   },
   topPill: { backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#5c7ce5' },
