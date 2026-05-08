@@ -25,6 +25,7 @@ const DEFAULT_PROFILE: ProfileContextState = {
   units: 'metric',
   hapticsEnabled: true,
   liveAlertsEnabled: false,
+  locationRoutingEnabled: false,
   savedLocations: [],
   avatarEmoji: '',
   avatarColor: '#5c7ce5',

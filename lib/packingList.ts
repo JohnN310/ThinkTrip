@@ -20,6 +20,7 @@ export interface ProfileContextState {
   units: "metric" | "imperial";
   hapticsEnabled: boolean;
   liveAlertsEnabled: boolean;
+  locationRoutingEnabled: boolean;
   savedLocations?: string[];
   expoPushToken?: string;
   avatarEmoji?: string;

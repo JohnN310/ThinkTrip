@@ -9,6 +9,7 @@ import { useProfile } from '../../contexts/ProfileContext';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { BlurView } from 'expo-blur';
+import * as Location from 'expo-location';
 const { width, height } = Dimensions.get('window');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -51,7 +52,9 @@ export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { profile } = useProfile();
+  const { profile, save, setDraft } = useProfile();
+
+  const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -110,9 +113,26 @@ export default function ScanScreen() {
 
   const openMap = async (query: string) => {
     const encodedQuery = encodeURIComponent(query);
+    let iosUrl = `https://maps.apple.com/?q=${encodedQuery}`;
+
+    // Inject radius bias so Apple Maps strictly searches near the user
+    if (userLocation) {
+      iosUrl += `&sll=${userLocation.coords.latitude},${userLocation.coords.longitude}`;
+    }
+
+
+    let androidUrl = `geo:0,0?q=${encodedQuery}`;
+    if (userLocation) {
+      // geo:lat,lng?q=query forces Google Maps to search within the immediate vicinity of those coords
+      androidUrl = `geo:${userLocation.coords.latitude},${userLocation.coords.longitude}?q=${encodedQuery}`;
+    } else {
+      // Safe fallback to Universal Web Link if GPS is entirely disabled
+      androidUrl = `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
+    }
+
     const url = Platform.select({
-      ios: `maps://?q=${encodedQuery}`,
-      android: `google.navigation:q=${encodedQuery}`
+      ios: iosUrl,
+      android: androidUrl
     });
 
     try {
@@ -159,7 +179,7 @@ export default function ScanScreen() {
     };
   }, [analyzing]);
 
-  const analyzeImage = async (base64Image: string, currentMode: Mode): Promise<ScanResult> => {
+  const analyzeImage = async (base64Image: string, currentMode: Mode, location?: Location.LocationObject | null): Promise<ScanResult> => {
     // ── MOCK MODE (comment this block out and uncomment the block below to go live) ──
     // await new Promise(res => setTimeout(res, 5000)); // simulate network delay
     // if (currentMode === 'Menu') {
@@ -250,6 +270,9 @@ export default function ScanScreen() {
       **CURRENT CONTEXT:**
       - Active Mode: ${currentMode}
       - User's Health Baseline: ${JSON.stringify(healthBaseline)}
+      - GPS Status: ${location
+        ? `ACTIVE (Lat: ${location.coords.latitude}, Lng: ${location.coords.longitude}). CRITICAL: Bias all transit POIs to this exact physical location.`
+        : `DISABLED. The user has opted out of location tracking. Do not attempt to guess the city or generate map routing.`}
 
       **USER INQUIRY (OPTIONAL):**
       ${searchQuery.trim() !== ''
@@ -262,7 +285,7 @@ export default function ScanScreen() {
       3. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
       4. **CULTURAL CONFIDENCE:** Provide intuitive, English-approximated phonetic pronunciations (in parentheses). DO NOT provide literal, word-by-word English translations of foreign dish names. Instead, provide a clear culinary description.
       5. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question. Do not summarize or repeat your recommended options, strict avoids, or behavioral norms in the 'userAnswer'. Keep the structured data strictly isolated within the 'notes' array.
-      6. **GEOGRAPHIC SPECIFICITY & DEEP ROUTING:** If the user's inquiry or the image context specifies a highly granular sub-location (e.g., "Departures 3", "Gate B12", "Platform 4"), your 'mapLocationName' MUST be as specific as possible. To do this securely, you MUST combine the specific sub-location with the FULL, OFFICIAL parent POI name or building name (e.g., "Departures 3, Hartsfield-Jackson Airport" or "Platform 4, Gare du Nord"). Do NOT just return the generic parent airport or station name if a deeper, specific destination is known. However, STILL DO NOT generate map locations for generic local bus stops or ambiguous street signs (e.g., "M41").
+      6. **GEOGRAPHIC SPECIFICITY & ROUTING:** Your 'mapLocationName' MUST be the official, external name of the building, station, or terminal (e.g., "Hartsfield-Jackson Atlanta International Airport"). CRITICAL: DO NOT include indoor qualifiers like "Gate B12", "Platform 4", or "Departures 3" in this field, as GPS routing engines will fail to find them. Place all indoor navigation details strictly in the 'notes' section. Omit this field entirely for generic bus stops or ambiguous street signs.
 
       **MODE ADAPTATION:**
       If Mode is 'Menu':
@@ -295,7 +318,7 @@ export default function ScanScreen() {
       {
         "title": "Short Title (In English)",
         "userAnswer": "Formatted direct answer using \\n for paragraph breaks and '- ' for bullet points. Do NOT duplicate 'notes' content here (omit if no inquiry was made)",
-        "mapLocationName": "The EXACT name of a major transit POI or specific terminal/gate combined with the FULL, OFFICIAL parent location name (e.g., 'Gate B12, Hartsfield-Jackson Atlanta International Airport'). MUST BE OMITTED if the image is a generic bus stop, street sign, or ambiguous local location.",        "badges": [
+        "mapLocationName": "The EXACT name of the primary building/station followed by city and country. CRITICAL: Omit this field entirely if GPS Status is DISABLED, or if the image is an ambiguous street/sign/etc.",        "badges": [
           { "type": "good" | "warn" | "info", "text": "Short badge text" }
         ],
         "notes": [
@@ -453,6 +476,29 @@ export default function ScanScreen() {
   //   }
   // };
 
+  const toggleGps = async () => {
+    const newValue = !profile.locationRoutingEnabled;
+
+    if (newValue) {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          "Permission Denied",
+          "Please enable location in your device settings to use precise transit routing.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Settings", onPress: () => Linking.openSettings() }
+          ]
+        );
+        return; // Abort if OS denies it
+      }
+    }
+
+    // Save the preference to Firestore/Context
+    setDraft({ locationRoutingEnabled: newValue });
+    save({ locationRoutingEnabled: newValue });
+  };
+
   // this crops to only within the frame
   const handleShutter = async () => {
     Keyboard.dismiss();
@@ -467,6 +513,22 @@ export default function ScanScreen() {
     cameraRef.current.pausePreview();
     setIsCaptured(true);
     setAnalyzing(true);
+
+    // --- NEW: Grab Location ---
+    let currentLocation: Location.LocationObject | null = null;
+    if (mode === 'Transit' && profile.locationRoutingEnabled) {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status === 'granted') {
+          currentLocation = await Location.getLastKnownPositionAsync({})
+            || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          setUserLocation(currentLocation);
+        }
+      } catch (e) {
+        console.warn("Could not fetch location for scan:", e);
+      }
+    }
+    // --------------------------
 
     try {
       // 3. takePictureAsync runs in the background. It naturally creates a 
@@ -489,7 +551,17 @@ export default function ScanScreen() {
         );
 
         if (croppedImage.base64) {
-          const analysis = await analyzeImage(croppedImage.base64, mode);
+          const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
+
+          // NEW: Educational fallback if they scanned transit without GPS
+          if (mode === 'Transit' && !currentLocation) {
+            analysis.badges.unshift({
+              type: 'warn',
+              text: 'Routing disabled • No GPS'
+            });
+            delete analysis.mapLocationName;
+          }
+
           setResult(analysis);
           openSheet();
 
@@ -681,7 +753,10 @@ export default function ScanScreen() {
                   <TouchableOpacity
                     key={i}
                     style={styles.suggestionChip}
-                    onPress={() => setSearchQuery(sug)}
+                    onPress={() => {
+                      setSearchQuery(sug);
+                      Keyboard.dismiss();
+                    }}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.suggestionChipText}>{sug}</Text>
@@ -694,9 +769,35 @@ export default function ScanScreen() {
 
         {/* Hide the pill when expanded to keep the UI clean */}
         {!isSearchExpanded && (
-          <View style={styles.topPill}>
-            <View style={styles.liveDot} />
-            <Text style={styles.topPillText}>LIVE • {mode.toUpperCase()}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.topPill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.topPillText}>LIVE • {mode.toUpperCase()}</Text>
+            </View>
+
+            {/* NEW: Interactive GPS Pill for Transit Mode */}
+            {mode === 'Transit' && (
+              <TouchableOpacity
+                style={[
+                  styles.topPill,
+                  { backgroundColor: profile.locationRoutingEnabled ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.1)' }
+                ]}
+                onPress={toggleGps}
+                activeOpacity={0.8}
+              >
+                <Feather
+                  name="map-pin"
+                  size={10}
+                  color={profile.locationRoutingEnabled ? colors.primary : colors.mutedForeground}
+                />
+                <Text style={[
+                  styles.topPillText,
+                  { color: profile.locationRoutingEnabled ? colors.primary : colors.mutedForeground }
+                ]}>
+                  GPS: {profile.locationRoutingEnabled ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>

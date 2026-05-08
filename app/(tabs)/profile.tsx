@@ -22,7 +22,7 @@ const AVATAR_COLORS = [
 ];
 
 const AVATAR_EMOJIS = [
-  '✈️', '🌴', '☕️', '⛰️', '📸', '🌊', '🦊', '🦉', 
+  '✈️', '🌴', '☕️', '⛰️', '📸', '🌊', '🦊', '🦉',
   '🌵', '🍣', '🍷', '🏕️', '🌅', '🚲', '🍕', '🏄'
 ];
 
@@ -189,6 +189,34 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleToggleLocationRouting = async (value: boolean) => {
+    if (!value) {
+      setDraft({ locationRoutingEnabled: false });
+      save({ locationRoutingEnabled: false });
+      return;
+    }
+
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Denied',
+        'Please enable location services in your device settings to use this feature.',
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => Linking.openSettings() }
+        ]
+      );
+      return;
+    }
+
+    setDraft({ locationRoutingEnabled: true });
+    save({ locationRoutingEnabled: true });
+
+    if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
   const renderSheetContent = () => {
     if (activeSheet === 'Account') {
       return (
@@ -245,44 +273,44 @@ export default function ProfileScreen() {
 
           <View style={{ gap: 18 }}>
             <View>
-            <Text style={[styles.inputHint, { color: colors.mutedForeground }]}>FULL NAME</Text>
-            <TextInput
-              style={[styles.input, { borderColor: colors.border, color: colors.foreground }]}
-              value={draft.displayName}
-              onChangeText={(t) => setDraft({ displayName: t })}
-              placeholder="Your name"
-            />
+              <Text style={[styles.inputHint, { color: colors.mutedForeground }]}>FULL NAME</Text>
+              <TextInput
+                style={[styles.input, { borderColor: colors.border, color: colors.foreground }]}
+                value={draft.displayName}
+                onChangeText={(t) => setDraft({ displayName: t })}
+                placeholder="Your name"
+              />
+            </View>
+            <View>
+              <Text style={[styles.inputHint, { color: colors.mutedForeground }]}>EMAIL</Text>
+              <TextInput
+                style={[styles.input, { borderColor: colors.border, color: colors.mutedForeground }]}
+                value={profile.email}
+                editable={false}
+              />
+            </View>
+            <View>
+              <Text style={[styles.inputHint, { color: colors.mutedForeground }]}>HOME CITY</Text>
+              <Text style={[styles.hintTop, { color: colors.mutedForeground }]}>Used to detect timezone shifts and jet lag.</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { borderColor: colors.border, color: colors.foreground },
+                  cityError ? { borderColor: colors.destructive } : null
+                ]}
+                value={draft.homeCity}
+                onChangeText={(t) => {
+                  setDraft({ homeCity: t });
+                  if (cityError) setCityError(null);
+                }}
+                placeholder="e.g. San Francisco"
+                autoCorrect={false}
+              />
+              {cityError && (
+                <Text style={[styles.errorText, { color: colors.destructive }]}>{cityError}</Text>
+              )}
+            </View>
           </View>
-          <View>
-            <Text style={[styles.inputHint, { color: colors.mutedForeground }]}>EMAIL</Text>
-            <TextInput
-              style={[styles.input, { borderColor: colors.border, color: colors.mutedForeground }]}
-              value={profile.email}
-              editable={false}
-            />
-          </View>
-          <View>
-            <Text style={[styles.inputHint, { color: colors.mutedForeground }]}>HOME CITY</Text>
-            <Text style={[styles.hintTop, { color: colors.mutedForeground }]}>Used to detect timezone shifts and jet lag.</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { borderColor: colors.border, color: colors.foreground },
-                cityError ? { borderColor: colors.destructive } : null
-              ]}
-              value={draft.homeCity}
-              onChangeText={(t) => {
-                setDraft({ homeCity: t });
-                if (cityError) setCityError(null);
-              }}
-              placeholder="e.g. San Francisco"
-              autoCorrect={false}
-            />
-            {cityError && (
-              <Text style={[styles.errorText, { color: colors.destructive }]}>{cityError}</Text>
-            )}
-          </View>
-        </View>
         </View>
       );
     }
@@ -351,10 +379,10 @@ export default function ProfileScreen() {
     if (activeSheet === 'Theme') {
       return (
         <View style={{ gap: 18 }}>
-          <SegmentedControl 
-            options={['system', 'light', 'dark']} 
-            value={draft.themePreference || 'system'} 
-            onChange={(v: any) => setDraft({ themePreference: v })} 
+          <SegmentedControl
+            options={['system', 'light', 'dark']}
+            value={draft.themePreference || 'system'}
+            onChange={(v: any) => setDraft({ themePreference: v })}
           />
           <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.mutedForeground, textAlign: 'center', marginTop: 4 }}>
             System mode will automatically adapt to your device's control center settings.
@@ -450,6 +478,19 @@ export default function ProfileScreen() {
               <Switch
                 value={profile.liveAlertsEnabled}
                 onValueChange={handleToggleLiveAlerts}
+                trackColor={{ true: colors.primary }}
+              />
+            }
+          />
+          <SettingsRow
+            icon={<Feather name="navigation" size={16} color={colors.foreground} />}
+            label="Transit routing GPS"
+            description="Sends coordinates to your maps app for precise directions. No data is stored."
+            onPress={() => handleToggleLocationRouting(!profile.locationRoutingEnabled)}
+            rightElement={
+              <Switch
+                value={profile.locationRoutingEnabled}
+                onValueChange={handleToggleLocationRouting}
                 trackColor={{ true: colors.primary }}
               />
             }
