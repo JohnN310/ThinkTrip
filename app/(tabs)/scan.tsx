@@ -285,7 +285,7 @@ export default function ScanScreen() {
       3. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
       4. **CULTURAL CONFIDENCE:** Provide intuitive, English-approximated phonetic pronunciations (in parentheses). DO NOT provide literal, word-by-word English translations of foreign dish names. Instead, provide a clear culinary description.
       5. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question. Do not summarize or repeat your recommended options, strict avoids, or behavioral norms in the 'userAnswer'. Keep the structured data strictly isolated within the 'notes' array.
-      6. **GEOGRAPHIC SPECIFICITY & ROUTING:** Your 'mapLocationName' MUST be the official, external name of the building, station, or terminal (e.g., "Hartsfield-Jackson Atlanta International Airport"). CRITICAL: DO NOT include indoor qualifiers like "Gate B12", "Platform 4", or "Departures 3" in this field, as GPS routing engines will fail to find them. Place all indoor navigation details strictly in the 'notes' section. Omit this field entirely for generic bus stops or ambiguous street signs.
+      6. **GEOGRAPHIC SPECIFICITY & ROUTING:** The 'mapLocationName' field is STRICTLY RESERVED for 'Transit' mode. If the Active Mode is 'Menu' or 'Payment', you MUST omit the 'mapLocationName' field entirely, and use the GPS coordinates solely to inform your localized cultural notes and etiquette. If the Active Mode is 'Transit', your 'mapLocationName' MUST be the official, external name of the building, station, or terminal. CRITICAL: DO NOT include indoor qualifiers like "Gate B12" or "Platform 4". Place all indoor navigation details strictly in the 'notes' section.
 
       **MODE ADAPTATION:**
       If Mode is 'Menu':
@@ -318,7 +318,8 @@ export default function ScanScreen() {
       {
         "title": "Short Title (In English)",
         "userAnswer": "Formatted direct answer using \\n for paragraph breaks and '- ' for bullet points. Do NOT duplicate 'notes' content here (omit if no inquiry was made)",
-        "mapLocationName": "The EXACT name of the primary building/station followed by city and country. CRITICAL: Omit this field entirely if GPS Status is DISABLED, or if the image is an ambiguous street/sign/etc.",        "badges": [
+        "mapLocationName": "The EXACT name of the primary building/station followed by city and country. CRITICAL: Omit this field entirely if the Active Mode is NOT 'Transit', if GPS Status is DISABLED, or if the image is an ambiguous street.",          
+        "badges": [
           { "type": "good" | "warn" | "info", "text": "Short badge text" }
         ],
         "notes": [
@@ -516,7 +517,7 @@ export default function ScanScreen() {
 
     // --- NEW: Grab Location ---
     let currentLocation: Location.LocationObject | null = null;
-    if (mode === 'Transit' && profile.locationRoutingEnabled) {
+    if (profile.locationRoutingEnabled) {
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status === 'granted') {
@@ -553,8 +554,8 @@ export default function ScanScreen() {
         if (croppedImage.base64) {
           const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
 
-          // NEW: Educational fallback if they scanned transit without GPS
-          if (mode === 'Transit' && !currentLocation) {
+          // Educational fallback if they scanned without GPS
+          if (!currentLocation) {
             analysis.badges.unshift({
               type: 'warn',
               text: 'Routing disabled • No GPS'
@@ -769,14 +770,19 @@ export default function ScanScreen() {
 
         {/* Hide the pill when expanded to keep the UI clean */}
         {!isSearchExpanded && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 }}>
             <View style={styles.topPill}>
-              <View style={styles.liveDot} />
-              <Text style={styles.topPillText}>LIVE • {mode.toUpperCase()}</Text>
+              <Feather 
+                name={mode === 'Payment' ? 'credit-card' : mode === 'Transit' ? 'navigation' : 'book-open'} 
+                size={12} 
+                color="#fff" 
+                style={{ opacity: 0.8 }}
+              />
+              <Text style={styles.topPillText}>{mode.toUpperCase()}</Text>
             </View>
 
-            {/* NEW: Interactive GPS Pill for Transit Mode */}
-            {mode === 'Transit' && (
+            {/* Interactive GPS Pill for All Modes */}
+            {(
               <TouchableOpacity
                 style={[
                   styles.topPill,
