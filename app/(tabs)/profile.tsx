@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, KeyboardAvoidingView, Platform, Alert, Modal, Share, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, KeyboardAvoidingView, Platform, Alert, Modal, Share, Linking, Dimensions } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
@@ -16,14 +16,22 @@ import { ToggleRow } from '../../components/ToggleRow';
 import { SegmentedControl } from '../../components/SegmentedControl';
 
 const AVATAR_COLORS = [
-  '#5c7ce5', '#4338ca', '#1d4e89', '#2563eb', '#4f46e5', '#6366f1',
-  '#a76b18', '#15803d', '#c2410c', '#b91c1c', '#6b21a8', '#be185d',
-  '#0f766e', '#3f6212', '#1e3a8a', '#581c87', '#9f1239', '#b45309', '#475569'
+  // Signature Blues & Indigos
+  '#5c7ce5', '#3b82f6', '#2563eb', '#1d4e89', '#1e3a8a', '#312e81',
+  // Rich Plums & Berries
+  '#8b5cf6', '#6d28d9', '#4c1d95', '#be185d', '#9f1239', '#800020',
+  // Earthy Terracottas & Rusts
+  '#ea580c', '#c2410c', '#9a3412', '#b45309', '#a76b18', '#78350f',
+  // Muted Botanicals & Slates
+  '#0d9488', '#0f766e', '#15803d', '#3f6212', '#475569', '#334155',
+  // Deep & Grounded (New)
+  '#083344', '#064e3b', '#451a03', '#4a044e'
 ];
 
 const AVATAR_EMOJIS = [
   '✈️', '🌴', '☕️', '⛰️', '📸', '🌊', '🦊', '🦉',
-  '🌵', '🍣', '🍷', '🏕️', '🌅', '🚲', '🍕', '🏄'
+  '🌵', '🍣', '🍷', '🏕️', '🌅', '🚲', '🍕', '🏄',
+  '🧭', '🌿', '🧳', '🌙', '❄️', '⛵', '🗺️', '🏰', '🏛️'
 ];
 
 type SheetType = 'Account' | 'Skin' | 'Diet' | 'Travel' | 'Units' | 'About' | 'Theme' | null;
@@ -219,21 +227,38 @@ export default function ProfileScreen() {
 
   const renderSheetContent = () => {
     if (activeSheet === 'Account') {
+      // Chunk the colors into arrays of 2 for the vertical columns
+      const colorColumns = [];
+      for (let i = 0; i < AVATAR_COLORS.length; i += 2) {
+        colorColumns.push(AVATAR_COLORS.slice(i, i + 2));
+      }
+
+      // Combine the "Initials" option (represented by '') with the emojis, then chunk into 2s
+      const allEmojiOptions = ['', ...AVATAR_EMOJIS];
+      const emojiColumns = [];
+      for (let i = 0; i < allEmojiOptions.length; i += 2) {
+        emojiColumns.push(allEmojiOptions.slice(i, i + 2));
+      }
+
       return (
         <View style={{ gap: 24 }}>
           <View>
             <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 8 }]}>PROFILE COLOR</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 4 }}>
-              {AVATAR_COLORS.map(color => (
-                <TouchableOpacity
-                  key={color}
-                  onPress={() => setDraft({ avatarColor: color })}
-                  style={{
-                    width: 44, height: 44, borderRadius: 22, backgroundColor: color,
-                    borderWidth: draft.avatarColor === color ? 3 : 0,
-                    borderColor: draft.avatarColor === color ? colors.accent : 'transparent',
-                  }}
-                />
+              {colorColumns.map((column, colIndex) => (
+                <View key={colIndex} style={{ gap: 12 }}>
+                  {column.map(color => (
+                    <TouchableOpacity
+                      key={color}
+                      onPress={() => setDraft({ avatarColor: color })}
+                      style={{
+                        width: 44, height: 44, borderRadius: 22, backgroundColor: color,
+                        borderWidth: draft.avatarColor === color ? 3 : 0,
+                        borderColor: draft.avatarColor === color ? colors.accent : 'transparent',
+                      }}
+                    />
+                  ))}
+                </View>
               ))}
             </ScrollView>
           </View>
@@ -241,32 +266,33 @@ export default function ProfileScreen() {
           <View>
             <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 8 }]}>AVATAR ICON</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-              <TouchableOpacity
-                onPress={() => setDraft({ avatarEmoji: '' })}
-                style={{
-                  width: 48, height: 48, borderRadius: 24,
-                  backgroundColor: !draft.avatarEmoji ? 'rgba(0,0,0,0.05)' : 'transparent',
-                  borderWidth: !draft.avatarEmoji ? 2 : 1,
-                  borderColor: !draft.avatarEmoji ? colors.primary : colors.border,
-                  alignItems: 'center', justifyContent: 'center'
-                }}
-              >
-                <Text style={{ fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }}>A B</Text>
-              </TouchableOpacity>
-              {AVATAR_EMOJIS.map(emoji => (
-                <TouchableOpacity
-                  key={emoji}
-                  onPress={() => setDraft({ avatarEmoji: emoji })}
-                  style={{
-                    width: 48, height: 48, borderRadius: 24,
-                    backgroundColor: draft.avatarEmoji === emoji ? 'rgba(0,0,0,0.05)' : 'transparent',
-                    borderWidth: draft.avatarEmoji === emoji ? 2 : 1,
-                    borderColor: draft.avatarEmoji === emoji ? colors.primary : colors.border,
-                    alignItems: 'center', justifyContent: 'center'
-                  }}
-                >
-                  <Text style={{ fontSize: 24 }}>{emoji}</Text>
-                </TouchableOpacity>
+              {emojiColumns.map((column, colIndex) => (
+                <View key={`emoji-col-${colIndex}`} style={{ gap: 12 }}>
+                  {column.map((item) => {
+                    const isInitials = item === '';
+                    const isSelected = draft.avatarEmoji === item;
+
+                    return (
+                      <TouchableOpacity
+                        key={isInitials ? 'initials' : item}
+                        onPress={() => setDraft({ avatarEmoji: item })}
+                        style={{
+                          width: 48, height: 48, borderRadius: 24,
+                          backgroundColor: isSelected ? 'rgba(0,0,0,0.05)' : 'transparent',
+                          borderWidth: isSelected ? 2 : 1,
+                          borderColor: isSelected ? colors.primary : colors.border,
+                          alignItems: 'center', justifyContent: 'center'
+                        }}
+                      >
+                        {isInitials ? (
+                          <Text style={{ fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }}>A B</Text>
+                        ) : (
+                          <Text style={{ fontSize: 24 }}>{item}</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               ))}
             </ScrollView>
           </View>
@@ -570,7 +596,7 @@ export default function ProfileScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView style={{ maxHeight: 540 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+              <ScrollView style={{ maxHeight: Dimensions.get('window').height * 0.85 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
                 {renderSheetContent()}
               </ScrollView>
             </View>
