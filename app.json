@@ -14,14 +14,23 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "supportsTablet": true,
       "infoPlist": {
+        "UIBackgroundModes": [
+          "fetch",
+          "location"
+        ],
         "NSCameraUsageDescription": "ThinkTrip uses your camera to decode menu ingredients, explain payment etiquette, and read transit signage."
       }
     },
     "android": {
       "permissions": [
-        "android.permission.CAMERA"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.cadaohk.thinktrip"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -40,6 +49,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d5411d0e-0435-4d53-ac85-b89b0127312f"
+      }
     }
   }
 }

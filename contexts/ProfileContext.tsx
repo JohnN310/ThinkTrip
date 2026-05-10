@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { ProfileContextState } from '../lib/packingList';
 
@@ -84,6 +85,14 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
           };
           setProfile(merged);
           setDraftState(merged);
+
+          // Sync to AsyncStorage on initial load for the background task
+          try {
+            await AsyncStorage.setItem('THINKTRIP_SAVED_LOCATIONS', JSON.stringify(merged.savedLocations));
+            await AsyncStorage.setItem('THINKTRIP_UNITS', merged.units || 'metric');
+          } catch (err) {
+            console.warn('Failed to sync initial profile to AsyncStorage', err);
+          }
         } else {
           const initialProfile = { ...DEFAULT_PROFILE, email: user.email || '' };
           setProfile(initialProfile);
@@ -121,6 +130,16 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
       // Immediately update local state to reflect the successfully saved data
       setProfile(finalData);
       setDraftState(finalData);
+
+      // Sync specific fields to AsyncStorage for the background task
+      if (overrides?.savedLocations || draft.savedLocations || overrides?.units || draft.units) {
+        try {
+          await AsyncStorage.setItem('THINKTRIP_SAVED_LOCATIONS', JSON.stringify(finalData.savedLocations || []));
+          await AsyncStorage.setItem('THINKTRIP_UNITS', finalData.units || 'metric');
+        } catch (err) {
+          console.warn('Failed to sync profile to AsyncStorage', err);
+        }
+      }
     } catch (e) {
       console.error('Failed to save profile to Firestore', e);
       throw e;
@@ -154,6 +173,9 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
     try {
       const docRef = doc(db, 'profiles', user.uid);
       await setDoc(docRef, { savedLocations: newList }, { merge: true });
+      
+      // Also sync to AsyncStorage for background alerts
+      await AsyncStorage.setItem('THINKTRIP_SAVED_LOCATIONS', JSON.stringify(newList));
     } catch (e) {
       console.error('Failed to toggle saved location', e);
       // Revert if network fails

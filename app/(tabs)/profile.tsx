@@ -14,6 +14,7 @@ import { Card } from '../../components/Card';
 import { SettingsGroup, SettingsRow } from '../../components/SettingsRow';
 import { ToggleRow } from '../../components/ToggleRow';
 import { SegmentedControl } from '../../components/SegmentedControl';
+import { registerBackgroundWeatherTask, unregisterBackgroundWeatherTask } from '../../lib/backgroundWeather';
 
 const AVATAR_COLORS = [
   // Signature Blues & Indigos
@@ -144,7 +145,10 @@ export default function ProfileScreen() {
   const handleToggleLiveAlerts = async (value: boolean) => {
     if (!value) {
       setDraft({ liveAlertsEnabled: false });
-      save({ liveAlertsEnabled: false });
+      await save({ liveAlertsEnabled: false });
+      if (Platform.OS !== 'web') {
+        await unregisterBackgroundWeatherTask();
+      }
       return;
     }
 
@@ -156,42 +160,37 @@ export default function ProfileScreen() {
         return;
       }
 
-      const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
-      if (locStatus !== 'granted') {
-        Alert.alert('Permission Denied', 'Please enable location services in your device settings to receive context-aware live alerts.');
-        setDraft({ liveAlertsEnabled: false });
-        return;
-      }
-
-      let token = '';
-      if (Platform.OS !== 'web') {
-        try {
-          const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-          if (projectId) {
-            const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-            token = tokenData.data;
-          }
-        } catch (e) {
-          console.warn('Could not fetch Expo Push Token (expected in Expo Go):', e);
-        }
-      }
+      // let token = '';
+      // if (Platform.OS !== 'web') {
+      //   try {
+      //     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      //     if (projectId) {
+      //       const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+      //       token = tokenData.data;
+      //     }
+      //   } catch (e) {
+      //     console.warn('Could not fetch Expo Push Token (expected in Expo Go):', e);
+      //   }
+      // }
 
       setDraft({
         liveAlertsEnabled: true,
-        expoPushToken: token
       });
       await save({
         liveAlertsEnabled: true,
-        expoPushToken: token
       });
 
       if (Platform.OS !== 'web' && profile.hapticsEnabled) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
+      // Register the background task
+      if (Platform.OS !== 'web') {
+        await registerBackgroundWeatherTask();
+      }
+
     } catch (error) {
       console.error('Error enabling live alerts:', error);
-      Alert.alert('Error', 'Failed to enable live alerts.');
       setDraft({ liveAlertsEnabled: false });
       save({ liveAlertsEnabled: false });
     }
@@ -317,7 +316,7 @@ export default function ProfileScreen() {
             </View>
             <View>
               <Text style={[styles.inputHint, { color: colors.mutedForeground }]}>HOME CITY</Text>
-              <Text style={[styles.hintTop, { color: colors.mutedForeground }]}>Used to detect timezone shifts and jet lag.</Text>
+
               <TextInput
                 style={[
                   styles.input,
@@ -497,7 +496,7 @@ export default function ProfileScreen() {
           <SettingsRow
             icon={<Feather name="alert-circle" size={16} color={colors.foreground} />}
             label="Live alerts"
-            description="Extreme weather and pollution warnings based on your location."
+            description="Extreme weather and pollution warnings for your saved cities."
             // Make the whole row tappable
             onPress={() => handleToggleLiveAlerts(!profile.liveAlertsEnabled)}
             rightElement={
@@ -510,7 +509,7 @@ export default function ProfileScreen() {
           />
           <SettingsRow
             icon={<Feather name="navigation" size={16} color={colors.foreground} />}
-            label="Transit routing GPS"
+            label="Location-aware scanning"
             description="Sends coordinates to your maps app for precise directions. No data is stored."
             onPress={() => handleToggleLocationRouting(!profile.locationRoutingEnabled)}
             rightElement={

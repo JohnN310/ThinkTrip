@@ -3,9 +3,6 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Platfo
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
-import * as Location from 'expo-location';
-
 import { useColors } from '../../hooks/useColors';
 import { useProfile } from '../../contexts/ProfileContext';
 import { Destination } from '../../lib/destinations';
@@ -20,72 +17,17 @@ import { WeatherBackground } from '../../components/WeatherEffects';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const parseSlot = (item: any, dayMin?: number, dayMax?: number) => {
-  if (!item) return { temp: 0, tempLow: 0, tempHigh: 0, humidity: 0, condition: 'Sunny' };
-
-  if (item.condition && item.temp !== undefined) {
-    return {
-      ...item,
-      tempLow: Math.round(dayMin !== undefined ? dayMin : item.tempLow),
-      tempHigh: Math.round(dayMax !== undefined ? dayMax : item.tempHigh)
-    };
-  }
-
-  const mainCond = item.weather[0].main;
-  const iconCode = item.weather[0].icon;
-
-  return {
-    temp: Math.round(item.main.temp),
-    tempLow: Math.round(dayMin !== undefined ? dayMin : item.main.temp_min),
-    tempHigh: Math.round(dayMax !== undefined ? dayMax : item.main.temp_max),
-    humidity: item.main.humidity,
-    condition: mainCond === 'Clear'
-      ? (iconCode.includes('n') ? 'Clear Night' : 'Sunny')
-      : mainCond
-  };
-};
-
 const getAqiLabel = (aqiIndex: number) => {
   if (!aqiIndex) return 'Unknown';
   const labels = ['Good', 'Fair', 'Moderate', 'Poor', 'Very Poor'];
   return labels[aqiIndex - 1] || 'Unknown';
 };
 
-const getSeverity = (cond: string) => {
-  if (cond === 'Thunderstorm') return 5;
-  if (cond === 'Snow') return 4;
-  if (cond === 'Rain' || cond === 'Drizzle') return 3;
-  if (['Clouds', 'Mist', 'Fog', 'Haze'].includes(cond)) return 2;
-  return 1; // Sunny / Clear Night
-};
 
-const getDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-};
 
 
 const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_WEATHER_KEY;
 const POPULAR_CITIES = ['Tokyo', 'London', 'New York', 'Paris', 'Bangkok', 'Dubai', 'Seoul', 'Marrakech'];
-
-const alertedCities = new Set<string>();
-
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
 
 export default function PlanScreen() {
 
@@ -101,8 +43,8 @@ export default function PlanScreen() {
     blockMax?: number;
     humidity: number;
     aqiLabel: string;
-    condition: string;
-    displayCondition?: string;
+    iconCode: string;          // NEW: Replaces 'condition'
+    displayCondition: string;  // NEW: The highly accurate description
   } | null>(null);
 
   const [trueLiveWeather, setTrueLiveWeather] = useState<any>(null);
@@ -110,23 +52,14 @@ export default function PlanScreen() {
   const heroTheme = useMemo(() => {
     if (!liveWeather) return { bg: colors.muted, accent: colors.mutedForeground, muted: colors.mutedForeground };
 
-    const cond = liveWeather.condition;
-    // Premium, clinical weather themes
-    if (cond === 'Sunny' || cond === 'Clear') {
-      return { bg: '#075985', accent: '#FDE047', muted: '#bae6fd' }; // Deep Sky
-    }
-    if (cond === 'Clear Night') {
-      return { bg: '#1e1b4b', accent: '#E2E8F0', muted: '#94a3b8' }; // Midnight Indigo
-    }
-    if (['Rain', 'Drizzle', 'Thunderstorm'].includes(cond)) {
-      return { bg: '#334155', accent: '#F1F5F9', muted: '#94a3b8' }; // Storm Slate
-    }
-    if (cond === 'Snow') {
-      return { bg: '#475569', accent: '#FFFFFF', muted: '#cbd5e1' }; // Frost Gray
-    }
-    if (['Clouds', 'Mist', 'Fog', 'Haze'].includes(cond)) {
-      return { bg: '#475569', accent: '#E2E8F0', muted: '#cbd5e1' }; // Muted Overcast
-    }
+    const prefix = liveWeather.iconCode.substring(0, 2);
+    const isNight = liveWeather.iconCode.includes('n');
+
+    if (prefix === '01' && !isNight) return { bg: '#075985', accent: '#FDE047', muted: '#bae6fd' }; // Deep Sky
+    if (isNight && ['01', '02', '03'].includes(prefix)) return { bg: '#1e1b4b', accent: '#E2E8F0', muted: '#94a3b8' }; // Midnight Indigo
+    if (['09', '10', '11'].includes(prefix)) return { bg: '#334155', accent: '#F1F5F9', muted: '#94a3b8' }; // Storm Slate
+    if (prefix === '13') return { bg: '#475569', accent: '#FFFFFF', muted: '#cbd5e1' }; // Frost Gray
+    if (['02', '03', '04', '50'].includes(prefix)) return { bg: '#475569', accent: '#E2E8F0', muted: '#cbd5e1' }; // Muted Overcast
 
     return { bg: colors.primary, accent: colors.accent, muted: '#a8c2c0' };
   }, [liveWeather, colors]);
@@ -192,264 +125,238 @@ export default function PlanScreen() {
 
   // 1. Centralize all fetching logic into a single reusable function
   const loadDestinationData = async (cityName: string) => {
-    const unitQuery = profile.units === 'imperial' ? 'imperial' : 'metric';
+    try {
+      const unitQuery = profile.units === 'imperial' ? 'imperial' : 'metric';
 
-    // Fetch Current Weather (This also acts as our validation check)
-    const weatherRes = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(cityName)}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`
-    );
-    const weatherData = await weatherRes.json();
+      // Fetch Current Weather (This also acts as our validation check)
+      const weatherRes = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(cityName)}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`
+      );
+      const weatherData = await weatherRes.json();
 
-    if (!weatherRes.ok || !weatherData.coord) {
-      throw new Error('City not found');
-    }
+      if (!weatherRes.ok || !weatherData.coord) {
+        throw new Error('City not found');
+      }
 
-    setInitialLoadFailed(false);
-    const lat = weatherData.coord.lat;
-    const lon = weatherData.coord.lon;
+      setInitialLoadFailed(false);
+      const lat = weatherData.coord.lat;
+      const lon = weatherData.coord.lon;
 
-    let condition = 'Sunny';
-    if (weatherData.weather && weatherData.weather.length > 0) {
-      const hasStorm = weatherData.weather.some((w: any) => w.main === 'Thunderstorm');
-      const hasSnow = weatherData.weather.some((w: any) => w.main === 'Snow');
-      const hasRain = weatherData.weather.some((w: any) => w.main === 'Rain' || w.main === 'Drizzle');
-      const mainCond = weatherData.weather[0].main;
-      const iconCode = weatherData.weather[0].icon;
+      // Helper to title-case OpenWeather descriptions (e.g., "light rain" -> "Light Rain")
+      const formatDescription = (desc: string) => desc.replace(/\b\w/g, c => c.toUpperCase());
 
-      if (hasStorm) condition = 'Thunderstorm';
-      else if (hasSnow) condition = 'Snow';
-      else if (hasRain) condition = 'Rain';
-      else if (mainCond === 'Clear') condition = iconCode.includes('n') ? 'Clear Night' : 'Sunny';
-      else condition = mainCond;
-    }
+      let currentIcon = '01d';
+      let currentDesc = 'Clear Sky';
+      
+      if (weatherData.weather && weatherData.weather.length > 0) {
+        currentIcon = weatherData.weather[0].icon;
+        currentDesc = formatDescription(weatherData.weather[0].description);
+      }
 
-    // Fetch AQI
-    const aqiRes = await fetch(
-      `https://api.openweathermap.org/data/2.5/air_pollution/forecast?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}`
-    );
-    const aqiData = await aqiRes.json();
+      // Fetch AQI
+      const aqiRes = await fetch(
+        `https://api.openweathermap.org/data/2.5/air_pollution/forecast?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}`
+      );
+      const aqiData = await aqiRes.json();
 
-    let currentAqiIndex = 1;
-    if (aqiRes.ok && aqiData.list && aqiData.list.length > 0) {
-      currentAqiIndex = aqiData.list[0].main.aqi;
-    }
-    const currentAqiLabel = getAqiLabel(currentAqiIndex);
+      let currentAqiIndex = 1;
+      if (aqiRes.ok && aqiData.list && aqiData.list.length > 0) {
+        currentAqiIndex = aqiData.list[0].main.aqi;
+      }
+      const currentAqiLabel = getAqiLabel(currentAqiIndex);
 
-    // Fetch Forecast
-    const forecastRes = await fetch(
-      `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(cityName)}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`
-    );
-    const forecastData = await forecastRes.json();
+      // Fetch Forecast
+      const forecastRes = await fetch(
+        `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(cityName)}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`
+      );
+      const forecastData = await forecastRes.json();
 
-    if (forecastRes.ok && forecastData.list) {
-      const dailyGroups: Record<string, any> = {};
-      const timezoneOffset = weatherData.timezone;
+      if (forecastRes.ok && forecastData.list) {
+        const dailyGroups: Record<string, any> = {};
+        const timezoneOffset = weatherData.timezone;
 
-      const nowData = {
+        const nowData = {
+          temp: Math.round(weatherData.main.temp),
+          tempLow: Math.round(weatherData.main.temp_min),
+          tempHigh: Math.round(weatherData.main.temp_max),
+          humidity: weatherData.main.humidity,
+          iconCode: currentIcon,
+          displayCondition: currentDesc
+        };
+
+        // 1. Group Data into Time Blocks (Morning: 0-11, Afternoon: 12-17, Evening: 18-23)
+        forecastData.list.forEach((item: any) => {
+          const localDate = new Date((item.dt + timezoneOffset) * 1000);
+          const localHour = localDate.getUTCHours();
+          const localDateKey = localDate.toISOString().split('T')[0];
+
+          if (!dailyGroups[localDateKey]) {
+            dailyGroups[localDateKey] = {
+              date: localDate,
+              dayMinTemp: Infinity,
+              dayMaxTemp: -Infinity,
+              blocks: {
+                morning: { items: [], min: Infinity, max: -Infinity, aqi: 0 },
+                afternoon: { items: [], min: Infinity, max: -Infinity, aqi: 0 },
+                evening: { items: [], min: Infinity, max: -Infinity, aqi: 0 }
+              }
+            };
+          }
+
+          const currentMin = item.main.temp_min;
+          const currentMax = item.main.temp_max;
+
+          // Keep track of the absolute daily minimum/maximum for the AI packing list
+          if (currentMin < dailyGroups[localDateKey].dayMinTemp) dailyGroups[localDateKey].dayMinTemp = currentMin;
+          if (currentMax > dailyGroups[localDateKey].dayMaxTemp) dailyGroups[localDateKey].dayMaxTemp = currentMax;
+
+          let blockKey: 'morning' | 'afternoon' | 'evening' = 'morning';
+          if (localHour >= 12 && localHour < 18) blockKey = 'afternoon';
+          else if (localHour >= 18) blockKey = 'evening';
+
+          const block = dailyGroups[localDateKey].blocks[blockKey];
+          block.items.push(item);
+          if (currentMin < block.min) block.min = currentMin;
+          if (currentMax > block.max) block.max = currentMax;
+        });
+
+        // 2. Safely Process AQI for the specific blocks
+        if (aqiRes.ok && aqiData.list) {
+          aqiData.list.forEach((item: any) => {
+            const localDate = new Date((item.dt + timezoneOffset) * 1000);
+            const localHour = localDate.getUTCHours();
+            const localDateKey = localDate.toISOString().split('T')[0];
+            const newAqi = item.main.aqi;
+
+            if (dailyGroups[localDateKey]) {
+              let blockKey: 'morning' | 'afternoon' | 'evening' = 'morning';
+              if (localHour >= 12 && localHour < 18) blockKey = 'afternoon';
+              else if (localHour >= 18) blockKey = 'evening';
+
+              // Keep the worst air quality reading for this block
+              const block = dailyGroups[localDateKey].blocks[blockKey];
+              block.aqi = Math.max(block.aqi || 0, newAqi);
+            }
+          });
+        }
+
+        // Sync the true live weather
+        const summarizeBlock = (block: any, fallbackData: any, fallbackAqi: number, dayMin: number, dayMax: number) => {
+          if (block.items.length === 0) {
+            // If the block has passed (e.g. morning is over today), fallback safely
+            return {
+              temp: fallbackData.temp,
+              blockMin: fallbackData.temp,
+              blockMax: fallbackData.temp,
+              tempLow: Math.round(dayMin !== Infinity ? dayMin : fallbackData.tempLow),
+              tempHigh: Math.round(dayMax !== -Infinity ? dayMax : fallbackData.tempHigh),
+              humidity: fallbackData.humidity,
+              iconCode: fallbackData.iconCode,
+              displayCondition: fallbackData.displayCondition,
+              aqiLabel: getAqiLabel(fallbackAqi)
+            };
+          }
+
+          // Calculate True Block Averages
+          const avgTemp = Math.round(block.items.reduce((acc: number, i: any) => acc + i.main.temp, 0) / block.items.length);
+          const avgHumidity = Math.round(block.items.reduce((acc: number, i: any) => acc + i.main.humidity, 0) / block.items.length);
+
+          // 1. Extract conditions in strict CHRONOLOGICAL order
+          const chronologicalConditions: string[] = [];
+          let worstIcon = block.items[0]?.weather[0]?.icon || '01d';
+          let highestSeverity = 0;
+
+          block.items.forEach((item: any) => {
+            if (item.weather && item.weather.length > 0) {
+              const desc = formatDescription(item.weather[0].description);
+              const icon = item.weather[0].icon;
+              
+              // Only add to list if it's a new weather shift (prevents "Light Rain → Light Rain")
+              if (chronologicalConditions[chronologicalConditions.length - 1] !== desc) {
+                chronologicalConditions.push(desc);
+              }
+
+              // Determine the worst weather in this block to drive the background animation
+              // Severity scale based on icon prefix: 11 (Storm) > 13 (Snow) > 09/10 (Rain) > 50 (Atmosphere) > etc.
+              const severityMap: Record<string, number> = { '11': 6, '13': 5, '09': 4, '10': 3, '50': 2, '04': 1, '03': 1, '02': 1, '01': 0 };
+              const currentSeverity = severityMap[icon.substring(0, 2)] || 0;
+              if (currentSeverity >= highestSeverity) {
+                highestSeverity = currentSeverity;
+                worstIcon = icon;
+              }
+            }
+          });
+
+          // 3. Format the chronological text string with a progression arrow
+          let displayCondition = chronologicalConditions[0] || 'Clear Sky';
+          if (chronologicalConditions.length > 1) {
+            const startCond = chronologicalConditions[0];
+            const endCond = chronologicalConditions[chronologicalConditions.length - 1];
+            if (startCond !== endCond) displayCondition = `${startCond} → ${endCond}`;
+          }
+
+          return {
+            temp: avgTemp,
+            blockMin: Math.round(block.min),
+            blockMax: Math.round(block.max),
+            tempLow: Math.round(dayMin),
+            tempHigh: Math.round(dayMax),
+            humidity: avgHumidity,
+            iconCode: worstIcon,             // Drives Background & Theme
+            displayCondition: displayCondition, // Drives Text UI
+            aqiLabel: getAqiLabel(block.aqi || fallbackAqi)
+          };
+        };
+
+        // 4. Map the newly formatted data into the state
+        const formattedForecast = Object.values(dailyGroups)
+          .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
+          .slice(0, 5)
+          .map((day: any) => {
+            return {
+              date: day.date,
+              slots: {
+                'morning': summarizeBlock(day.blocks.morning, nowData, currentAqiIndex, day.dayMinTemp, day.dayMaxTemp),
+                'afternoon': summarizeBlock(day.blocks.afternoon, nowData, currentAqiIndex, day.dayMinTemp, day.dayMaxTemp),
+                'evening': summarizeBlock(day.blocks.evening, nowData, currentAqiIndex, day.dayMinTemp, day.dayMaxTemp)
+              }
+            };
+          });
+
+        setForecast(formattedForecast);
+      }
+
+      // Set Live Weather Data
+      const liveWeatherData = {
         temp: Math.round(weatherData.main.temp),
         tempLow: Math.round(weatherData.main.temp_min),
         tempHigh: Math.round(weatherData.main.temp_max),
         humidity: weatherData.main.humidity,
-        condition: condition
+        aqiLabel: currentAqiLabel,
+        iconCode: currentIcon,
+        displayCondition: currentDesc,
       };
 
-      // 1. Group Data into Time Blocks (Morning: 0-11, Afternoon: 12-17, Evening: 18-23)
-      forecastData.list.forEach((item: any) => {
-        const localDate = new Date((item.dt + timezoneOffset) * 1000);
-        const localHour = localDate.getUTCHours();
-        const localDateKey = localDate.toISOString().split('T')[0];
+      setLiveWeather(liveWeatherData);
+      setTrueLiveWeather(liveWeatherData);
 
-        if (!dailyGroups[localDateKey]) {
-          dailyGroups[localDateKey] = {
-            date: localDate,
-            dayMinTemp: Infinity,
-            dayMaxTemp: -Infinity,
-            blocks: {
-              morning: { items: [], min: Infinity, max: -Infinity, aqi: 0 },
-              afternoon: { items: [], min: Infinity, max: -Infinity, aqi: 0 },
-              evening: { items: [], min: Infinity, max: -Infinity, aqi: 0 }
-            }
-          };
-        }
-
-        const currentMin = item.main.temp_min;
-        const currentMax = item.main.temp_max;
-
-        // Keep track of the absolute daily minimum/maximum for the AI packing list
-        if (currentMin < dailyGroups[localDateKey].dayMinTemp) dailyGroups[localDateKey].dayMinTemp = currentMin;
-        if (currentMax > dailyGroups[localDateKey].dayMaxTemp) dailyGroups[localDateKey].dayMaxTemp = currentMax;
-
-        let blockKey: 'morning' | 'afternoon' | 'evening' = 'morning';
-        if (localHour >= 12 && localHour < 18) blockKey = 'afternoon';
-        else if (localHour >= 18) blockKey = 'evening';
-
-        const block = dailyGroups[localDateKey].blocks[blockKey];
-        block.items.push(item);
-        if (currentMin < block.min) block.min = currentMin;
-        if (currentMax > block.max) block.max = currentMax;
+      // Update Destination context at the very end
+      setDestination({
+        key: weatherData.name.toLowerCase().replace(/\s+/g, '-'),
+        name: weatherData.name,
+        region: weatherData.sys.country,
+        climate: {
+          tempLow: liveWeatherData.tempLow,
+          tempHigh: liveWeatherData.tempHigh,
+          humidity: liveWeatherData.humidity,
+        },
+        alerts: [],
       });
-
-      // 2. Safely Process AQI for the specific blocks
-      if (aqiRes.ok && aqiData.list) {
-        aqiData.list.forEach((item: any) => {
-          const localDate = new Date((item.dt + timezoneOffset) * 1000);
-          const localHour = localDate.getUTCHours();
-          const localDateKey = localDate.toISOString().split('T')[0];
-          const newAqi = item.main.aqi;
-
-          if (dailyGroups[localDateKey]) {
-            let blockKey: 'morning' | 'afternoon' | 'evening' = 'morning';
-            if (localHour >= 12 && localHour < 18) blockKey = 'afternoon';
-            else if (localHour >= 18) blockKey = 'evening';
-
-            // Keep the worst air quality reading for this block
-            const block = dailyGroups[localDateKey].blocks[blockKey];
-            block.aqi = Math.max(block.aqi || 0, newAqi);
-          }
-        });
-      }
-
-      // Sync the true live weather
-      const summarizeBlock = (block: any, fallbackData: any, fallbackAqi: number, dayMin: number, dayMax: number) => {
-        if (block.items.length === 0) {
-          // If the block has passed (e.g. morning is over today), fallback safely
-          return {
-            temp: fallbackData.temp,
-            blockMin: fallbackData.temp,
-            blockMax: fallbackData.temp,
-            tempLow: Math.round(dayMin !== Infinity ? dayMin : fallbackData.tempLow),
-            tempHigh: Math.round(dayMax !== -Infinity ? dayMax : fallbackData.tempHigh),
-            humidity: fallbackData.humidity,
-            condition: fallbackData.condition,
-            displayCondition: fallbackData.displayCondition || fallbackData.condition,
-            aqiLabel: getAqiLabel(fallbackAqi)
-          };
-        }
-
-        // Calculate True Block Averages
-        const avgTemp = Math.round(block.items.reduce((acc: number, i: any) => acc + i.main.temp, 0) / block.items.length);
-        const avgHumidity = Math.round(block.items.reduce((acc: number, i: any) => acc + i.main.humidity, 0) / block.items.length);
-
-        // 1. Extract conditions in strict CHRONOLOGICAL order
-        const chronologicalConditions: string[] = [];
-        block.items.forEach((item: any) => {
-          item.weather.forEach((w: any) => {
-            let condName = w.main;
-            if (condName === 'Clear') condName = w.icon.includes('n') ? 'Clear Night' : 'Sunny';
-
-            // Only add to list if it's a new weather shift (prevents "Sunny → Sunny")
-            if (chronologicalConditions[chronologicalConditions.length - 1] !== condName) {
-              chronologicalConditions.push(condName);
-            }
-          });
-        });
-
-        // 2. Sort a copy by severity to drive the background theme
-        const sortedBySeverity = [...chronologicalConditions].sort((a, b) => getSeverity(b) - getSeverity(a));
-        const mostSevereCondition = sortedBySeverity[0] || 'Sunny';
-
-        // 3. Format the chronological text string with a progression arrow
-        let displayCondition = chronologicalConditions[0] || 'Sunny';
-
-        if (chronologicalConditions.length > 1) {
-          const startCond = chronologicalConditions[0];
-          const endCond = chronologicalConditions[chronologicalConditions.length - 1];
-
-          // Ensure we don't accidentally output "Clouds → Clouds" if it shifted back and forth
-          if (startCond !== endCond) {
-            displayCondition = `${startCond} → ${endCond}`;
-          }
-        }
-
-        return {
-          temp: avgTemp,
-          blockMin: Math.round(block.min),
-          blockMax: Math.round(block.max),
-          tempLow: Math.round(dayMin),
-          tempHigh: Math.round(dayMax),
-          humidity: avgHumidity,
-          condition: mostSevereCondition, // Drives the background animations and theme (Highest Threat)
-          displayCondition: displayCondition, // Drives the text UI (Chronological Timeline)
-          aqiLabel: getAqiLabel(block.aqi || fallbackAqi)
-        };
-      };
-
-      // 4. Map the newly formatted data into the state
-      const formattedForecast = Object.values(dailyGroups)
-        .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
-        .slice(0, 5)
-        .map((day: any) => {
-          return {
-            date: day.date,
-            slots: {
-              'morning': summarizeBlock(day.blocks.morning, nowData, currentAqiIndex, day.dayMinTemp, day.dayMaxTemp),
-              'afternoon': summarizeBlock(day.blocks.afternoon, nowData, currentAqiIndex, day.dayMinTemp, day.dayMaxTemp),
-              'evening': summarizeBlock(day.blocks.evening, nowData, currentAqiIndex, day.dayMinTemp, day.dayMaxTemp)
-            }
-          };
-        });
-
-      setForecast(formattedForecast);
-    }
-
-    // Set Live Weather Data
-    const liveWeatherData = {
-      temp: Math.round(weatherData.main.temp),
-      tempLow: Math.round(weatherData.main.temp_min),
-      tempHigh: Math.round(weatherData.main.temp_max),
-      humidity: weatherData.main.humidity,
-      aqiLabel: currentAqiLabel,
-      condition,
-    };
-
-    setLiveWeather(liveWeatherData);
-    setTrueLiveWeather(liveWeatherData);
-
-    // Update Destination context at the very end
-    setDestination({
-      key: weatherData.name.toLowerCase().replace(/\s+/g, '-'),
-      name: weatherData.name,
-      region: weatherData.sys.country,
-      climate: {
-        tempLow: liveWeatherData.tempLow,
-        tempHigh: liveWeatherData.tempHigh,
-        humidity: liveWeatherData.humidity,
-      },
-      alerts: [],
-    });
-
-    // Handle Alerts
-    if (profile.liveAlertsEnabled) {
-      const generatedAlerts: any[] = [];
-      if (condition === 'Sunny') generatedAlerts.push({ level: 'info', title: 'High UV Exposure' });
-      if (currentAqiLabel === 'Poor' || currentAqiLabel === 'Very Poor') generatedAlerts.push({ level: 'critical', title: `Air Quality is ${currentAqiLabel}` });
-      if (['Rain', 'Thunderstorm', 'Snow'].includes(condition)) generatedAlerts.push({ level: 'warn', title: 'Precipitation Expected' });
-
-      try {
-        const { status } = await Location.getForegroundPermissionsAsync();
-        if (status === 'granted' && generatedAlerts.length > 0) {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-
-          // Calculate true geographic distance
-          const distanceKm = getDistanceKm(loc.coords.latitude, loc.coords.longitude, lat, lon);
-
-          // Trigger alert if the user is within a 40km radius of the searched city
-          if (distanceKm <= 40 && !alertedCities.has(weatherData.name)) {
-            const extremeAlerts = generatedAlerts.filter(a => a.level === 'critical' || a.level === 'warn');
-            if (extremeAlerts.length > 0) {
-              alertedCities.add(weatherData.name);
-              await Notifications.scheduleNotificationAsync({
-                content: { title: `ThinkTrip: ${weatherData.name} 🚨`, body: 'Critical weather or air quality alert in your area.', sound: true },
-                trigger: null,
-              });
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to check location for live alerts:', err);
-      }
+    } catch (err) {
+      console.warn('Load destination data failed:', err);
     }
   };
+
 
   // Set the default city ONCE after the profile hydrates from Firestore
   useEffect(() => {
@@ -490,7 +397,7 @@ export default function PlanScreen() {
         blockMin: weather.blockMin,
         blockMax: weather.blockMax,
         humidity: weather.humidity,
-        condition: weather.condition,
+        iconCode: weather.iconCode,
         displayCondition: weather.displayCondition,
         aqiLabel: weather.aqiLabel || 'Good'
       });
@@ -505,9 +412,11 @@ export default function PlanScreen() {
   const activeAlerts = useMemo(() => {
     if (!liveWeather) return [];
     const alerts: any[] = [];
-    const { condition, aqiLabel } = liveWeather;
+    const { iconCode, aqiLabel } = liveWeather;
+    const prefix = iconCode.substring(0, 2);
+    const isNight = iconCode.includes('n');
 
-    if (condition === 'Sunny') {
+    if (prefix === '01' && !isNight) {
       alerts.push({
         level: 'info',
         title: 'High UV Exposure',
@@ -523,11 +432,16 @@ export default function PlanScreen() {
       });
     }
 
-    if (['Rain', 'Thunderstorm', 'Snow'].includes(condition)) {
+    if (['09', '10', '11', '13'].includes(prefix)) {
+      let condName = 'Precipitation';
+      if (prefix === '11') condName = 'Thunderstorm';
+      else if (prefix === '13') condName = 'Snow';
+      else if (['09', '10'].includes(prefix)) condName = 'Rain';
+
       alerts.push({
         level: 'warn',
-        title: 'Precipitation Expected',
-        body: `Expect ${condition.toLowerCase()} during this window. Prepare accordingly.`
+        title: `${condName} Expected`,
+        body: `Expect ${condName.toLowerCase()} during this window. Prepare accordingly.`
       });
     }
 
@@ -686,7 +600,7 @@ export default function PlanScreen() {
             onPress={openSheet}
             style={[styles.heroCard, { backgroundColor: heroTheme.bg }]}
           >
-            <WeatherBackground condition={liveWeather?.condition} />
+            <WeatherBackground iconCode={liveWeather?.iconCode} />
             <LinearGradient
               colors={['rgba(0,0,0,0.3)', 'transparent']}
               style={StyleSheet.absoluteFillObject}
@@ -721,22 +635,21 @@ export default function PlanScreen() {
                   );
                 }
 
-                const condition = liveWeather.condition;
-                const isClear = condition === 'Sunny' || condition === 'Clear Night';
+                const iconPrefix = liveWeather.iconCode.substring(0, 2);
+                const isClear = iconPrefix === '01';
 
                 let iconName: any = 'sun';
-                if (condition === 'Clear Night') iconName = 'moon';
-                else if (condition === 'Clouds') iconName = 'cloud';
-                else if (condition === 'Rain' || condition === 'Drizzle') iconName = 'cloud-rain';
-                else if (condition === 'Snow') iconName = 'cloud-snow';
-                else if (condition === 'Thunderstorm') iconName = 'cloud-lightning';
-                else if (condition === 'Mist' || condition === 'Fog' || condition === 'Haze') iconName = 'cloud';
+                if (liveWeather.iconCode.includes('n') && isClear) iconName = 'moon';
+                else if (['02', '03', '04', '50'].includes(iconPrefix)) iconName = 'cloud';
+                else if (['09', '10'].includes(iconPrefix)) iconName = 'cloud-rain';
+                else if (iconPrefix === '13') iconName = 'cloud-snow';
+                else if (iconPrefix === '11') iconName = 'cloud-lightning';
 
                 return (
                   <View style={[styles.weatherBadge, { backgroundColor: isClear ? heroTheme.accent : 'rgba(255,255,255,0.15)' }]}>
                     <Feather name={iconName} size={11} color={isClear ? heroTheme.bg : heroTheme.accent} />
                     <Text style={[styles.weatherBadgeText, { color: isClear ? heroTheme.bg : heroTheme.accent }]}>
-                      {liveWeather.displayCondition || condition}
+                      {liveWeather.displayCondition}
                     </Text>
                   </View>
                 );
@@ -1040,7 +953,7 @@ export default function PlanScreen() {
                   >
                     <View style={{ gap: 4 }}>
                       <Text style={[styles.forecastDayName, { color: colors.foreground }]}>{dayName}</Text>
-                      <Text style={[styles.forecastCondition, { color: colors.mutedForeground }]}>{weather.displayCondition || weather.condition}</Text>
+                      <Text style={[styles.forecastCondition, { color: colors.mutedForeground }]}>{weather.displayCondition}</Text>
                     </View>
                     <Text style={[styles.forecastTemp, { color: colors.foreground }]}>
                       {weather.blockMin === weather.blockMax ? `${weather.blockMin}°` : `${weather.blockMin}°–${weather.blockMax}°`}

@@ -181,26 +181,34 @@ const CloudEffect = () => {
 };
 
 // --- Main Wrapper Component ---
-export const WeatherBackground = ({ condition }: { condition?: string }) => {
-  if (!condition) return null;
+export const WeatherBackground = ({ iconCode }: { iconCode?: string }) => {
+  if (!iconCode) return null;
+
+  const prefix = iconCode.substring(0, 2); // Gets '01', '10', etc.
+  const isNight = iconCode.includes('n');  // Checks if it's night time
 
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-      {(condition === 'Sunny' || condition === 'Clear') && <SunEffect />}
-      {condition === 'Clear Night' && <MoonEffect />}
+      {/* Clear Sky */}
+      {prefix === '01' && !isNight && <SunEffect />}
+      {prefix === '01' && isNight && <MoonEffect />}
 
-      {['Rain', 'Drizzle'].includes(condition) && <RainEffect />}
+      {/* Rain / Drizzle */}
+      {['09', '10'].includes(prefix) && <RainEffect />}
 
-      {condition === 'Thunderstorm' && (
+      {/* Thunderstorm */}
+      {prefix === '11' && (
         <>
           <LightningEffect />
           <RainEffect />
         </>
       )}
 
-      {condition === 'Snow' && <SnowEffect />}
+      {/* Snow */}
+      {prefix === '13' && <SnowEffect />}
 
-      {['Clouds', 'Mist', 'Fog', 'Haze'].includes(condition) && <CloudEffect />}
+      {/* Clouds / Mist / Fog */}
+      {['02', '03', '04', '50'].includes(prefix) && <CloudEffect />}
     </View>
   );
 };

@@ -45,7 +45,7 @@ export interface LiveWeatherContext {
   tempHigh: number;
   humidity: number;
   aqiLabel: string;
-  condition: string;
+  iconCode: string;
 }
 
 export const buildPackingList = (
@@ -64,7 +64,9 @@ export const buildPackingList = (
   const humidity = liveWeather ? liveWeather.humidity : destination.climate.humidity;
   const tempLow = liveWeather ? liveWeather.tempLow : destination.climate.tempLow;
   const tempHigh = liveWeather ? liveWeather.tempHigh : destination.climate.tempHigh;
-  const condition = liveWeather ? liveWeather.condition : 'Unknown';
+  const iconCode = liveWeather ? liveWeather.iconCode : '01d';
+  const iconPrefix = iconCode.substring(0, 2);
+  const isNight = iconCode.includes('n');
   const aqi = liveWeather ? liveWeather.aqiLabel : 'Unknown';
 
   // 2. Safely handle Metric vs Imperial thresholds
@@ -97,11 +99,11 @@ export const buildPackingList = (
     add('recommended', 'Climate & Respiratory', 'Daily electrolyte packets', `Highs around ${tempHigh}${tempUnit} will accelerate sodium depletion through sweat.`, '⚡');
   }
 
-  if (condition === 'Sunny' || condition === 'Clear') {
+  if (iconPrefix === '01' && !isNight) {
     add('essential', 'Climate & Respiratory', 'Broad-spectrum SPF 50+', 'Essential daily cellular protection against UV radiation.', '🧴');
   }
 
-  if (condition === 'Rain' || condition === 'Drizzle' || condition === 'Thunderstorm') {
+  if (['09', '10', '11'].includes(iconPrefix)) {
     add('essential', 'Climate & Respiratory', 'Compact travel umbrella', 'Active precipitation detected. Maintain external dryness to prevent rapid core heat loss.', '☂️');
   }
 

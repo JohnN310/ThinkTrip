@@ -10,6 +10,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { useColors } from '../hooks/useColors';
+import '../lib/backgroundWeather';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
