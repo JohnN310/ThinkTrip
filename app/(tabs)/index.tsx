@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator, Modal, Animated } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -32,6 +33,7 @@ const POPULAR_CITIES = ['Tokyo', 'London', 'New York', 'Paris', 'Bangkok', 'Duba
 export default function PlanScreen() {
 
   const colors = useColors();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, toggleSavedLocation, hydrated } = useProfile();
 
@@ -583,13 +585,20 @@ export default function PlanScreen() {
                 <Text style={[styles.dateText, { color: colors.mutedForeground }]}>{getDateString()}</Text>
               </View>
             </View>
-            <View style={[styles.headerAvatar, { backgroundColor: profile.avatarColor || colors.primary }]}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
+                router.push('/profile');
+              }}
+              style={[styles.headerAvatar, { backgroundColor: profile.avatarColor || colors.primary }]}
+            >
               {profile.avatarEmoji ? (
                 <Text style={{ fontSize: 22 }}>{profile.avatarEmoji}</Text>
               ) : (
                 <Text style={[styles.headerAvatarText, { color: colors.accent }]}>{initials}</Text>
               )}
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 
