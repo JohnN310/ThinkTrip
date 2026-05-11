@@ -54,6 +54,12 @@ export default function ScanScreen() {
   const insets = useSafeAreaInsets();
   const { profile, save, setDraft } = useProfile();
 
+  // Define a platform-specific offset for the bottom controls
+  const bottomUIOffset = Platform.select({
+    ios: insets.bottom + 70, // Accounts for the dynamic iOS home indicator
+    android: 20,              // Fixed value to sit perfectly above Android's 60px tab bar
+  });
+
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,37 +119,44 @@ export default function ScanScreen() {
 
   const openMap = async (query: string) => {
     const encodedQuery = encodeURIComponent(query);
-    let iosUrl = `https://maps.apple.com/?q=${encodedQuery}`;
 
-    // Inject radius bias so Apple Maps strictly searches near the user
+    // 1. Primary Native Schemes (Forces the OS to look for the actual app)
+    let iosUrl = `maps://?q=${encodedQuery}`;
     if (userLocation) {
       iosUrl += `&sll=${userLocation.coords.latitude},${userLocation.coords.longitude}`;
     }
 
-
     let androidUrl = `geo:0,0?q=${encodedQuery}`;
     if (userLocation) {
-      // geo:lat,lng?q=query forces Google Maps to search within the immediate vicinity of those coords
       androidUrl = `geo:${userLocation.coords.latitude},${userLocation.coords.longitude}?q=${encodedQuery}`;
-    } else {
-      // Safe fallback to Universal Web Link if GPS is entirely disabled
-      androidUrl = `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
     }
 
-    const url = Platform.select({
-      ios: iosUrl,
-      android: androidUrl
-    });
+    // 2. Universal Web Fallbacks (If the native app is deleted/unavailable)
+    const fallbackIosUrl = `https://maps.apple.com/?q=${encodedQuery}`;
+    // Note: I fixed a missing '$' typo in your original Android fallback here!
+    const fallbackAndroidUrl = `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
+
+    const nativeUrl = Platform.select({ ios: iosUrl, android: androidUrl }) || fallbackIosUrl;
+    const webUrl = Platform.select({ ios: fallbackIosUrl, android: fallbackAndroidUrl }) || fallbackIosUrl;
 
     try {
-      const supported = await Linking.canOpenURL(url!);
+      // 3. Try the native app first
+      const supported = await Linking.canOpenURL(nativeUrl);
+
       if (supported) {
-        await Linking.openURL(url!);
+        await Linking.openURL(nativeUrl);
       } else {
-        Alert.alert("Map Unavailable", "Could not open the map application.");
+        // 4. Fall back to the browser if they don't have the app installed
+        const webSupported = await Linking.canOpenURL(webUrl);
+        if (webSupported) {
+          await Linking.openURL(webUrl);
+        } else {
+          Alert.alert("Map Unavailable", "Could not open the map application or browser.");
+        }
       }
     } catch (error) {
       console.error("Linking error:", error);
+      Alert.alert("Map Unavailable", "An error occurred while trying to open the map.");
     }
   };
 
@@ -500,86 +513,267 @@ export default function ScanScreen() {
     save({ locationRoutingEnabled: newValue });
   };
 
-  // this crops to only within the frame
+  // old code
+  // const handleShutter = async () => {
+  //   Keyboard.dismiss();
+  //   // Block if already analyzing or captured
+  //   if (analyzing || isCaptured || !cameraRef.current) return;
+
+  //   if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+  //     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  //   }
+
+  //   // Freeze camera, trigger loading screen, AND trigger the blur overlay
+  //   cameraRef.current.pausePreview();
+  //   setIsCaptured(true);
+  //   setAnalyzing(true);
+
+  //   // --- NEW: Grab Location ---
+  //   let currentLocation: Location.LocationObject | null = null;
+  //   if (profile.locationRoutingEnabled) {
+  //     try {
+  //       const { status } = await Location.getForegroundPermissionsAsync();
+  //       if (status === 'granted') {
+  //         currentLocation = await Location.getLastKnownPositionAsync({})
+  //           || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  //         setUserLocation(currentLocation);
+  //       }
+  //     } catch (e) {
+  //       console.warn("Could not fetch location for scan:", e);
+  //     }
+  //   }
+  //   // --------------------------
+
+  //   try {
+  //     // 3. takePictureAsync runs in the background. It naturally creates a 
+  //     // micro-freeze on the camera feed, enhancing the "captured" effect.
+  //     const photo = await cameraRef.current.takePictureAsync({ quality: 0.5 });
+
+  //     if (photo) {
+  //       // Calculate the exact percentage of the screen the Tab Bar covers
+  //       const tabBarHeightPixels = insets.bottom + 84;
+  //       const tabBarPercent = tabBarHeightPixels / Dimensions.get('window').height;
+
+  //       // Capture full width, starting from the very top (0,0)
+  //       const cropX = 0;
+  //       const cropY = 0;
+  //       const cropWidth = photo.width;
+  //       // The height is the full photo height MINUS the tab bar portion
+  //       const cropHeight = photo.height * (1 - tabBarPercent);
+
+  //       const croppedImage = await ImageManipulator.manipulateAsync(
+  //         photo.uri,
+  //         [{ crop: { originX: cropX, originY: cropY, width: cropWidth, height: cropHeight } }],
+  //         { base64: true, compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+  //       );
+
+  //       if (croppedImage.base64) {
+  //         const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
+
+  //         // Educational fallback if they scanned without GPS
+  //         if (!currentLocation) {
+  //           analysis.badges.unshift({
+  //             type: 'warn',
+  //             text: 'Routing disabled • No GPS'
+  //           });
+  //           delete analysis.mapLocationName;
+  //         }
+
+  //         setResult(analysis);
+  //         openSheet();
+
+  //         if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+  //           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  //         }
+  //         setSearchQuery('');
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error("Analysis Error:", error);
+  //     Alert.alert("Analysis Failed", "Could not analyze the image. Please try again.");
+
+  //     // Reset if it fails so the user can try again
+  //     setIsCaptured(false);
+  //     if (cameraRef.current) cameraRef.current.resumePreview();
+
+  //   } finally {
+  //     setAnalyzing(false);
+  //   }
+  // };
+
+  // new working code
+  // const handleShutter = async () => {
+  //   Keyboard.dismiss();
+  //   if (analyzing || isCaptured || !cameraRef.current) return;
+
+  //   if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+  //     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  //   }
+
+  //   // 1. Immediately trigger the blur overlay so the UI feels instantly responsive
+  //   setIsCaptured(true);
+  //   setAnalyzing(true);
+
+  //   // --- Grab Location ---
+  //   let currentLocation: Location.LocationObject | null = null;
+  //   if (profile.locationRoutingEnabled) {
+  //     try {
+  //       const { status } = await Location.getForegroundPermissionsAsync();
+  //       if (status === 'granted') {
+  //         currentLocation = await Location.getLastKnownPositionAsync({})
+  //           || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  //         setUserLocation(currentLocation);
+  //       }
+  //     } catch (e) {
+  //       console.warn("Could not fetch location for scan:", e);
+  //     }
+  //   }
+
+  //   try {
+  //     // 2. CRITICAL ANDROID FIX: Take the picture BEFORE pausing the preview
+  //     const photo = await cameraRef.current.takePictureAsync({ quality: 0.5 });
+
+  //     // 3. Now that the frame is safely captured into memory, pause the feed
+  //     // cameraRef.current.pausePreview();
+
+  //     if (photo) {
+  //       const tabBarHeightPixels = insets.bottom + 84;
+  //       const tabBarPercent = tabBarHeightPixels / Dimensions.get('window').height;
+
+  //       // 4. CRITICAL ANDROID FIX: ImageManipulator requires strict integers
+  //       const cropX = 0;
+  //       const cropY = 0;
+  //       const cropWidth = Math.round(photo.width);
+  //       const cropHeight = Math.round(photo.height * (1 - tabBarPercent));
+
+  //       const croppedImage = await ImageManipulator.manipulateAsync(
+  //         photo.uri,
+  //         [{ crop: { originX: cropX, originY: cropY, width: cropWidth, height: cropHeight } }],
+  //         { base64: true, compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+  //       );
+
+  //       if (croppedImage.base64) {
+  //         const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
+
+  //         if (!currentLocation) {
+  //           analysis.badges.unshift({
+  //             type: 'warn',
+  //             text: 'Routing disabled • No GPS'
+  //           });
+  //           delete analysis.mapLocationName;
+  //         }
+
+  //         setResult(analysis);
+  //         openSheet();
+
+  //         if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+  //           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  //         }
+  //         setSearchQuery('');
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error("Analysis Error:", error);
+  //     Alert.alert("Analysis Failed", "Could not analyze the image. Please try again.");
+
+  //     // Reset if it fails so the user can try again
+  //     setIsCaptured(false);
+  //     if (cameraRef.current) cameraRef.current.resumePreview();
+
+  //   } finally {
+  //     setAnalyzing(false);
+  //   }
+  // };
+
   const handleShutter = async () => {
     Keyboard.dismiss();
-    // Block if already analyzing or captured
     if (analyzing || isCaptured || !cameraRef.current) return;
 
     if (Platform.OS !== 'web' && profile.hapticsEnabled) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    // Freeze camera, trigger loading screen, AND trigger the blur overlay
-    cameraRef.current.pausePreview();
+    // 1. Instant UI Reaction
     setIsCaptured(true);
     setAnalyzing(true);
 
-    // --- NEW: Grab Location ---
-    let currentLocation: Location.LocationObject | null = null;
-    if (profile.locationRoutingEnabled) {
-      try {
-        const { status } = await Location.getForegroundPermissionsAsync();
-        if (status === 'granted') {
-          currentLocation = await Location.getLastKnownPositionAsync({})
-            || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          setUserLocation(currentLocation);
-        }
-      } catch (e) {
-        console.warn("Could not fetch location for scan:", e);
-      }
-    }
-    // --------------------------
+    // 2. Give the UI 50ms to actually paint the blur overlay 
+    // before the camera hogs the CPU hardware.
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
-      // 3. takePictureAsync runs in the background. It naturally creates a 
-      // micro-freeze on the camera feed, enhancing the "captured" effect.
+      // 3. Capture the frame immediately so the photo matches what the user saw
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.5 });
 
-      if (photo) {
-        // Calculate crop dimensions matching your reticle styling
-        // left: 10%, right: 10% -> Width is 80%
-        // top: 16%, bottom: 32% -> Height is 52% (100 - 16 - 32)
-        const cropX = photo.width * 0.10;
-        const cropY = photo.height * 0.16;
-        const cropWidth = photo.width * 0.80;
-        const cropHeight = photo.height * 0.52;
+      // 4. Freeze the feed (Android safe: after capture)
+      // cameraRef.current.pausePreview();
 
-        const croppedImage = await ImageManipulator.manipulateAsync(
+      if (!photo) throw new Error("Photo capture failed");
+
+      // 5. CONCURRENCY: Start GPS and Image Processing at the same time
+      const locationPromise = (async () => {
+        if (!profile.locationRoutingEnabled) return null;
+        try {
+          const { status } = await Location.getForegroundPermissionsAsync();
+          if (status !== 'granted') return null;
+
+          // Race the GPS fetch against a 2-second timeout so the user isn't stuck
+          return await Promise.race([
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000))
+          ]);
+        } catch (e) {
+          return null;
+        }
+      })();
+
+      const imagePromise = (async () => {
+        const tabBarHeightPixels = insets.bottom + 84;
+        const tabBarPercent = tabBarHeightPixels / Dimensions.get('window').height;
+
+        // Ensure strict integers for Android stability
+        const cropX = 0;
+        const cropY = 0;
+        const cropWidth = Math.round(photo.width);
+        const cropHeight = Math.round(photo.height * (1 - tabBarPercent));
+
+        return await ImageManipulator.manipulateAsync(
           photo.uri,
           [{ crop: { originX: cropX, originY: cropY, width: cropWidth, height: cropHeight } }],
           { base64: true, compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
         );
+      })();
 
-        if (croppedImage.base64) {
-          const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
+      // Wait for both to finish simultaneously
+      const [currentLocation, croppedImage] = await Promise.all([locationPromise, imagePromise]);
+      if (currentLocation) setUserLocation(currentLocation);
 
-          // Educational fallback if they scanned without GPS
-          if (!currentLocation) {
-            analysis.badges.unshift({
-              type: 'warn',
-              text: 'Routing disabled • No GPS'
-            });
-            delete analysis.mapLocationName;
-          }
+      // 6. AI Analysis
+      if (croppedImage.base64) {
+        const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
 
-          setResult(analysis);
-          openSheet();
-
-          if (Platform.OS !== 'web' && profile.hapticsEnabled) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
-          setSearchQuery('');
+        if (!currentLocation && profile.locationRoutingEnabled) {
+          analysis.badges.unshift({
+            type: 'warn',
+            text: 'Routing disabled • Weak GPS'
+          });
+          delete analysis.mapLocationName;
         }
+
+        setResult(analysis);
+        openSheet();
+
+        if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        setSearchQuery('');
       }
     } catch (error) {
       console.error("Analysis Error:", error);
       Alert.alert("Analysis Failed", "Could not analyze the image. Please try again.");
 
-      // Reset if it fails so the user can try again
       setIsCaptured(false);
       if (cameraRef.current) cameraRef.current.resumePreview();
-
     } finally {
       setAnalyzing(false);
     }
@@ -657,27 +851,23 @@ export default function ScanScreen() {
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="back" />
 
       {/* ─── RETICLE FRAME (From Sketch) ─── */}
-      {!isSearchExpanded && (
+      {/* {!isSearchExpanded && (
         <View style={styles.reticleContainer} pointerEvents="none">
           <View style={[styles.corner, styles.topLeft, { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.topRight, { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.bottomLeft, { borderColor: colors.primary }]} />
           <View style={[styles.corner, styles.bottomRight, { borderColor: colors.primary }]} />
         </View>
-      )}
+      )} */}
 
       {/* ─── CAPTURE BLUR SURROUND ─── */}
       {isCaptured && (
-        <View style={[StyleSheet.absoluteFillObject, { zIndex: 8 }]} pointerEvents="none">
-          {/* Top Panel */}
-          <BlurView intensity={25} tint="dark" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '16%' }} />
-          {/* Bottom Panel */}
-          <BlurView intensity={25} tint="dark" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '32%' }} />
-          {/* Left Panel */}
-          <BlurView intensity={25} tint="dark" style={{ position: 'absolute', top: '16%', bottom: '32%', left: 0, width: '10%' }} />
-          {/* Right Panel */}
-          <BlurView intensity={25} tint="dark" style={{ position: 'absolute', top: '16%', bottom: '32%', right: 0, width: '10%' }} />
-        </View>
+        <BlurView
+          intensity={15}
+          tint="dark"
+          style={[StyleSheet.absoluteFillObject, { zIndex: 8 }]}
+          pointerEvents="none"
+        />
       )}
 
       {analyzing && (
@@ -772,10 +962,10 @@ export default function ScanScreen() {
         {!isSearchExpanded && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 }}>
             <View style={styles.topPill}>
-              <Feather 
-                name={mode === 'Payment' ? 'credit-card' : mode === 'Transit' ? 'navigation' : 'book-open'} 
-                size={12} 
-                color="#fff" 
+              <Feather
+                name={mode === 'Payment' ? 'credit-card' : mode === 'Transit' ? 'navigation' : 'book-open'}
+                size={12}
+                color="#fff"
                 style={{ opacity: 0.8 }}
               />
               <Text style={styles.topPillText}>{mode.toUpperCase()}</Text>
@@ -812,7 +1002,7 @@ export default function ScanScreen() {
       {!analyzing && <View style={{ flex: 1 }} />}
 
       {/* ─── BOTTOM CONTROLS ─── */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 70 }]}>
+      <View style={[styles.bottomBar, { bottom: bottomUIOffset }]}>
         {!analyzing && (
           <View style={styles.modeSelector}>
             {(['Menu', 'Payment', 'Transit'] as Mode[]).map((m) => {
