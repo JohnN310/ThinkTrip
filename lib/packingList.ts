@@ -78,59 +78,59 @@ export const buildPackingList = (
   // ─── RESPIRATORY & CLIMATE HEALTH ───
 
   if (aqi === 'Poor' || aqi === 'Very Poor') {
-    add('essential', 'Climate & Respiratory', 'N95 / KN95 Respirator Masks', `Current air quality is ${aqi}. Protect your respiratory baseline.`, '😷');
-    add('recommended', 'Climate & Respiratory', 'Sterile saline nasal flush', 'Clears airborne particulate matter from sinus passages after exposure.', '👃');
+    add('essential', 'Climate & Respiratory', 'N95 / KN95 Respirator Masks', `Air quality is ${aqi}. A mask is recommended for outdoor activities.`, '😷');
+    add('recommended', 'Climate & Respiratory', 'Saline nasal flush', 'Helps clear particulate matter from sinus passages after outdoor exposure.', '👃');
   }
 
   if (humidity <= 30) {
-    add('essential', 'Climate & Respiratory', 'Hydrating eye drops & nasal spray', `Humidity ${humidity}% will rapidly dehydrate mucous membranes.`, '💧');
-    add('recommended', 'Climate & Respiratory', 'Occlusive skin barrier repair', 'Prevents extreme transepidermal water loss in dry climates.', '🧴');
+    add('essential', 'Climate & Respiratory', 'Hydrating eye drops & nasal spray', `Low humidity (${humidity}%) can cause dehydration. Keep eyes and sinuses lubricated.`, '💧');
+    add('recommended', 'Climate & Respiratory', 'Barrier repair moisturizer', 'Protects the skin barrier and prevents moisture loss in dry conditions.', '🧴');
   } else if (humidity >= 70) {
     if (profile.usesChemicalExfoliants || profile.usesRetinoids) {
-      add('recommended', 'Climate & Respiratory', 'Pause topical actives', `High humidity (${humidity}%) increases absorption and risks chemical burns.`, '⚠️');
+      add('recommended', 'Climate & Respiratory', 'Pause topical actives', `High humidity (${humidity}%) increases skin sensitivity to strong active ingredients.`, '⚠️');
     }
   }
 
   if (tempLow <= coldThreshold) {
-    add('essential', 'Climate & Respiratory', 'Thermal base layers', `Core temperature regulation for lows around ${tempLow}${tempUnit}.`, '🧥');
+    add('essential', 'Climate & Respiratory', 'Thermal base layers', `Recommended for core temperature regulation in ${tempLow}${tempUnit} weather.`, '🧥');
   }
 
   if (tempHigh >= hotThreshold) {
-    add('recommended', 'Climate & Respiratory', 'Daily electrolyte packets', `Highs around ${tempHigh}${tempUnit} will accelerate sodium depletion through sweat.`, '⚡');
+    add('recommended', 'Climate & Respiratory', 'Daily electrolyte packets', `Recommended to replenish electrolytes during high temperatures (${tempHigh}${tempUnit}).`, '⚡');
   }
 
   if (iconPrefix === '01' && !isNight) {
-    add('essential', 'Climate & Respiratory', 'Broad-spectrum SPF 50+', 'Essential daily cellular protection against UV radiation.', '🧴');
+    add('essential', 'Climate & Respiratory', 'Broad-spectrum SPF 50+', 'Essential daily protection against high UV exposure.', '🧴');
   }
 
   if (['09', '10', '11'].includes(iconPrefix)) {
-    add('essential', 'Climate & Respiratory', 'Compact travel umbrella', 'Active precipitation detected. Maintain external dryness to prevent rapid core heat loss.', '☂️');
+    add('essential', 'Climate & Respiratory', 'Compact travel umbrella', 'Precipitation expected. Recommended to maintain core temperature and remain dry.', '☂️');
   }
 
   // ─── SYSTEMIC & DIETARY HEALTH ───
 
   if (profile.shellfishAllergy || profile.peanutAllergy) {
-    add('essential', 'Systemic & Dietary', 'EpiPen (2x) & Antihistamines', 'Critical anaphylaxis protocol. Keep in your personal carry-on item at all times.', '💉');
-    add('essential', 'Systemic & Dietary', 'Translated allergy medical cards', 'Ensure exact communication of severe allergies in local dining environments.', '📇');
+    add('essential', 'Systemic & Dietary', 'EpiPen (2x) & Antihistamines', 'Critical allergy protocol. Keep accessible in your personal carry-on.', '💉');
+    add('essential', 'Systemic & Dietary', 'Translated allergy cards', 'Ensures clear communication of severe dietary restrictions when dining.', '📇');
   }
 
   if (profile.glutenFree || profile.dairyFree) {
-    add('recommended', 'Systemic & Dietary', 'Broad-spectrum digestive enzymes', 'Mitigates inflammatory response from cross-contamination in restaurant kitchens.', '💊');
+    add('recommended', 'Systemic & Dietary', 'Digestive enzymes', 'Provides digestive support against potential dietary cross-contamination.', '💊');
   }
 
   if (profile.sodiumSensitive) {
-    add('recommended', 'Systemic & Dietary', 'Potassium-rich snacks', 'Balances cellular hydration, as travel dining heavily exceeds daily sodium baselines.', '🍌');
+    add('recommended', 'Systemic & Dietary', 'Potassium-rich snacks', 'Helps maintain hydration balance to offset high-sodium travel meals.', '🍌');
   }
 
   if (profile.caffeineLimit) {
-    add('optional', 'Systemic & Dietary', 'Magnesium glycinate / Melatonin', 'Supports circadian rhythm adjustment without relying on morning caffeine spikes.', '💤');
+    add('optional', 'Systemic & Dietary', 'Magnesium / Melatonin', 'Supports sleep regulation and circadian adjustment during travel.', '💤');
   }
 
   // ─── PHYSICAL CONDITIONING ───
 
   if (profile.activityLevel === 'high' || profile.travelType === 'adventure') {
-    add('essential', 'Physical & Transit', 'Hydrocolloid blister dressings', 'Pre-empts structural foot damage from elevated daily step counts.', '🩹');
-    add('recommended', 'Physical & Transit', 'Graduated compression socks', 'Aids vascular return and reduces lower-extremity edema during transit.', '🧦');
+    add('essential', 'Physical & Transit', 'Blister dressings', 'Prevents blistering during periods of elevated physical activity.', '🩹');
+    add('recommended', 'Physical & Transit', 'Compression socks', 'Supports circulation and reduces swelling during prolonged transit.', '🧦');
   }
 
   return items;

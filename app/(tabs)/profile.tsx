@@ -348,9 +348,9 @@ export default function ProfileScreen() {
             onChange={(v: any) => setDraft({ skinType: v })}
           />
           <View style={{ marginTop: 8 }}>
-            <ToggleRow title="Active retinoid routine" description="Tretinoin, retinal, retinol — paused on humid trips." value={draft.usesRetinoids} onValueChange={(v) => setDraft({ usesRetinoids: v })} />
-            <ToggleRow title="Benzoyl peroxide" description="Will warn about staining hotel linens." value={draft.usesBenzoylPeroxide} onValueChange={(v) => setDraft({ usesBenzoylPeroxide: v })} />
-            <ToggleRow title="Chemical exfoliants" description="AHA / BHA — paused under high UV." value={draft.usesChemicalExfoliants} onValueChange={(v) => setDraft({ usesChemicalExfoliants: v })} />
+            <ToggleRow title="Active retinoid routine" description="Tretinoin, retinal, retinol — paused when humid." value={draft.usesRetinoids} onValueChange={(v) => setDraft({ usesRetinoids: v })} />
+            <ToggleRow title="Benzoyl peroxide" description="Can stain hotel linens." value={draft.usesBenzoylPeroxide} onValueChange={(v) => setDraft({ usesBenzoylPeroxide: v })} />
+            <ToggleRow title="Chemical exfoliants" description="AHA / BHA — paused on sunny days." value={draft.usesChemicalExfoliants} onValueChange={(v) => setDraft({ usesChemicalExfoliants: v })} />
             <ToggleRow title="Fragrance-free only" value={draft.fragranceFree} onValueChange={(v) => setDraft({ fragranceFree: v })} />
           </View>
         </View>
@@ -359,8 +359,8 @@ export default function ProfileScreen() {
     if (activeSheet === 'Diet') {
       return (
         <View style={{ gap: 12 }}>
-          <ToggleRow title="Sodium sensitive" description="Flags broths, soy-heavy dishes, and processed meats." value={draft.sodiumSensitive} onValueChange={(v) => setDraft({ sodiumSensitive: v })} />
-          <ToggleRow title="Caffeine limit" description="Caps recommendations at ~200mg/day." value={draft.caffeineLimit} onValueChange={(v) => setDraft({ caffeineLimit: v })} />
+          <ToggleRow title="Sodium sensitive" description="Watch out for salty dishes." value={draft.sodiumSensitive} onValueChange={(v) => setDraft({ sodiumSensitive: v })} />
+          <ToggleRow title="Caffeine limit" description="Keep caffeine under ~200mg/day." value={draft.caffeineLimit} onValueChange={(v) => setDraft({ caffeineLimit: v })} />
           <ToggleRow title="Gluten-free" value={draft.glutenFree} onValueChange={(v) => setDraft({ glutenFree: v })} />
           <ToggleRow title="Dairy-free" value={draft.dairyFree} onValueChange={(v) => setDraft({ dairyFree: v })} />
           <ToggleRow title="Shellfish allergy" value={draft.shellfishAllergy} onValueChange={(v) => setDraft({ shellfishAllergy: v })} />
@@ -393,10 +393,10 @@ export default function ProfileScreen() {
       return (
         <View style={{ gap: 18 }}>
           <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.foreground, lineHeight: 20 }}>
-            ThinkTrip is a real-time, biometrically-aware travel OS. It tunes climate analysis, packing suggestions, and on-the-ground decoding to your body's baseline.
+            ThinkTrip bridges the gap between arriving and belonging. Before departure, the planning engine synthesizes environmental conditions with your health baseline to generate a calibrated packing protocol. During your trip, the app provides real-time, context-aware intelligence on local dining etiquette, payment norms, and transit systems, equipping you to navigate the world with precision and confidence.
           </Text>
           <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.mutedForeground }}>
-            Version 1.0.0 (build 1)
+            Version 1.0.0
           </Text>
         </View>
       );
@@ -410,7 +410,7 @@ export default function ProfileScreen() {
             onChange={(v: any) => setDraft({ themePreference: v })}
           />
           <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.mutedForeground, textAlign: 'center', marginTop: 4 }}>
-            System mode will automatically adapt to your device's control center settings.
+            System mode matches your device settings.
           </Text>
         </View>
       );
@@ -496,7 +496,7 @@ export default function ProfileScreen() {
           <SettingsRow
             icon={<Feather name="alert-circle" size={16} color={colors.foreground} />}
             label="Live alerts"
-            description="Extreme weather and pollution warnings for your saved cities."
+            description="Alerts for bad weather and poor air quality in your saved cities."
             // Make the whole row tappable
             onPress={() => handleToggleLiveAlerts(!profile.liveAlertsEnabled)}
             rightElement={
@@ -510,7 +510,7 @@ export default function ProfileScreen() {
           <SettingsRow
             icon={<Feather name="navigation" size={16} color={colors.foreground} />}
             label="Location-aware scanning"
-            description="Sends coordinates to your maps app for precise directions. No data is stored."
+            description="Use GPS for better map directions. No location data is stored."
             onPress={() => handleToggleLocationRouting(!profile.locationRoutingEnabled)}
             rightElement={
               <Switch

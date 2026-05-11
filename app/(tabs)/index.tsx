@@ -149,7 +149,7 @@ export default function PlanScreen() {
 
       let currentIcon = '01d';
       let currentDesc = 'Clear Sky';
-      
+
       if (weatherData.weather && weatherData.weather.length > 0) {
         currentIcon = weatherData.weather[0].icon;
         currentDesc = formatDescription(weatherData.weather[0].description);
@@ -272,7 +272,7 @@ export default function PlanScreen() {
             if (item.weather && item.weather.length > 0) {
               const desc = formatDescription(item.weather[0].description);
               const icon = item.weather[0].icon;
-              
+
               // Only add to list if it's a new weather shift (prevents "Light Rain → Light Rain")
               if (chronologicalConditions[chronologicalConditions.length - 1] !== desc) {
                 chronologicalConditions.push(desc);
@@ -422,7 +422,7 @@ export default function PlanScreen() {
       alerts.push({
         level: 'info',
         title: 'High UV Exposure',
-        body: 'Clear skies detected. Ensure your biometric baseline is protected with SPF 50+.'
+        body: 'Clear skies ahead. Sunscreen application is advised.'
       });
     }
 
@@ -430,7 +430,7 @@ export default function PlanScreen() {
       alerts.push({
         level: 'critical',
         title: `Air Quality is ${aqiLabel}`,
-        body: 'High particulate matter detected. Respiratory protection is strongly advised outdoors.'
+        body: 'Poor air quality today. Respiratory protection advised.'
       });
     }
 
@@ -443,7 +443,7 @@ export default function PlanScreen() {
       alerts.push({
         level: 'warn',
         title: `${condName} Expected`,
-        body: `Expect ${condName.toLowerCase()} during this window. Prepare accordingly.`
+        body: `Looks like ${condName.toLowerCase()} is on the way. Plan accordingly.`
       });
     }
 
