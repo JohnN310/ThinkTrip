@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
 import { useColors } from '../../hooks/useColors';
 import { useProfile } from '../../contexts/ProfileContext';
 import { Destination } from '../../lib/destinations';
@@ -74,6 +75,30 @@ export default function PlanScreen() {
   const savedLocations: string[] = profile.savedLocations || [];
 
   const [hasSetInitialCity, setHasSetInitialCity] = useState(false);
+
+  const [selectedPackingItem, setSelectedPackingItem] = useState<any>(null);
+  const [showPackingSheet, setShowPackingSheet] = useState(false);
+  const packingFadeAnim = useRef(new Animated.Value(0)).current;
+  const packingSlideAnim = useRef(new Animated.Value(800)).current;
+
+  const openPackingSheet = (item: any) => {
+    setSelectedPackingItem(item);
+    setShowPackingSheet(true);
+    Animated.parallel([
+      Animated.timing(packingFadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.spring(packingSlideAnim, { toValue: 0, damping: 24, stiffness: 200, useNativeDriver: true })
+    ]).start();
+  };
+
+  const closePackingSheet = () => {
+    Animated.parallel([
+      Animated.timing(packingFadeAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+      Animated.timing(packingSlideAnim, { toValue: 800, duration: 250, useNativeDriver: true })
+    ]).start(() => {
+      setShowPackingSheet(false);
+      setSelectedPackingItem(null);
+    });
+  };
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(800)).current; // Starts 800px off-screen
@@ -872,20 +897,23 @@ export default function PlanScreen() {
                       return (
                         <View key={item.id}>
                           {index > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
-                          <View style={styles.packingRow}>
-
-                            <View style={styles.packingContent}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                {item.emoji && (
-                                  <Text style={{ fontSize: 14 }}>{item.emoji}</Text>
-                                )}
-                                <Text style={[styles.packingTitle, { color: colors.foreground, flex: 1 }]} numberOfLines={1}>
-                                  {item.title}
-                                </Text>
-                              </View>
-                              <Text style={[styles.packingReason, { color: colors.mutedForeground }]}>{item.reason}</Text>
+                          <TouchableOpacity
+                            style={styles.packingRow}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
+                              openPackingSheet(item);
+                            }}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
+                              <View style={[styles.dot, { backgroundColor: dotColor, width: 6, height: 6 }]} />
+                              {item.emoji && <Text style={{ fontSize: 16 }}>{item.emoji}</Text>}
+                              <Text style={[styles.packingTitle, { color: colors.foreground, flex: 1, fontSize: 15 }]} numberOfLines={1}>
+                                {item.title}
+                              </Text>
                             </View>
-                          </View>
+                            <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+                          </TouchableOpacity>
                         </View>
                       );
                     })}
@@ -971,6 +999,78 @@ export default function PlanScreen() {
                 );
               })}
             </ScrollView>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
+
+      {/* ─── Packing Item Bottom Sheet Modal ─── */}
+      <Modal visible={showPackingSheet} transparent animationType="none" onRequestClose={closePackingSheet}>
+        {/* Animated Backdrop */}
+        <Animated.View style={[styles.sheetBackdrop, { opacity: packingFadeAnim }]}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closePackingSheet} />
+
+          {/* Animated Sheet */}
+          <Animated.View style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.card,
+              paddingBottom: insets.bottom + 20,
+              transform: [{ translateY: packingSlideAnim }] // Drives the spring upward
+            }
+          ]}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]} />
+
+            {selectedPackingItem && (
+              <ScrollView contentContainerStyle={{ paddingHorizontal: 20, gap: 20, paddingBottom: 20 }}>
+                {/* Header */}
+                <View style={{ gap: 4, alignItems: 'center', marginBottom: 10 }}>
+                  <Text style={{ fontSize: 32 }}>{selectedPackingItem.emoji}</Text>
+                  <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: colors.foreground, textAlign: 'center' }}>
+                    {selectedPackingItem.title}
+                  </Text>
+                </View>
+
+                {/* Why you need this */}
+                <View style={{ gap: 8 }}>
+                  <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: colors.mutedForeground, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+                    WHY YOU NEED THIS
+                  </Text>
+                  <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 15, color: colors.foreground, lineHeight: 22 }}>
+                    {selectedPackingItem.detailedDescription || selectedPackingItem.reason}
+                  </Text>
+                </View>
+
+                {/* Recommended Options */}
+                {selectedPackingItem.productSamples && selectedPackingItem.productSamples.length > 0 && (
+                  <View style={{ gap: 12 }}>
+                    <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: colors.mutedForeground, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+                      RECOMMENDED OPTIONS
+                    </Text>
+                    {selectedPackingItem.productSamples.map((product: any, idx: number) => (
+                      <Card key={idx} padded={true} style={{ padding: 16 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ flex: 1, paddingRight: 10 }}>
+                            {/* Brand name ommited, only show when doing advertisments. Use product.query to search for the product brand specifically.*/}
+                            {/* <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.mutedForeground }}>{product.brand}</Text> */}
+                            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 15, color: colors.foreground, marginTop: 2 }}>{product.name}</Text>
+                            {/* <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: colors.foreground, marginTop: 4 }}>{product.price}</Text> */}
+                          </View>
+                          <TouchableOpacity
+                            style={{ backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 }}
+                            onPress={() => {
+                              if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
+                              WebBrowser.openBrowserAsync(`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(product.name)}`);
+                            }}
+                          >
+                            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: colors.primaryForeground }}>See more</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </Card>
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            )}
           </Animated.View>
         </Animated.View>
       </Modal>
