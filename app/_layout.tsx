@@ -8,19 +8,19 @@ import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { ProfileProvider } from '../contexts/ProfileContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { StatusBar } from 'expo-status-bar';
-import * as Notifications from 'expo-notifications';
+// import * as Notifications from 'expo-notifications';
 import { useColors } from '../hooks/useColors';
-import '../lib/backgroundWeather';
+// import '../lib/backgroundWeather';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Notifications.setNotificationHandler({
+//   handleNotification: async () => ({
+//     shouldShowAlert: true,
+//     shouldShowBanner: true,
+//     shouldShowList: true,
+//     shouldPlaySound: true,
+//     shouldSetBadge: true,
+//   }),
+// });
 
 SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();

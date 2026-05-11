@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, KeyboardAvoidingView, Platform, Alert, Modal, Share, Linking, Dimensions } from 'react-native';
-import * as Notifications from 'expo-notifications';
+// import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +14,7 @@ import { Card } from '../../components/Card';
 import { SettingsGroup, SettingsRow } from '../../components/SettingsRow';
 import { ToggleRow } from '../../components/ToggleRow';
 import { SegmentedControl } from '../../components/SegmentedControl';
-import { registerBackgroundWeatherTask, unregisterBackgroundWeatherTask } from '../../lib/backgroundWeather';
+// import { registerBackgroundWeatherTask, unregisterBackgroundWeatherTask } from '../../lib/backgroundWeather';
 
 const AVATAR_COLORS = [
   // Signature Blues & Indigos
@@ -142,59 +142,46 @@ export default function ProfileScreen() {
     Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
   };
 
-  const handleToggleLiveAlerts = async (value: boolean) => {
-    if (!value) {
-      setDraft({ liveAlertsEnabled: false });
-      await save({ liveAlertsEnabled: false });
-      if (Platform.OS !== 'web') {
-        await unregisterBackgroundWeatherTask();
-      }
-      return;
-    }
+  // const handleToggleLiveAlerts = async (value: boolean) => {
+  //   if (!value) {
+  //     setDraft({ liveAlertsEnabled: false });
+  //     await save({ liveAlertsEnabled: false });
+  //     if (Platform.OS !== 'web') {
+  //       // await unregisterBackgroundWeatherTask();
+  //     }
+  //     return;
+  //   }
 
-    try {
-      const { status: notifStatus } = await Notifications.requestPermissionsAsync();
-      if (notifStatus !== 'granted') {
-        Alert.alert('Permission Denied', 'Please enable notifications in your device settings to receive live alerts.');
-        setDraft({ liveAlertsEnabled: false });
-        return;
-      }
+  //   try {
+  //     const { status: notifStatus } = await Notifications.requestPermissionsAsync();
+  //     if (notifStatus !== 'granted') {
+  //       Alert.alert('Permission Denied', 'Please enable notifications in your device settings to receive live alerts.');
+  //       setDraft({ liveAlertsEnabled: false });
+  //       return;
+  //     }
 
-      // let token = '';
-      // if (Platform.OS !== 'web') {
-      //   try {
-      //     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-      //     if (projectId) {
-      //       const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-      //       token = tokenData.data;
-      //     }
-      //   } catch (e) {
-      //     console.warn('Could not fetch Expo Push Token (expected in Expo Go):', e);
-      //   }
-      // }
+  //     setDraft({
+  //       liveAlertsEnabled: true,
+  //     });
+  //     await save({
+  //       liveAlertsEnabled: true,
+  //     });
 
-      setDraft({
-        liveAlertsEnabled: true,
-      });
-      await save({
-        liveAlertsEnabled: true,
-      });
+  //     if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+  //       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  //     }
 
-      if (Platform.OS !== 'web' && profile.hapticsEnabled) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+  //     // Register the background task
+  //     if (Platform.OS !== 'web') {
+  //       // await registerBackgroundWeatherTask();
+  //     }
 
-      // Register the background task
-      if (Platform.OS !== 'web') {
-        await registerBackgroundWeatherTask();
-      }
-
-    } catch (error) {
-      console.error('Error enabling live alerts:', error);
-      setDraft({ liveAlertsEnabled: false });
-      save({ liveAlertsEnabled: false });
-    }
-  };
+  //   } catch (error) {
+  //     console.error('Error enabling live alerts:', error);
+  //     setDraft({ liveAlertsEnabled: false });
+  //     save({ liveAlertsEnabled: false });
+  //   }
+  // };
 
   const handleToggleLocationRouting = async (value: boolean) => {
     if (!value) {
@@ -493,7 +480,7 @@ export default function ProfileScreen() {
             }
             onPress={() => setActiveSheet('Units')}
           />
-          <SettingsRow
+          {/* <SettingsRow
             icon={<Feather name="alert-circle" size={16} color={colors.foreground} />}
             label="Live alerts"
             description="Alerts for bad weather and poor air quality in your saved cities."
@@ -506,7 +493,7 @@ export default function ProfileScreen() {
                 trackColor={{ true: colors.primary }}
               />
             }
-          />
+          /> */}
           <SettingsRow
             icon={<Feather name="navigation" size={16} color={colors.foreground} />}
             label="Location-aware scanning"
