@@ -29,7 +29,7 @@ const getAqiLabel = (aqiIndex: number) => {
 
 
 const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_WEATHER_KEY;
-const POPULAR_CITIES = ['Tokyo, JP', 'London, GB', 'New York, US', 'Paris, FR', 'Bangkok, TH', 'Dubai, AE', 'Seoul, KR', 'Marrakech, MA'];
+const POPULAR_CITIES = ['Tokyo, JP', 'London, England, GB', 'New York, US', 'Paris, Ile-de-France, FR', 'Bangkok, TH', 'Dubai, AE', 'Seoul, KR', 'Marrakesh, MA'];
 
 export interface GeocodeSuggestion {
   name: string;
@@ -162,6 +162,7 @@ export default function PlanScreen() {
   const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestQueryRef = useRef('');
 
   // 1. Centralize all fetching logic into a single reusable function
   const loadDestinationData = async (locationQuery: string | GeocodeSuggestion) => {
@@ -170,6 +171,7 @@ export default function PlanScreen() {
 
       let weatherUrl = '';
       let targetName = '';
+      let foundGeoData: any = null;
 
       if (typeof locationQuery === 'string') {
         let lookupLat: number | null = null;
@@ -182,6 +184,7 @@ export default function PlanScreen() {
             if (geoData && geoData.length > 0) {
               lookupLat = geoData[0].lat;
               lookupLon = geoData[0].lon;
+              foundGeoData = geoData[0];
               
               // Attempt exact matching if the query has 3 parts (City, State, Country)
               const queryParts = locationQuery.split(',').map(p => p.trim().toLowerCase());
@@ -194,6 +197,7 @@ export default function PlanScreen() {
                 if (exactMatch) {
                   lookupLat = exactMatch.lat;
                   lookupLon = exactMatch.lon;
+                  foundGeoData = exactMatch;
                 }
               }
             }
@@ -234,6 +238,9 @@ export default function PlanScreen() {
           finalName = matchedSaved;
         } else if (matchedPopular) {
           finalName = matchedPopular;
+        } else if (foundGeoData) {
+          const statePart = foundGeoData.state && foundGeoData.state !== foundGeoData.name ? `, ${foundGeoData.state}` : '';
+          finalName = `${foundGeoData.name}${statePart}, ${foundGeoData.country}`;
         } else {
           finalName = `${weatherData.name}, ${weatherData.sys.country}`;
         }
@@ -452,6 +459,7 @@ export default function PlanScreen() {
         },
         alerts: [],
       });
+      return finalName;
     } catch (err) {
       console.warn('Load destination data failed:', err);
       throw err;
@@ -614,6 +622,8 @@ export default function PlanScreen() {
       : `${locationQuery.name}${locationQuery.state && locationQuery.state !== locationQuery.name ? `, ${locationQuery.state}` : ''}, ${locationQuery.country}`;
 
     if (!queryStr.trim()) return;
+    latestQueryRef.current = '';
+    setIsFetchingSuggestions(false);
     setIsSearching(true);
     setSelectedChip(queryStr);
 
@@ -623,7 +633,8 @@ export default function PlanScreen() {
 
     try {
       setLiveWeather(null); // Optional: triggers the loading state visually
-      await loadDestinationData(locationQuery); // Perform ONE combined fetch
+      const resolvedName = await loadDestinationData(locationQuery); // Perform ONE combined fetch
+      setSelectedChip(resolvedName);
       setSearchQuery('');
       setSuggestions([]);
       setSelectedDayIndex(-1);
@@ -640,10 +651,22 @@ export default function PlanScreen() {
     }
   };
 
-  const handleSearch = () => searchCity(searchQuery, false);
+  const handleSearch = () => {
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    latestQueryRef.current = '';
+    
+    if (suggestions.length > 0) {
+      searchCity(suggestions[0], false);
+      Keyboard.dismiss();
+    } else {
+      searchCity(searchQuery, false);
+      Keyboard.dismiss();
+    }
+  };
 
   const fetchSuggestions = (query: string) => {
     setSearchQuery(query);
+    latestQueryRef.current = query;
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
@@ -655,12 +678,14 @@ export default function PlanScreen() {
           const res = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${OPENWEATHER_API_KEY}`);
           if (res.ok) {
             const data = await res.json();
-            setSuggestions(data);
+            if (latestQueryRef.current === query) {
+              setSuggestions(data);
+            }
           }
         } catch (error) {
           console.warn("Failed to fetch suggestions:", error);
         } finally {
-          setIsFetchingSuggestions(false);
+          if (latestQueryRef.current === query) setIsFetchingSuggestions(false);
         }
       }, 500);
     } else {

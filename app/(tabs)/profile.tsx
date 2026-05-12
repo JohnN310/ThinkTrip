@@ -550,7 +550,10 @@ export default function ProfileScreen() {
 
         <SettingsGroup footnote="ThinkTrip • v1.0.0 (build 1)">
           <SettingsRow icon={<Feather name="help-circle" size={16} color={colors.foreground} />} label="Help center" rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} onPress={() => handleOpenLink('https://thinktrip.app/help')} />
-          <SettingsRow icon={<Feather name="message-square" size={16} color={colors.foreground} />} label="Send feedback" rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} onPress={() => handleOpenLink('mailto:support@thinktrip.app?subject=ThinkTrip%20Feedback')} />
+          {/* <SettingsRow icon={<Feather name="message-square" size={16} color={colors.foreground} />} label="Send feedback" rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} onPress={() => handleOpenLink('mailto:support@thinktrip.app?subject=ThinkTrip%20Feedback')} /> */}
+
+          <SettingsRow icon={<Feather name="message-square" size={16} color={colors.foreground} />} label="Send feedback" rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} onPress={() => handleOpenLink('https://forms.gle/tCYfmomQQv6Wzm7Y8')} />
+
           <SettingsRow icon={<Feather name="info" size={16} color={colors.foreground} />} label="About" rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} onPress={() => setActiveSheet('About')} />
         </SettingsGroup>
 
