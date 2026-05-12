@@ -863,7 +863,7 @@ export default function ScanScreen() {
       {/* ─── CAPTURE BLUR SURROUND ─── */}
       {isCaptured && (
         <BlurView
-          intensity={15}
+          intensity={25}
           tint="dark"
           style={[StyleSheet.absoluteFillObject, { zIndex: 8 }]}
           pointerEvents="none"
@@ -1228,7 +1228,7 @@ const styles = StyleSheet.create({
   enableBtn: { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 12 },
   enableBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
 
-  analyzingOverlay: { backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', gap: 20, zIndex: 10 },
+  analyzingOverlay: { backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', gap: 20, zIndex: 10 },
   analyzingCaption: { fontFamily: 'Inter_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.4)', letterSpacing: 0.3 },
 
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 20 },
