@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator, Modal, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator, Modal, Animated, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -29,7 +29,15 @@ const getAqiLabel = (aqiIndex: number) => {
 
 
 const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_WEATHER_KEY;
-const POPULAR_CITIES = ['Tokyo', 'London', 'New York', 'Paris', 'Bangkok', 'Dubai', 'Seoul', 'Marrakech'];
+const POPULAR_CITIES = ['Tokyo, JP', 'London, GB', 'New York, US', 'Paris, FR', 'Bangkok, TH', 'Dubai, AE', 'Seoul, KR', 'Marrakech, MA'];
+
+export interface GeocodeSuggestion {
+  name: string;
+  lat: number;
+  lon: number;
+  country: string;
+  state?: string;
+}
 
 export default function PlanScreen() {
 
@@ -150,15 +158,65 @@ export default function PlanScreen() {
   const [selectedChip, setSelectedChip] = useState('New York');
   const [initialLoadFailed, setInitialLoadFailed] = useState(false);
 
+  // Autocomplete State
+  const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // 1. Centralize all fetching logic into a single reusable function
-  const loadDestinationData = async (cityName: string) => {
+  const loadDestinationData = async (locationQuery: string | GeocodeSuggestion) => {
     try {
       const unitQuery = profile.units === 'imperial' ? 'imperial' : 'metric';
 
+      let weatherUrl = '';
+      let targetName = '';
+
+      if (typeof locationQuery === 'string') {
+        let lookupLat: number | null = null;
+        let lookupLon: number | null = null;
+        
+        try {
+          const geoRes = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(locationQuery)}&limit=5&appid=${OPENWEATHER_API_KEY}`);
+          if (geoRes.ok) {
+            const geoData = await geoRes.json();
+            if (geoData && geoData.length > 0) {
+              lookupLat = geoData[0].lat;
+              lookupLon = geoData[0].lon;
+              
+              // Attempt exact matching if the query has 3 parts (City, State, Country)
+              const queryParts = locationQuery.split(',').map(p => p.trim().toLowerCase());
+              if (queryParts.length === 3) {
+                const exactMatch = geoData.find((g: any) => 
+                  g.name?.toLowerCase() === queryParts[0] &&
+                  g.state?.toLowerCase() === queryParts[1] &&
+                  g.country?.toLowerCase() === queryParts[2]
+                );
+                if (exactMatch) {
+                  lookupLat = exactMatch.lat;
+                  lookupLon = exactMatch.lon;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Geocode pre-lookup failed, falling back to basic search:", e);
+        }
+
+        if (lookupLat !== null && lookupLon !== null) {
+          weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lookupLat}&lon=${lookupLon}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`;
+        } else {
+          weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(locationQuery)}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`;
+        }
+        
+        targetName = locationQuery;
+      } else {
+        weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${locationQuery.lat}&lon=${locationQuery.lon}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`;
+        const statePart = locationQuery.state && locationQuery.state !== locationQuery.name ? `, ${locationQuery.state}` : '';
+        targetName = `${locationQuery.name}${statePart}, ${locationQuery.country}`;
+      }
+
       // Fetch Current Weather (This also acts as our validation check)
-      const weatherRes = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(cityName)}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`
-      );
+      const weatherRes = await fetch(weatherUrl);
       const weatherData = await weatherRes.json();
 
       if (!weatherRes.ok || !weatherData.coord) {
@@ -166,6 +224,21 @@ export default function PlanScreen() {
       }
 
       setInitialLoadFailed(false);
+
+      let finalName = targetName;
+      if (typeof locationQuery === 'string') {
+        const matchedSaved = savedLocations.find(loc => loc.toLowerCase() === locationQuery.toLowerCase());
+        const matchedPopular = POPULAR_CITIES.find(loc => loc.toLowerCase() === locationQuery.toLowerCase());
+        
+        if (matchedSaved) {
+          finalName = matchedSaved;
+        } else if (matchedPopular) {
+          finalName = matchedPopular;
+        } else {
+          finalName = `${weatherData.name}, ${weatherData.sys.country}`;
+        }
+      }
+
       const lat = weatherData.coord.lat;
       const lon = weatherData.coord.lon;
 
@@ -194,7 +267,7 @@ export default function PlanScreen() {
 
       // Fetch Forecast
       const forecastRes = await fetch(
-        `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(cityName)}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`
+        `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`
       );
       const forecastData = await forecastRes.json();
 
@@ -369,8 +442,8 @@ export default function PlanScreen() {
 
       // Update Destination context at the very end
       setDestination({
-        key: weatherData.name.toLowerCase().replace(/\s+/g, '-'),
-        name: weatherData.name,
+        key: finalName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        name: finalName,
         region: weatherData.sys.country,
         climate: {
           tempLow: liveWeatherData.tempLow,
@@ -381,6 +454,7 @@ export default function PlanScreen() {
       });
     } catch (err) {
       console.warn('Load destination data failed:', err);
+      throw err;
     }
   };
 
@@ -394,12 +468,12 @@ export default function PlanScreen() {
     }
     if (hydrated && !hasSetInitialCity) {
       setHasSetInitialCity(true);
-      const defaultCity = savedLocations.length > 0 ? savedLocations[0] : 'New York';
+      const defaultCity = savedLocations.length > 0 ? savedLocations[0] : 'New York, US';
 
       setSelectedChip(defaultCity);
       setDestination(prev => ({
         ...prev,
-        key: defaultCity.toLowerCase().replace(/\s+/g, '-'),
+        key: defaultCity.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         name: defaultCity
       }));
 
@@ -534,12 +608,14 @@ export default function PlanScreen() {
 
 
   // 2. Refactor searchCity to strictly handle UI state and call the centralized load function
-  const searchCity = async (cityName: string, fromChip = false) => {
-    if (!cityName.trim()) return;
-    setIsSearching(true);
+  const searchCity = async (locationQuery: string | GeocodeSuggestion, fromChip = false) => {
+    const queryStr = typeof locationQuery === 'string' 
+      ? locationQuery 
+      : `${locationQuery.name}${locationQuery.state && locationQuery.state !== locationQuery.name ? `, ${locationQuery.state}` : ''}, ${locationQuery.country}`;
 
-    if (fromChip) setSelectedChip(cityName);
-    else setSelectedChip('');
+    if (!queryStr.trim()) return;
+    setIsSearching(true);
+    setSelectedChip(queryStr);
 
     if (Platform.OS !== 'web' && profile.hapticsEnabled) {
       Haptics.selectionAsync();
@@ -547,8 +623,9 @@ export default function PlanScreen() {
 
     try {
       setLiveWeather(null); // Optional: triggers the loading state visually
-      await loadDestinationData(cityName); // Perform ONE combined fetch
+      await loadDestinationData(locationQuery); // Perform ONE combined fetch
       setSearchQuery('');
+      setSuggestions([]);
       setSelectedDayIndex(-1);
       setSelectedTimeFrame('afternoon');
     } catch (error) {
@@ -564,6 +641,33 @@ export default function PlanScreen() {
   };
 
   const handleSearch = () => searchCity(searchQuery, false);
+
+  const fetchSuggestions = (query: string) => {
+    setSearchQuery(query);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (query.trim().length > 2) {
+      setIsFetchingSuggestions(true);
+      typingTimeoutRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${OPENWEATHER_API_KEY}`);
+          if (res.ok) {
+            const data = await res.json();
+            setSuggestions(data);
+          }
+        } catch (error) {
+          console.warn("Failed to fetch suggestions:", error);
+        } finally {
+          setIsFetchingSuggestions(false);
+        }
+      }, 500);
+    } else {
+      setSuggestions([]);
+      setIsFetchingSuggestions(false);
+    }
+  };
 
   // 3. The useEffect now reacts ONLY to unit changes to maintain accuracy
   useEffect(() => {
@@ -693,7 +797,9 @@ export default function PlanScreen() {
             {/* Destination Name + Heart Button */}
             <View style={styles.heroDestinationRow}>
               <Text style={[styles.heroDestination, { color: heroTheme.accent }]} numberOfLines={1} adjustsFontSizeToFit>
-                {destination.name}
+                {destination.name.split(', ').length > 1 
+                  ? destination.name.split(', ').slice(0, -1).join(', ') 
+                  : destination.name}
               </Text>
               <TouchableOpacity
                 style={styles.heartButton}
@@ -755,11 +861,14 @@ export default function PlanScreen() {
               placeholder="Search for a city..."
               placeholderTextColor={colors.mutedForeground}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={fetchSuggestions}
               onSubmitEditing={handleSearch}
               returnKeyType="search"
               editable={!isSearching}
             />
+            {isFetchingSuggestions && (
+              <ActivityIndicator size="small" color={heroTheme.accent} style={{ marginRight: 6 }} />
+            )}
             <TouchableOpacity
               style={[styles.searchButton, { backgroundColor: isSearching ? colors.muted : heroTheme.bg }]}
               onPress={handleSearch}
@@ -769,6 +878,31 @@ export default function PlanScreen() {
               <Feather name="arrow-right" size={18} color={isSearching ? colors.mutedForeground : heroTheme.accent} />
             </TouchableOpacity>
           </View>
+
+          {suggestions.length > 0 && (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+              style={[styles.suggestionsContainer, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              {suggestions.map((item, index) => (
+                <TouchableOpacity
+                  key={`${item.lat}-${item.lon}-${index}`}
+                  style={[styles.suggestionItem, index < suggestions.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    searchCity(item, false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="map-pin" size={14} color={colors.mutedForeground} />
+                  <Text style={[styles.suggestionText, { color: colors.foreground }]} numberOfLines={1}>
+                    {item.name}{item.state && item.state !== item.name ? `, ${item.state}` : ''}, {item.country}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScrollContent}>
             {displayCities.map((city) => {
@@ -853,7 +987,11 @@ export default function PlanScreen() {
             title="Packing list"
             rightElement={
               !liveWeather ? (
-                <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>Analyzing...</Text>
+                initialLoadFailed ? (
+                  <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>Unavailable</Text>
+                ) : (
+                  <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>Analyzing...</Text>
+                )
               ) : (
                 <View style={styles.essentialCountRow}>
                   <View style={[styles.dot, { backgroundColor: colors.destructive }]} />
@@ -865,14 +1003,25 @@ export default function PlanScreen() {
             }
           />
           {!liveWeather ? (
-            <Card padded={false}>
-              <View style={styles.loadingState}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
-                  Fetching live conditions...
-                </Text>
-              </View>
-            </Card>
+            initialLoadFailed ? (
+              <Card padded={false}>
+                <View style={styles.emptyState}>
+                  <Feather name="map-pin" size={24} color={colors.mutedForeground} />
+                  <Text style={[styles.emptyStateText, { color: colors.mutedForeground, textAlign: 'center', paddingHorizontal: 20 }]}>
+                    We couldn't find that city. Try searching for a different location.
+                  </Text>
+                </View>
+              </Card>
+            ) : (
+              <Card padded={false}>
+                <View style={styles.loadingState}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+                    Fetching live conditions...
+                  </Text>
+                </View>
+              </Card>
+            )
           ) : packingList.length === 0 ? (
             <Card padded={false}>
               <View style={styles.emptyState}>
@@ -1149,5 +1298,7 @@ const styles = StyleSheet.create({
   forecastDayName: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
   forecastCondition: { fontFamily: 'Inter_400Regular', fontSize: 13 },
   forecastTemp: { fontFamily: 'Inter_700Bold', fontSize: 16 },
-
+  suggestionsContainer: { maxHeight: 200, borderWidth: 1, borderRadius: 16, marginTop: -4 },
+  suggestionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
+  suggestionText: { fontFamily: 'Inter_500Medium', fontSize: 14, flex: 1 },
 });
