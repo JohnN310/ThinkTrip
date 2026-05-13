@@ -155,7 +155,8 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
   }, [x, y, bob, pitch]);
 
   const wiggleY = bob.interpolate({ inputRange: [-1, 1], outputRange: [-1.5, 1.5] });
-  const wiggleRotate = bob.interpolate({ inputRange: [-1, 1], outputRange: ['-2deg', '2deg'] });
+  const wiggleRotate = bob.interpolate({ inputRange: [-1, 1], outputRange: ['-6deg', '6deg'] });
+  const squish = bob.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.98, 1.03, 0.98] });
   const jumpRotate = pitch.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-25deg', '0deg', '35deg'] });
 
   return (
@@ -168,24 +169,154 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
           { translateY: wiggleY },
           { rotate: jumpRotate },
           { rotate: wiggleRotate },
-          { scale: scale }
+          { scale: scale },
+          { scaleX: squish },
+          { scaleY: squish },
         ]
       }
     ]}>
-      <Svg width="90" height="45" viewBox="0 0 90 45">
+      <Svg width="120" height="70" viewBox="0 0 120 70">
         <Defs>
-          <LinearGradient id="dolphinGrad" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={THEME.whiteGlow} stopOpacity="0.9" />
-            <Stop offset="0.5" stopColor={THEME.primary} stopOpacity="1" />
-            <Stop offset="1" stopColor={THEME.deepIndigo} stopOpacity="1" />
+          {/* Main body gradient */}
+          <LinearGradient id="dolphinBody" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0%" stopColor="#b8d8ff" />
+            <Stop offset="45%" stopColor="#7ab8ff" />
+            <Stop offset="100%" stopColor="#4f7cff" />
+          </LinearGradient>
+
+          {/* Soft belly */}
+          <LinearGradient id="dolphinBelly" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
+            <Stop offset="100%" stopColor="#dbeafe" stopOpacity="0.9" />
+          </LinearGradient>
+
+          {/* Gloss */}
+          <LinearGradient id="shine" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+            <Stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
           </LinearGradient>
         </Defs>
+
         <G>
-          <Path d="M 18 22 Q 5 5 0 12 Q 8 22 0 32 Q 5 39 18 22 Z" fill="url(#dolphinGrad)" />
-          <Ellipse cx="46" cy="22" rx="30" ry="10" fill="url(#dolphinGrad)" />
-          <Path d="M 72 20 Q 86 20 86 23 Q 86 26 72 26 Z" fill="url(#dolphinGrad)" />
-          <Path d="M 38 13 Q 45 0 55 12 Q 48 12 38 13 Z" fill={THEME.whiteGlow} opacity={0.5} />
-          <Path d="M 48 31 Q 38 45 43 45 Q 48 38 53 31 Z" fill={THEME.deepIndigo} />
+          {/* Tail */}
+          <Path
+            d="
+              M20 34
+              Q4 18 2 28
+              Q10 36 2 44
+              Q4 54 20 38
+              Q14 36 20 34
+            "
+            fill="#7ab8ff"
+          />
+
+          {/* Main body */}
+          <Ellipse
+            cx="58"
+            cy="35"
+            rx="38"
+            ry="18"
+            fill="url(#dolphinBody)"
+          />
+
+          {/* Belly */}
+          <Ellipse
+            cx="60"
+            cy="42"
+            rx="24"
+            ry="9"
+            fill="url(#dolphinBelly)"
+            opacity={0.95}
+          />
+
+          {/* Nose */}
+          <Path
+            d="
+              M90 31
+              Q108 32 110 35
+              Q108 38 90 39
+            "
+            fill="#6aa8ff"
+          />
+
+          {/* Dorsal fin */}
+          <Path
+            d="
+              M52 18
+              Q60 2 70 18
+              Q62 15 52 18
+            "
+            fill="#5d8fff"
+          />
+
+          {/* Bottom fin */}
+          <Path
+            d="
+              M58 47
+              Q50 62 64 55
+              Q66 50 58 47
+            "
+            fill="#5d8fff"
+          />
+
+          {/* Eye white */}
+          <Ellipse
+            cx="82"
+            cy="30"
+            rx="4.5"
+            ry="4.5"
+            fill="white"
+          />
+
+          {/* Pupil */}
+          <Ellipse
+            cx="83"
+            cy="31"
+            rx="2"
+            ry="2.5"
+            fill="#0f172a"
+          />
+
+          {/* Eye sparkle */}
+          <Ellipse
+            cx="84"
+            cy="30"
+            rx="0.8"
+            ry="0.8"
+            fill="white"
+          />
+
+          {/* Cute smile */}
+          <Path
+            d="M86 39 Q92 43 98 38"
+            stroke="#1e3a8a"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+          />
+
+          {/* Blush cheek */}
+          <Ellipse
+            cx="78"
+            cy="40"
+            rx="4"
+            ry="2"
+            fill="#ffc1d6"
+            opacity={0.45}
+          />
+
+          {/* Gloss highlight */}
+          <Path
+            d="
+              M38 23
+              Q58 12 82 22
+            "
+            stroke="url(#shine)"
+            strokeWidth="6"
+            strokeLinecap="round"
+            opacity={0.75}
+            fill="none"
+          />
         </G>
       </Svg>
     </Animated.View>
@@ -195,6 +326,38 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
 // ─── MAIN LOADER COMPONENT ───
 export default function OceanLoader() {
   const [dolphins, setDolphins] = useState<{ scale: number }[]>([]);
+
+  const [captionIndex, setCaptionIndex] = useState(0);
+  const CAPTIONS = [
+    'Translating from whale noises...',
+    'Math is really hard today...',
+    'Hang on tight bud...',
+    'Teaching the dolphins to read...',
+    'Uhhhh...',
+    'I should have majored in marine biology..',
+    'Almost there...'
+  ];
+
+  useEffect(() => {
+    // Cycle captions every 2 seconds (2000ms)
+    const captionTimer = setInterval(() => {
+      setCaptionIndex((prevIndex) => {
+        // If we haven't reached the last caption, move to the next
+        if (prevIndex < CAPTIONS.length - 1) {
+          return prevIndex + 1;
+        }
+        // If we are on the last caption, clear the interval so it stops updating
+        else {
+          clearInterval(captionTimer);
+          return prevIndex;
+        }
+      });
+    }, 2500);
+
+    // Cleanup the timer when the loader unmounts
+    return () => clearInterval(captionTimer);
+  }, []);
+
   const waveAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
@@ -236,7 +399,7 @@ export default function OceanLoader() {
   return (
     <View style={styles.container}>
 
-      {/* <FloatingSquares /> */}
+      <FloatingSquares />
 
       {/* ─── DIGITAL PARTICLE WAVES ─── */}
       <View style={styles.oceanContainer}>
@@ -265,7 +428,7 @@ export default function OceanLoader() {
 
       {/* ─── PULSING CAPTION ─── */}
       <Animated.Text style={[styles.caption, { opacity: pulseAnim }]}>
-        Analyzing...
+        {CAPTIONS[captionIndex]}
       </Animated.Text>
     </View>
   );
@@ -328,11 +491,11 @@ const styles = StyleSheet.create({
   },
   caption: {
     position: 'absolute',
-    bottom: '40%',
-    fontFamily: 'Inter_600SemiBold', // Standardized font
+    bottom: '42%',
+    fontFamily: 'Inter_400Regular', // Standardized font
     fontSize: 14, // Aligned with card titles
     letterSpacing: 1.4, // Aligned with section labels
     color: '#f8fafc',
-    textTransform: 'uppercase', // Matches ThinkTrip's section title style
+    // textTransform: 'uppercase', // Matches ThinkTrip's section title style
   },
 });

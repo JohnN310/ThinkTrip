@@ -195,7 +195,7 @@ export default function ScanScreen() {
 
   const analyzeImage = async (base64Image: string, currentMode: Mode, location?: Location.LocationObject | null): Promise<ScanResult> => {
     // ── MOCK MODE (comment this block out and uncomment the block below to go live) ──
-    // await new Promise(res => setTimeout(res, 10000)); // simulate network delay
+    // await new Promise(res => setTimeout(res, 15000)); // simulate network delay
     // if (currentMode === 'Menu') {
     //   const badges: ScanResult['badges'] = [];
     //   if (profile.sodiumSensitive) badges.push({ type: 'warn', text: 'High sodium • ~1,840 mg' });
