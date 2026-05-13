@@ -429,7 +429,14 @@ export default function ProfileScreen() {
             )}
           </View>
           <View style={styles.identityTextCol}>
-            <Text style={[styles.identityName, { color: colors.foreground }]}>{profile.displayName || 'Set up profile'}</Text>
+            <Text
+              style={[styles.identityName, { color: colors.foreground }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+            >
+              {profile.displayName || 'Set up profile'}
+            </Text>
             {profile.email ? <Text style={[styles.identityEmail, { color: colors.mutedForeground }]}>{profile.email}</Text> : null}
             <View style={styles.identityMeta}>
               <Feather name="map-pin" size={12} color={colors.mutedForeground} />
@@ -500,28 +507,33 @@ export default function ProfileScreen() {
             description="Use GPS for better map directions. No location data is stored."
             onPress={() => handleToggleLocationRouting(!profile.locationRoutingEnabled)}
             rightElement={
-              <Switch
-                value={profile.locationRoutingEnabled}
-                onValueChange={handleToggleLocationRouting}
-                trackColor={{ true: colors.primary }}
-              />
+              <View pointerEvents="none">
+                <Switch
+                  value={draft.locationRoutingEnabled ?? profile.locationRoutingEnabled}
+                  trackColor={{ true: colors.primary }}
+                  thumbColor="#ffffff"
+                  ios_backgroundColor={colors.border}
+                />
+              </View>
             }
           />
           <SettingsRow
             icon={<Feather name="zap" size={16} color={colors.foreground} />}
             label="Haptic feedback"
-            // Make the whole row tappable
             onPress={() => {
               const newValue = !profile.hapticsEnabled;
               setDraft({ hapticsEnabled: newValue });
               save({ hapticsEnabled: newValue });
             }}
             rightElement={
-              <Switch
-                value={profile.hapticsEnabled}
-                onValueChange={(v) => { setDraft({ hapticsEnabled: v }); save({ hapticsEnabled: v }); }}
-                trackColor={{ true: colors.primary }}
-              />
+              <View pointerEvents="none">
+                <Switch
+                  value={draft.hapticsEnabled ?? profile.hapticsEnabled}
+                  trackColor={{ true: colors.primary }}
+                  thumbColor="#ffffff"
+                  ios_backgroundColor={colors.border}
+                />
+              </View>
             }
           />
           <SettingsRow
@@ -563,7 +575,13 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {showToast && (
-        <View style={[styles.toast, { backgroundColor: colors.primary, bottom: insets.bottom + 100 }]}>
+        <View style={[
+          styles.toast,
+          {
+            backgroundColor: colors.primary,
+            bottom: Platform.OS === 'ios' ? insets.bottom + 100 : insets.bottom
+          }
+        ]}>
           <Feather name="check" size={14} color={colors.primaryForeground} />
           <Text style={[styles.toastText, { color: colors.primaryForeground }]}>Saved</Text>
         </View>
@@ -571,26 +589,45 @@ export default function ProfileScreen() {
 
       {/* Edit Sheet Modal */}
       <Modal visible={activeSheet !== null} transparent animationType="fade">
-        <View style={styles.sheetBackdrop}>
-          <View style={{ flex: 1 }} onTouchEnd={handleCancel} />
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={[styles.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 20 }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.sheetBackdrop}>
+            <View style={{ flex: 1 }} onTouchEnd={handleCancel} />
+
+            <View style={[
+              styles.sheet,
+              {
+                backgroundColor: colors.card,
+                paddingBottom: insets.bottom + 20,
+                maxHeight: '90%' // Caps the sheet height on massive phones
+              }
+            ]}>
               <View style={[styles.sheetHandle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]} />
+
               <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
-                <TouchableOpacity onPress={handleCancel} style={{ flex: 1 }}><Text style={[styles.sheetActionText, { color: colors.mutedForeground }]}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity onPress={handleCancel} style={{ flex: 1 }}>
+                  <Text style={[styles.sheetActionText, { color: colors.mutedForeground }]}>Cancel</Text>
+                </TouchableOpacity>
+
                 <Text style={[styles.sheetTitle, { color: colors.foreground }]}>{activeSheet}</Text>
+
                 <TouchableOpacity onPress={handleSave} disabled={!isDirty || activeSheet === 'About' || isSaving} style={{ flex: 1, alignItems: 'flex-end' }}>
                   <Text style={[styles.sheetActionText, { color: (!isDirty || activeSheet === 'About' || isSaving) ? colors.muted : colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
                     {isSaving ? 'Validating...' : 'Save Changes'}
                   </Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView style={{ maxHeight: Dimensions.get('window').height * 0.85 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+
+              {/* UPDATE: Replaced fixed Dimensions maxHeight with flexShrink */}
+              <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
                 {renderSheetContent()}
               </ScrollView>
+
             </View>
-          </KeyboardAvoidingView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

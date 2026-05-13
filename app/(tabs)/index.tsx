@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator, Modal, Animated, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator, Modal, Animated, Keyboard, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,9 @@ import { SectionHeader } from '../../components/SectionHeader';
 import { SegmentedControl } from '../../components/SegmentedControl';
 import { LinearGradient } from 'expo-linear-gradient';
 import { WeatherBackground } from '../../components/WeatherEffects';
+import Slider from '@react-native-community/slider';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -77,7 +80,7 @@ export default function PlanScreen() {
 
   const [forecast, setForecast] = useState<any[]>([]);
   const [showForecastSheet, setShowForecastSheet] = useState(false);
-  const [selectedTimeFrame, setSelectedTimeFrame] = useState<'morning' | 'afternoon' | 'evening'>('afternoon');
+  const [selectedPointIndex, setSelectedPointIndex] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(-1);
   // 1. Get saved locations from profile (fallback to empty array if undefined)
   const savedLocations: string[] = profile.savedLocations || [];
@@ -113,18 +116,17 @@ export default function PlanScreen() {
 
   const openSheet = () => {
     setShowForecastSheet(true);
+
+    // Auto-select Today and snap to current time block
+    if (forecast.length > 0) {
+      setSelectedDayIndex(0);
+      const activeIdx = forecast[0].points.findIndex((p: any) => !p.isPast);
+      setSelectedPointIndex(activeIdx !== -1 ? activeIdx : 0);
+    }
+
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        damping: 24,
-        stiffness: 200,
-        useNativeDriver: true,
-      })
+      Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, damping: 24, stiffness: 200, useNativeDriver: true })
     ]).start();
   };
 
@@ -282,19 +284,9 @@ export default function PlanScreen() {
         const dailyGroups: Record<string, any> = {};
         const timezoneOffset = weatherData.timezone;
 
-        const nowData = {
-          temp: Math.round(weatherData.main.temp),
-          tempLow: Math.round(weatherData.main.temp_min),
-          tempHigh: Math.round(weatherData.main.temp_max),
-          humidity: weatherData.main.humidity,
-          iconCode: currentIcon,
-          displayCondition: currentDesc
-        };
-
-        // 1. Group Data into Time Blocks (Morning: 0-11, Afternoon: 12-17, Evening: 18-23)
+        // 1. Group Data STRICTLY by Calendar Day
         forecastData.list.forEach((item: any) => {
           const localDate = new Date((item.dt + timezoneOffset) * 1000);
-          const localHour = localDate.getUTCHours();
           const localDateKey = localDate.toISOString().split('T')[0];
 
           if (!dailyGroups[localDateKey]) {
@@ -302,136 +294,91 @@ export default function PlanScreen() {
               date: localDate,
               dayMinTemp: Infinity,
               dayMaxTemp: -Infinity,
-              blocks: {
-                morning: { items: [], min: Infinity, max: -Infinity, aqi: 0 },
-                afternoon: { items: [], min: Infinity, max: -Infinity, aqi: 0 },
-                evening: { items: [], min: Infinity, max: -Infinity, aqi: 0 }
-              }
+              points: []
             };
           }
 
           const currentMin = item.main.temp_min;
           const currentMax = item.main.temp_max;
-
-          // Keep track of the absolute daily minimum/maximum for the AI packing list
           if (currentMin < dailyGroups[localDateKey].dayMinTemp) dailyGroups[localDateKey].dayMinTemp = currentMin;
           if (currentMax > dailyGroups[localDateKey].dayMaxTemp) dailyGroups[localDateKey].dayMaxTemp = currentMax;
 
-          let blockKey: 'morning' | 'afternoon' | 'evening' = 'morning';
-          if (localHour >= 12 && localHour < 18) blockKey = 'afternoon';
-          else if (localHour >= 18) blockKey = 'evening';
+          const timeLabel = new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: true }).format(localDate);
+          const pop = Math.round((item.pop || 0) * 100);
+          const localHour = localDate.getUTCHours();
 
-          const block = dailyGroups[localDateKey].blocks[blockKey];
-          block.items.push(item);
-          if (currentMin < block.min) block.min = currentMin;
-          if (currentMax > block.max) block.max = currentMax;
+          dailyGroups[localDateKey].points.push({
+            temp: Math.round(item.main.temp),
+            humidity: item.main.humidity,
+            iconCode: item.weather[0].icon,
+            displayCondition: formatDescription(item.weather[0].description),
+            timeLabel: timeLabel,
+            pop: pop,
+            hour: localHour,
+            isPast: false,
+          });
         });
 
-        // 2. Safely Process AQI for the specific blocks
+        // 2. Safely apply daily max AQI
         if (aqiRes.ok && aqiData.list) {
           aqiData.list.forEach((item: any) => {
             const localDate = new Date((item.dt + timezoneOffset) * 1000);
-            const localHour = localDate.getUTCHours();
             const localDateKey = localDate.toISOString().split('T')[0];
             const newAqi = item.main.aqi;
-
             if (dailyGroups[localDateKey]) {
-              let blockKey: 'morning' | 'afternoon' | 'evening' = 'morning';
-              if (localHour >= 12 && localHour < 18) blockKey = 'afternoon';
-              else if (localHour >= 18) blockKey = 'evening';
-
-              // Keep the worst air quality reading for this block
-              const block = dailyGroups[localDateKey].blocks[blockKey];
-              block.aqi = Math.max(block.aqi || 0, newAqi);
+              dailyGroups[localDateKey].maxAqi = Math.max(dailyGroups[localDateKey].maxAqi || 0, newAqi);
             }
           });
         }
 
-        // Sync the true live weather
-        const summarizeBlock = (block: any, fallbackData: any, fallbackAqi: number, dayMin: number, dayMax: number) => {
-          if (block.items.length === 0) {
-            // If the block has passed (e.g. morning is over today), fallback safely
-            return {
-              temp: fallbackData.temp,
-              blockMin: fallbackData.temp,
-              blockMax: fallbackData.temp,
-              tempLow: Math.round(dayMin !== Infinity ? dayMin : fallbackData.tempLow),
-              tempHigh: Math.round(dayMax !== -Infinity ? dayMax : fallbackData.tempHigh),
-              humidity: fallbackData.humidity,
-              iconCode: fallbackData.iconCode,
-              displayCondition: fallbackData.displayCondition,
-              aqiLabel: getAqiLabel(fallbackAqi)
-            };
-          }
+        // 3. Build Fixed 8-Slot Charts (1AM → 10PM local time)
+        const TARGET_HOURS = [1, 4, 7, 10, 13, 16, 19, 22];
 
-          // Calculate True Block Averages
-          const avgTemp = Math.round(block.items.reduce((acc: number, i: any) => acc + i.main.temp, 0) / block.items.length);
-          const avgHumidity = Math.round(block.items.reduce((acc: number, i: any) => acc + i.main.humidity, 0) / block.items.length);
+        // Current local time at the destination (using the API's timezone offset)
+        const nowLocalMs = Date.now() + timezoneOffset * 1000;
+        const nowLocalDate = new Date(nowLocalMs);
+        const nowLocalHour = nowLocalDate.getUTCHours();
+        const nowLocalDateKey = nowLocalDate.toISOString().split('T')[0];
 
-          // 1. Extract conditions in strict CHRONOLOGICAL order
-          const chronologicalConditions: string[] = [];
-          let worstIcon = block.items[0]?.weather[0]?.icon || '01d';
-          let highestSeverity = 0;
-
-          block.items.forEach((item: any) => {
-            if (item.weather && item.weather.length > 0) {
-              const desc = formatDescription(item.weather[0].description);
-              const icon = item.weather[0].icon;
-
-              // Only add to list if it's a new weather shift (prevents "Light Rain → Light Rain")
-              if (chronologicalConditions[chronologicalConditions.length - 1] !== desc) {
-                chronologicalConditions.push(desc);
-              }
-
-              // Determine the worst weather in this block to drive the background animation
-              // Severity scale based on icon prefix: 11 (Storm) > 13 (Snow) > 09/10 (Rain) > 50 (Atmosphere) > etc.
-              const severityMap: Record<string, number> = { '11': 6, '13': 5, '09': 4, '10': 3, '50': 2, '04': 1, '03': 1, '02': 1, '01': 0 };
-              const currentSeverity = severityMap[icon.substring(0, 2)] || 0;
-              if (currentSeverity >= highestSeverity) {
-                highestSeverity = currentSeverity;
-                worstIcon = icon;
-              }
-            }
-          });
-
-          // 3. Format the chronological text string with a progression arrow
-          let displayCondition = chronologicalConditions[0] || 'Clear Sky';
-          if (chronologicalConditions.length > 1) {
-            const startCond = chronologicalConditions[0];
-            const endCond = chronologicalConditions[chronologicalConditions.length - 1];
-            if (startCond !== endCond) displayCondition = `${startCond} → ${endCond}`;
-          }
-
-          return {
-            temp: avgTemp,
-            blockMin: Math.round(block.min),
-            blockMax: Math.round(block.max),
-            tempLow: Math.round(dayMin),
-            tempHigh: Math.round(dayMax),
-            humidity: avgHumidity,
-            iconCode: worstIcon,             // Drives Background & Theme
-            displayCondition: displayCondition, // Drives Text UI
-            aqiLabel: getAqiLabel(block.aqi || fallbackAqi)
-          };
-        };
-
-        // 4. Map the newly formatted data into the state
         const formattedForecast = Object.values(dailyGroups)
           .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
           .slice(0, 5)
           .map((day: any) => {
-            return {
-              date: day.date,
-              slots: {
-                'morning': summarizeBlock(day.blocks.morning, nowData, currentAqiIndex, day.dayMinTemp, day.dayMaxTemp),
-                'afternoon': summarizeBlock(day.blocks.afternoon, nowData, currentAqiIndex, day.dayMinTemp, day.dayMaxTemp),
-                'evening': summarizeBlock(day.blocks.evening, nowData, currentAqiIndex, day.dayMinTemp, day.dayMaxTemp)
+            const dayKey = day.date.toISOString().split('T')[0];
+            const isToday = dayKey === nowLocalDateKey;
+
+            // For each fixed target hour, find the closest available API point
+            const slots = TARGET_HOURS.map((targetHour: number) => {
+              let closest = day.points[0];
+              let closestDiff = Infinity;
+              for (const p of day.points) {
+                const diff = Math.abs(p.hour - targetHour);
+                if (diff < closestDiff) { closestDiff = diff; closest = p; }
               }
-            };
+
+              // Build a proper time label for this exact slot hour
+              const slotDate = new Date(day.date);
+              slotDate.setUTCHours(targetHour, 0, 0, 0);
+              const timeLabel = new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: true, timeZone: 'UTC' }).format(slotDate);
+
+              return {
+                ...closest,
+                hour: targetHour,
+                timeLabel,
+                isPast: isToday && targetHour < nowLocalHour,
+                tempLow: Math.round(day.dayMinTemp),
+                tempHigh: Math.round(day.dayMaxTemp),
+                aqiLabel: getAqiLabel(day.maxAqi || currentAqiIndex),
+              };
+            });
+
+            day.points = slots;
+            return day;
           });
 
         setForecast(formattedForecast);
       }
+
 
       // Set Live Weather Data
       const liveWeatherData = {
@@ -498,20 +445,21 @@ export default function PlanScreen() {
   useEffect(() => {
     if (selectedDayIndex === -1) return;
     if (forecast.length > 0 && forecast[selectedDayIndex]) {
-      const weather = forecast[selectedDayIndex].slots[selectedTimeFrame];
+      const points = forecast[selectedDayIndex].points;
+      const currentPoint = points[selectedPointIndex] || points[0];
       setLiveWeather({
-        temp: weather.temp,
-        tempLow: weather.tempLow,
-        tempHigh: weather.tempHigh,
-        blockMin: weather.blockMin,
-        blockMax: weather.blockMax,
-        humidity: weather.humidity,
-        iconCode: weather.iconCode,
-        displayCondition: weather.displayCondition,
-        aqiLabel: weather.aqiLabel || 'Good'
+        temp: currentPoint.temp,
+        tempLow: currentPoint.tempLow,
+        tempHigh: currentPoint.tempHigh,
+        blockMin: currentPoint.tempLow,
+        blockMax: currentPoint.tempHigh,
+        humidity: currentPoint.humidity,
+        iconCode: currentPoint.iconCode,
+        displayCondition: currentPoint.displayCondition,
+        aqiLabel: currentPoint.aqiLabel || 'Good'
       });
     }
-  }, [selectedDayIndex, selectedTimeFrame, forecast]);
+  }, [selectedDayIndex, selectedPointIndex, forecast]);
 
   const packingList = useMemo(
     () => buildPackingList(profile, destination, liveWeather),
@@ -638,7 +586,7 @@ export default function PlanScreen() {
       setSearchQuery('');
       setSuggestions([]);
       setSelectedDayIndex(-1);
-      setSelectedTimeFrame('afternoon');
+      setSelectedPointIndex(0);
     } catch (error) {
       console.warn('Search failed:', error);
       if (fromChip) setSelectedChip('');
@@ -846,11 +794,7 @@ export default function PlanScreen() {
                   <Text style={[styles.statLabel, { color: heroTheme.muted }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>Temperature</Text>
                 </View>
                 <Text style={[styles.statValue, { color: heroTheme.accent }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
-                  {liveWeather
-                    ? (liveWeather.blockMin && liveWeather.blockMin !== liveWeather.blockMax
-                      ? `${liveWeather.blockMin}°–${liveWeather.blockMax}°`
-                      : `${liveWeather.temp}°`)
-                    : '—'}
+                  {liveWeather ? `${liveWeather.temp}°` : '—'}
                 </Text>
               </View>
 
@@ -1099,37 +1043,32 @@ export default function PlanScreen() {
         </View>
       </ScrollView>
 
-      {/* ─── Forecast Bottom Sheet Modal ─── */}
-
-      {/* ─── Premium Forecast Bottom Sheet Modal ─── */}
+      {/* ─── Premium Interactive Forecast Modal ─── */}
       <Modal visible={showForecastSheet} transparent animationType="none" onRequestClose={closeSheet}>
-        {/* Animated Backdrop */}
         <Animated.View style={[styles.sheetBackdrop, { opacity: fadeAnim }]}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeSheet} />
 
-          {/* Animated Sheet */}
           <Animated.View style={[
             styles.sheet,
             {
               backgroundColor: colors.card,
               paddingBottom: insets.bottom + 20,
-              transform: [{ translateY: slideAnim }] // Drives the spring upward
+              transform: [{ translateY: slideAnim }]
             }
           ]}>
             <View style={[styles.sheetHandle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]} />
 
-            <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: colors.foreground }}>
                   5-Day Outlook
                 </Text>
-
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => {
                     if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
-                    setSelectedDayIndex(-1); // Switch into "Now Mode"
-                    setLiveWeather(trueLiveWeather); // Restore exact real-time data
+                    setSelectedDayIndex(-1);
+                    setLiveWeather(trueLiveWeather);
                     closeSheet();
                   }}
                   style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 999 }}
@@ -1140,42 +1079,144 @@ export default function PlanScreen() {
                 </TouchableOpacity>
               </View>
 
-              <SegmentedControl
-                options={['Morning', 'Afternoon', 'Evening']}
-                value={selectedTimeFrame.charAt(0).toUpperCase() + selectedTimeFrame.slice(1)}
-                onChange={(v: string) => setSelectedTimeFrame(v.toLowerCase() as any)}
-              />
+              {/* Day Selector Pills */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {forecast.map((day, index) => {
+                  const dayName = index === 0 ? 'Today' : DAYS[day.date.getUTCDay()];
+                  const isActive = index === selectedDayIndex;
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => {
+                        if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
+                        setSelectedDayIndex(index);
+                      }}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        borderRadius: 999,
+                        backgroundColor: isActive ? colors.foreground : 'transparent',
+                        borderWidth: isActive ? 0 : 1,
+                        borderColor: colors.border
+                      }}
+                    >
+                      <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: isActive ? colors.background : colors.foreground }}>
+                        {dayName}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
 
-            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-              {forecast.map((day, index) => {
-                const weather = day.slots[selectedTimeFrame];
-                const dayName = index === 0 ? 'Today' : DAYS[day.date.getUTCDay()];
+            {/* Interactive Chart & Scrubber */}
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 10 }} showsVerticalScrollIndicator={false}>
+              {selectedDayIndex !== -1 && forecast[selectedDayIndex] && (() => {
+                const activePoints = forecast[selectedDayIndex].points;
+                const currentPoint = activePoints[selectedPointIndex] || activePoints[0];
+                const maxTemp = Math.max(...activePoints.map((p: any) => p.temp)) + 2;
+                const minTemp = Math.min(...activePoints.map((p: any) => p.temp)) - 2;
+                const tempRange = maxTemp - minTemp || 1;
+
+                // ─── Detailed Icon Mapping ───
+                const iconPrefix = currentPoint.iconCode.substring(0, 2);
+                const isNight = currentPoint.iconCode.includes('n');
+                
+                let dynamicIcon = 'sun';
+                if (iconPrefix === '01') dynamicIcon = isNight ? 'moon' : 'sun';
+                else if (['02', '03', '04'].includes(iconPrefix)) dynamicIcon = 'cloud';
+                else if (iconPrefix === '09') dynamicIcon = 'cloud-drizzle';
+                else if (iconPrefix === '10') dynamicIcon = 'cloud-rain';
+                else if (iconPrefix === '11') dynamicIcon = 'cloud-lightning';
+                else if (iconPrefix === '13') dynamicIcon = 'cloud-snow';
+                else if (iconPrefix === '50') dynamicIcon = 'wind';
+
                 return (
-                  <TouchableOpacity
-                    key={index}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
-                      setSelectedDayIndex(index);
-                      closeSheet();
-                    }}
-                    style={[styles.forecastItem, { borderColor: index === selectedDayIndex ? colors.accent : colors.border }]}
-                  >
-                    <View style={{ gap: 4 }}>
-                      <Text style={[styles.forecastDayName, { color: colors.foreground }]}>{dayName}</Text>
-                      <Text style={[styles.forecastCondition, { color: colors.mutedForeground }]}>{weather.displayCondition}</Text>
+                  <View style={{ gap: 20 }}>
+                    {/* Detailed Readout Card */}
+                    <View style={{ backgroundColor: colors.muted, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
+                        <Feather name={dynamicIcon as any} size={20} color={colors.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: colors.foreground }}>
+                          {currentPoint.timeLabel} • {currentPoint.displayCondition}
+                        </Text>
+                        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.mutedForeground, marginTop: 4 }}>
+                          {currentPoint.temp}° • {currentPoint.pop}% Precip • {currentPoint.humidity}% Humidity
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={[styles.forecastTemp, { color: colors.foreground }]}>
-                      {weather.blockMin === weather.blockMax ? `${weather.blockMin}°` : `${weather.blockMin}°–${weather.blockMax}°`}
-                    </Text>
-                  </TouchableOpacity>
+
+                    {/* View-Based Bar Chart */}
+                    <View style={{ marginTop: 10 }}>
+                      {/* Temperature labels row */}
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 120, marginBottom: 4 }}>
+                        {activePoints.map((p: any, i: number) => {
+                          const isActivePoint = i === selectedPointIndex;
+                          const pct = (p.temp - minTemp) / tempRange;
+                          const barHeight = p.isPast ? 2 : Math.max(pct * 80, 6);
+                          return (
+                            <View key={i} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4, opacity: p.isPast ? 0.3 : 1 }}>
+                              <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: isActivePoint ? colors.foreground : colors.mutedForeground }}>
+                                {p.isPast ? '' : `${p.temp}°`}
+                              </Text>
+                              <View style={{
+                                width: isActivePoint ? 10 : 6,
+                                height: barHeight,
+                                borderRadius: 4,
+                                backgroundColor: isActivePoint ? colors.accent : colors.accent + '55',
+                              }} />
+                            </View>
+                          );
+                        })}
+                      </View>
+                      {/* Time labels row */}
+                      <View style={{ flexDirection: 'row' }}>
+                        {activePoints.map((p: any, i: number) => {
+                          const isActivePoint = i === selectedPointIndex;
+                          return (
+                            <View key={i} style={{ flex: 1, alignItems: 'center', opacity: p.isPast ? 0.3 : 1 }}>
+                              <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 9, color: isActivePoint ? colors.accent : colors.mutedForeground }} numberOfLines={1}>
+                                {p.timeLabel}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    {/* Native Scrubber Slider */}
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+                      <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: colors.foreground, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                        Time Scrubber
+                      </Text>
+                      <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.mutedForeground, marginBottom: 12 }}>
+                        Slide to preview specific hours. The main screen and packing list will update in real-time.
+                      </Text>
+                      <Slider
+                        style={{ width: '100%', height: 40 }}
+                        minimumValue={0}
+                        maximumValue={activePoints.length - 1}
+                        step={1}
+                        value={selectedPointIndex}
+                        onValueChange={(val: number) => {
+                          setSelectedPointIndex(val);
+                          if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
+                        }}
+                        minimumTrackTintColor={colors.accent}
+                        maximumTrackTintColor={colors.muted}
+                        thumbTintColor={colors.accent}
+                      />
+                    </View>
+                  </View>
                 );
-              })}
+              })()}
             </ScrollView>
           </Animated.View>
         </Animated.View>
       </Modal>
+
 
       {/* ─── Packing Item Bottom Sheet Modal ─── */}
       <Modal visible={showPackingSheet} transparent animationType="none" onRequestClose={closePackingSheet}>
