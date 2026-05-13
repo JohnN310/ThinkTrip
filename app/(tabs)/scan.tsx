@@ -10,6 +10,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { BlurView } from 'expo-blur';
 import * as Location from 'expo-location';
+import OceanLoader from '../../components/OceanLoader';
 const { width, height } = Dimensions.get('window');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -194,7 +195,7 @@ export default function ScanScreen() {
 
   const analyzeImage = async (base64Image: string, currentMode: Mode, location?: Location.LocationObject | null): Promise<ScanResult> => {
     // ── MOCK MODE (comment this block out and uncomment the block below to go live) ──
-    // await new Promise(res => setTimeout(res, 5000)); // simulate network delay
+    // await new Promise(res => setTimeout(res, 10000)); // simulate network delay
     // if (currentMode === 'Menu') {
     //   const badges: ScanResult['badges'] = [];
     //   if (profile.sodiumSensitive) badges.push({ type: 'warn', text: 'High sodium • ~1,840 mg' });
@@ -872,14 +873,7 @@ export default function ScanScreen() {
 
       {analyzing && (
         <View style={[StyleSheet.absoluteFillObject, styles.analyzingOverlay]}>
-
-          {/* Central Content */}
-          <View style={{ alignItems: 'center', gap: 20 }}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.analyzingCaption}>
-              {captionIndex < CAPTIONS.length ? CAPTIONS[captionIndex] : 'Almost there....'}
-            </Text>
-          </View>
+          <OceanLoader />
         </View>
       )}
 
