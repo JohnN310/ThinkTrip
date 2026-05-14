@@ -294,7 +294,7 @@ export default function ScanScreen() {
         : `No specific question was asked. Omit the 'userAnswer' field entirely.`}
 
       **CRITICAL RULES:**
-      1. **IMAGE FIRST:** Extract text, context, and environment details exclusively from the image.
+      1. **IMAGE FIRST:** Extract text, context, and environment details exclusively from the image. If the image is completely illegible or entirely unrelated to the Active Mode, do not hallucinate. Set the 'title' to 'Unable to Analyze', omit the 'userAnswer' and 'mapLocationName', and provide a single 'warn' badge indicating the image is unclear.
       2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS, no playful language. STRICTLY NO MARKDOWN FORMATTING (do not use **asterisks** or underscores for bolding or italics). Output pure, unformatted text only. Do not output any symbols like 🔠 or 🪂. Break your answer into short paragraphs or use bullet points ("- ") for maximum readability.
       3. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
       4. **CULTURAL CONFIDENCE:** Provide intuitive, English-approximated phonetic pronunciations (in parentheses). DO NOT provide literal, word-by-word English translations of foreign dish names. Instead, provide a clear culinary description.
@@ -309,16 +309,27 @@ export default function ScanScreen() {
         - Badges: Flag high-level context (e.g., "warn" for "Heavy Dairy Use", "info" for "English Spoken", "good" for "Diet-Friendly Options").
         - Notes: Provide exactly three notes:
            1. "Recommended Options": 2-3 specific safe dishes matching the Baseline. Include the original name and a simple phonetic pronunciation so the user can order confidently. Use bullet points ("- ").
-           2. "Strict Avoids": Hidden ingredients or specific dishes that violate their Baseline. Use bullet points ("- ").
+           2. "Strict Avoids": Hidden ingredients or specific dishes that violate their Baseline. Use bullet points ("- "). If there are no items that violate the baseline, explicitly state 'No immediate conflicts detected based on your health profile' in the Strict Avoids body.
            3. "Ordering & Interactions": Practical advice on how to order. If suggesting a phrase, provide ONE short, culturally accurate phrase (like requesting a modification) with a clear English-approximated phonetic spelling (e.g., "To request no cilantro, say 'Không ngò' (kohng ngo)"). Focus on behavior over complex language.
 
       If Mode is 'Payment':
-        - Detect accepted payment methods from signage or context.
-        - Badges: Flag "warn" for cash-only, "info" for IC cards, "good" for no-tipping.
-        - Notes: Provide exactly three notes:
-           1. "Behavioral Norms": Physical etiquette (e.g., "Place cash in the provided tray, never hand it directly to the cashier. Tipping is considered rude and will be returned.").
-           2. "Cashier Interactions": What the staff is likely to ask and how to reply. Provide ONE short, practical phrase with an English-approximated phonetic spelling (e.g., "They will ask if you need a bag. Say 'Irimasen' (ee-ree-mah-sen) to decline.").
-           3. "Receipts & Hidden Charges": Explain unwritten costs like seating charges ('otoshi'), mandatory water fees, or how to ask for a receipt. If no hidden charges exist, state that clearly so the user has peace of mind.
+        - FIRST, classify the primary subject of the image into one of two sub-categories: 'Signage/Terminal' OR 'Receipt/Bill'.
+        
+        - If Sub-Category is 'Signage/Terminal':
+           - Detect accepted payment methods from signage or context.
+           - Badges: Flag "warn" for cash-only, "info" for IC cards, "good" for no-tipping.
+           - Notes (Provide exactly three):
+              1. "Behavioral Norms": Physical etiquette (e.g., "Place cash in the provided tray, never hand it directly to the cashier. Tipping is considered rude and will be returned.").
+              2. "Cashier Interactions": What the staff is likely to ask and how to reply. Provide ONE short, practical phrase with an English-approximated phonetic spelling (e.g., "They will ask if you need a bag. Say 'Irimasen' (ee-ree-mah-sen) to decline.").
+              3. "Receipts & Hidden Charges": Explain unwritten costs like seating charges ('otoshi'), mandatory water fees, or how to ask for a receipt. If no hidden charges exist, state that clearly so the user has peace of mind.
+
+        - If Sub-Category is 'Receipt/Bill':
+           - Analyze the line items, taxes, totals, and currency.
+           - Badges: Flag "warn" for high mandatory service charges, "info" for included gratuity, "good" for transparent pricing.
+           - Notes (Provide exactly three):
+              1. "Bill Breakdown": Summarize the total. Explicitly clarify if taxes are included or added on, and identify any cultural hidden fees present on the bill (like 'otoshi' seating charges in Japan or 'coperto' in Italy).
+              2. "Tipping Culture": Specific advice on whether to add a tip on top of THIS specific bill, and exactly how much is customary for this region.
+              3. "Settlement Protocol": Practical advice on the physical act of paying (e.g., "Take this bill to the front register, do not leave money on the table"). Include ONE short phrase with English-approximated phonetics for asking to split the bill or pay by card.
 
       If Mode is 'Transit':
         - Identify the line, direction, signage, and next steps.
