@@ -1,30 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Animated, Easing, StyleSheet, Dimensions, Text } from 'react-native';
+import { View, Animated, Easing, StyleSheet, Text, useWindowDimensions } from 'react-native';
 import Svg, { Path, G, Ellipse, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 const WAVE_SEGMENT_WIDTH = 400;
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
-const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 // ─── THINKTRIP BRANDED PALETTE ───
 const THEME = {
-  // Using Periwinkle Blue (#5c7ce5) as the primary brand color
   primary: '#5c7ce5',
-  // Using Slate 500 (#64748b) for muted secondary elements
   secondary: '#64748b',
-  // White for high-contrast glows
   whiteGlow: '#f8fafc',
-  // Deep background for the dolphin gradients
   deepIndigo: '#1e293b',
 };
 
 // ─── BACKGROUND DIGITAL PARTICLES ───
 const FloatingSquares = () => {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+
   const [squares] = useState(() =>
     Array.from({ length: 15 }).map(() => ({
-      x: Math.random() * SCREEN_WIDTH,
-      y: Math.random() * SCREEN_HEIGHT,
+      x: Math.random() * screenWidth,
+      y: Math.random() * screenHeight,
       size: Math.random() * 4 + 2,
       opacity: Math.random() * 0.5 + 0.1,
       duration: Math.random() * 4000 + 3000,
@@ -80,7 +75,7 @@ const FloatingSquares = () => {
 };
 
 // ─── INDEPENDENT DOLPHIN COMPONENT ───
-const AnimatedDolphin = ({ scale }: { scale: number }) => {
+const AnimatedDolphin = ({ scale, screenWidth }: { scale: number; screenWidth: number }) => {
   const x = useRef(new Animated.Value(-150)).current;
   const y = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
@@ -101,8 +96,11 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
       x.setValue(-150);
 
       const isJumping = Math.random() > 0.40;
-      const duration = Math.random() * 3500 + 3500;
       const delay = Math.random() * 2000;
+
+      // Calculate duration dynamically based on screen width to maintain constant perceived speed
+      const distance = screenWidth + 300;
+      const duration = distance * (Math.random() * 5 + 6);
 
       if (isJumping) {
         const startY = Math.random() * 20 - 50;
@@ -115,7 +113,7 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
         Animated.sequence([
           Animated.delay(delay),
           Animated.parallel([
-            Animated.timing(x, { toValue: SCREEN_WIDTH + 150, duration, easing: Easing.linear, useNativeDriver: true }),
+            Animated.timing(x, { toValue: screenWidth + 150, duration, easing: Easing.linear, useNativeDriver: true }),
             Animated.sequence([
               Animated.parallel([
                 Animated.timing(y, { toValue: peakY, duration: duration * 0.45, easing: Easing.out(Easing.sin), useNativeDriver: true }),
@@ -139,7 +137,7 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
         Animated.sequence([
           Animated.delay(delay),
           Animated.parallel([
-            Animated.timing(x, { toValue: SCREEN_WIDTH + 150, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(x, { toValue: screenWidth + 150, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
             Animated.timing(y, { toValue: endY, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
             Animated.sequence([
               Animated.timing(pitch, { toValue: -0.15, duration: duration / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -152,7 +150,7 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
 
     triggerSwim();
     return () => { isActive = false; };
-  }, [x, y, bob, pitch]);
+  }, [x, y, bob, pitch, screenWidth]);
 
   const wiggleY = bob.interpolate({ inputRange: [-1, 1], outputRange: [-1.5, 1.5] });
   const wiggleRotate = bob.interpolate({ inputRange: [-1, 1], outputRange: ['-6deg', '6deg'] });
@@ -177,20 +175,15 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
     ]}>
       <Svg width="120" height="70" viewBox="0 0 120 70">
         <Defs>
-          {/* Main body gradient */}
           <LinearGradient id="dolphinBody" x1="0" y1="0" x2="1" y2="1">
             <Stop offset="0%" stopColor="#b8d8ff" />
             <Stop offset="45%" stopColor="#7ab8ff" />
             <Stop offset="100%" stopColor="#4f7cff" />
           </LinearGradient>
-
-          {/* Soft belly */}
           <LinearGradient id="dolphinBelly" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
             <Stop offset="100%" stopColor="#dbeafe" stopOpacity="0.9" />
           </LinearGradient>
-
-          {/* Gloss */}
           <LinearGradient id="shine" x1="0" y1="0" x2="1" y2="1">
             <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
             <Stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
@@ -198,125 +191,18 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
         </Defs>
 
         <G>
-          {/* Tail */}
-          <Path
-            d="
-              M20 34
-              Q4 18 2 28
-              Q10 36 2 44
-              Q4 54 20 38
-              Q14 36 20 34
-            "
-            fill="#7ab8ff"
-          />
-
-          {/* Main body */}
-          <Ellipse
-            cx="58"
-            cy="35"
-            rx="38"
-            ry="18"
-            fill="url(#dolphinBody)"
-          />
-
-          {/* Belly */}
-          <Ellipse
-            cx="60"
-            cy="42"
-            rx="24"
-            ry="9"
-            fill="url(#dolphinBelly)"
-            opacity={0.95}
-          />
-
-          {/* Nose */}
-          <Path
-            d="
-              M90 31
-              Q108 32 110 35
-              Q108 38 90 39
-            "
-            fill="#6aa8ff"
-          />
-
-          {/* Dorsal fin */}
-          <Path
-            d="
-              M52 18
-              Q60 2 70 18
-              Q62 15 52 18
-            "
-            fill="#5d8fff"
-          />
-
-          {/* Bottom fin */}
-          <Path
-            d="
-              M58 47
-              Q50 62 64 55
-              Q66 50 58 47
-            "
-            fill="#5d8fff"
-          />
-
-          {/* Eye white */}
-          <Ellipse
-            cx="82"
-            cy="30"
-            rx="4.5"
-            ry="4.5"
-            fill="white"
-          />
-
-          {/* Pupil */}
-          <Ellipse
-            cx="83"
-            cy="31"
-            rx="2"
-            ry="2.5"
-            fill="#0f172a"
-          />
-
-          {/* Eye sparkle */}
-          <Ellipse
-            cx="84"
-            cy="30"
-            rx="0.8"
-            ry="0.8"
-            fill="white"
-          />
-
-          {/* Cute smile */}
-          <Path
-            d="M86 39 Q92 43 98 38"
-            stroke="#1e3a8a"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-          />
-
-          {/* Blush cheek */}
-          <Ellipse
-            cx="78"
-            cy="40"
-            rx="4"
-            ry="2"
-            fill="#ffc1d6"
-            opacity={0.45}
-          />
-
-          {/* Gloss highlight */}
-          <Path
-            d="
-              M38 23
-              Q58 12 82 22
-            "
-            stroke="url(#shine)"
-            strokeWidth="6"
-            strokeLinecap="round"
-            opacity={0.75}
-            fill="none"
-          />
+          <Path d="M20 34 Q4 18 2 28 Q10 36 2 44 Q4 54 20 38 Q14 36 20 34" fill="#7ab8ff" />
+          <Ellipse cx="58" cy="35" rx="38" ry="18" fill="url(#dolphinBody)" />
+          <Ellipse cx="60" cy="42" rx="24" ry="9" fill="url(#dolphinBelly)" opacity={0.95} />
+          <Path d="M90 31 Q108 32 110 35 Q108 38 90 39" fill="#6aa8ff" />
+          <Path d="M52 18 Q60 2 70 18 Q62 15 52 18" fill="#5d8fff" />
+          <Path d="M58 47 Q50 62 64 55 Q66 50 58 47" fill="#5d8fff" />
+          <Ellipse cx="82" cy="30" rx="4.5" ry="4.5" fill="white" />
+          <Ellipse cx="83" cy="31" rx="2" ry="2.5" fill="#0f172a" />
+          <Ellipse cx="84" cy="30" rx="0.8" ry="0.8" fill="white" />
+          <Path d="M86 39 Q92 43 98 38" stroke="#1e3a8a" strokeWidth="2" fill="none" strokeLinecap="round" />
+          <Ellipse cx="78" cy="40" rx="4" ry="2" fill="#ffc1d6" opacity={0.45} />
+          <Path d="M38 23 Q58 12 82 22" stroke="url(#shine)" strokeWidth="6" strokeLinecap="round" opacity={0.75} fill="none" />
         </G>
       </Svg>
     </Animated.View>
@@ -325,6 +211,7 @@ const AnimatedDolphin = ({ scale }: { scale: number }) => {
 
 // ─── MAIN LOADER COMPONENT ───
 export default function OceanLoader() {
+  const { width: screenWidth } = useWindowDimensions();
   const [dolphins, setDolphins] = useState<{ scale: number }[]>([]);
 
   const [captionIndex, setCaptionIndex] = useState(0);
@@ -339,22 +226,17 @@ export default function OceanLoader() {
   ];
 
   useEffect(() => {
-    // Cycle captions every 2 seconds (2000ms)
     const captionTimer = setInterval(() => {
       setCaptionIndex((prevIndex) => {
-        // If we haven't reached the last caption, move to the next
         if (prevIndex < CAPTIONS.length - 1) {
           return prevIndex + 1;
-        }
-        // If we are on the last caption, clear the interval so it stops updating
-        else {
+        } else {
           clearInterval(captionTimer);
           return prevIndex;
         }
       });
     }, 2500);
 
-    // Cleanup the timer when the loader unmounts
     return () => clearInterval(captionTimer);
   }, []);
 
@@ -363,12 +245,15 @@ export default function OceanLoader() {
 
   useEffect(() => {
     const podSize = Math.floor(Math.random() * 3) + 4;
+
+    // Dynamically reduce the base scale for narrow screens (like standard Androids)
+    const baseScale = screenWidth < 390 ? 0.75 : 1;
+
     const generatedDolphins = Array.from({ length: podSize }).map(() => ({
-      scale: 0.5 + (Math.random() * 0.45),
+      scale: (0.5 + (Math.random() * 0.45)) * baseScale,
     }));
     setDolphins(generatedDolphins);
 
-    // Wave animation loop
     Animated.loop(
       Animated.timing(waveAnim, {
         toValue: 1,
@@ -378,14 +263,13 @@ export default function OceanLoader() {
       })
     ).start();
 
-    // Pulsing text animation loop
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 0.4, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
-  }, [waveAnim, pulseAnim]);
+  }, [waveAnim, pulseAnim, screenWidth]);
 
   const waveTranslateX = waveAnim.interpolate({
     inputRange: [0, 1],
@@ -398,21 +282,15 @@ export default function OceanLoader() {
 
   return (
     <View style={styles.container}>
-
       <FloatingSquares />
 
       {/* ─── DIGITAL PARTICLE WAVES ─── */}
       <View style={styles.oceanContainer}>
         <Animated.View style={[styles.waveLayer, { transform: [{ translateX: waveTranslateX }] }]}>
           <Svg width={1600} height="150" viewBox="0 0 1600 150">
-            {/* Background faint particle waves */}
             <Path d={wavePath3} stroke={THEME.secondary} strokeWidth={3} fill="none" opacity={0.2} transform="translate(0, -10)" strokeDasharray="1 10" strokeLinecap="round" />
             <Path d={wavePath2} stroke={THEME.secondary} strokeWidth={2} fill="none" opacity={0.1} transform="translate(50, -25)" strokeDasharray="1 14" strokeLinecap="round" />
-
-            {/* Mid interconnected mesh waves */}
             <Path d={wavePath1} stroke={THEME.primary} strokeWidth={4} fill="none" opacity={0.4} transform="translate(-100, 0)" strokeDasharray="1 8" strokeLinecap="round" />
-
-            {/* Foreground bright dot waves */}
             <Path d={wavePath2} stroke={THEME.whiteGlow} strokeWidth={4} fill="none" opacity={0.7} transform="translate(-200, 25)" strokeDasharray="1 7" strokeLinecap="round" />
           </Svg>
         </Animated.View>
@@ -423,6 +301,7 @@ export default function OceanLoader() {
         <AnimatedDolphin
           key={index}
           scale={dolphin.scale}
+          screenWidth={screenWidth}
         />
       ))}
 
@@ -443,36 +322,13 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
   },
-  header: {
-    position: 'absolute',
-    top: 50,
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 40,
-    zIndex: 20,
-  },
-  hudItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  hudIcon: {
-    fontSize: 16,
-  },
-  hudText: {
-    color: THEME.whiteGlow,
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    letterSpacing: 2,
-  },
   oceanContainer: {
     position: 'absolute',
     bottom: '45%',
     width: '100%',
     height: 150,
     overflow: 'hidden',
-    alignItems: 'center',
+    alignItems: 'flex-start', // Fix: Anchor to left edge so the 400px loop aligns perfectly
     justifyContent: 'center',
   },
   waveLayer: {
@@ -483,7 +339,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     zIndex: 10,
-    // Softened shadow to match the "Calm, premium" tone
     shadowColor: THEME.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
@@ -492,10 +347,12 @@ const styles = StyleSheet.create({
   caption: {
     position: 'absolute',
     bottom: '42%',
-    fontFamily: 'Inter_400Regular', // Standardized font
-    fontSize: 14, // Aligned with card titles
-    letterSpacing: 1.4, // Aligned with section labels
+    width: '100%',             // Fix: Confine text to the screen bounds
+    textAlign: 'center',       // Fix: Center the text inside the full-width bounds
+    paddingHorizontal: 20,     // Fix: Add a buffer so it never hits the absolute edges
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    letterSpacing: 1.4,
     color: '#f8fafc',
-    // textTransform: 'uppercase', // Matches ThinkTrip's section title style
   },
 });
