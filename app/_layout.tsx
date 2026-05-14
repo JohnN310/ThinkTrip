@@ -10,6 +10,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { StatusBar } from 'expo-status-bar';
 // import * as Notifications from 'expo-notifications';
 import { useColors } from '../hooks/useColors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // import '../lib/backgroundWeather';
 
 // Notifications.setNotificationHandler({
@@ -32,29 +33,49 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const router = useRouter();
   const colors = useColors();
+
   const [isNavigationReady, setIsNavigationReady] = React.useState(false);
+  const [isFirstLaunch, setIsFirstLaunch] = React.useState<boolean | null>(null);
 
   React.useEffect(() => {
-    // Wait for the root layout to fully mount before routing
+    // 1. Check local storage for onboarding status
+    async function checkOnboarding() {
+      try {
+        const hasSeen = await AsyncStorage.getItem('hasSeenOnboarding');
+        setIsFirstLaunch(hasSeen !== 'true');
+      } catch {
+        setIsFirstLaunch(false); // Default to login if storage fails
+      }
+    }
+    checkOnboarding();
+
+    // 2. Wait for root layout to mount
     const timer = setTimeout(() => setIsNavigationReady(true), 1);
     return () => clearTimeout(timer);
   }, []);
 
   React.useEffect(() => {
-    if (loading || !isNavigationReady) return;
+    // Don't route until everything is loaded
+    if (loading || !isNavigationReady || isFirstLaunch === null) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!user && !inAuthGroup) {
-      // Redirect to the login page if not authenticated
-      router.replace('/(auth)/login');
+
+      AsyncStorage.getItem('hasSeenOnboarding').then(hasSeen => {
+        const isActuallyFirstLaunch = hasSeen !== 'true';
+
+        setIsFirstLaunch(isActuallyFirstLaunch);
+
+        router.replace(isActuallyFirstLaunch ? '/onboarding' : '/login');
+      });
+
     } else if (user && inAuthGroup) {
-      // Redirect to the tabs page if authenticated and in auth group
-      router.replace('/(tabs)');
+      router.replace('/');
     }
   }, [user, loading, segments, isNavigationReady]);
 
-  if (loading) {
+  if (loading || isFirstLaunch === null) {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   }
 

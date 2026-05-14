@@ -67,6 +67,19 @@ export default function ScanScreen() {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
 
   const [mode, setMode] = useState<Mode>('Menu');
+  const [showModeInfo, setShowModeInfo] = useState(false);
+
+  const MODE_DESCRIPTIONS: Record<Mode, string> = {
+    Menu: "Scan restaurant or cafe menus to decode dishes, identify allergens, and get ordering tips.",
+    Payment: "Scan payment terminals, signage, or receipts to understand tipping culture and hidden fees.",
+    Transit: "Scan train schedules, station signs, or turnstiles for navigation and boarding etiquette."
+  };
+
+  // Auto-close the tooltip if they change the mode using the bottom bar
+  useEffect(() => {
+    setShowModeInfo(false);
+  }, [mode]);
+
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const cameraRef = useRef<CameraView>(null);
@@ -862,6 +875,15 @@ export default function ScanScreen() {
     <View style={styles.container}>
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="back" />
 
+      {/* 1. MOVED DISMISS OVERLAY HERE: Now it covers the entire screen safely behind the UI */}
+      {showModeInfo && (
+        <TouchableOpacity 
+          style={[StyleSheet.absoluteFillObject, { zIndex: 9 }]} 
+          activeOpacity={1} 
+          onPress={() => setShowModeInfo(false)} 
+        />
+      )}
+
       {/* ─── RETICLE FRAME (From Sketch) ─── */}
       {/* {!isSearchExpanded && (
         <View style={styles.reticleContainer} pointerEvents="none">
@@ -965,19 +987,30 @@ export default function ScanScreen() {
 
         {/* Hide the pill when expanded to keep the UI clean */}
         {!isSearchExpanded && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 }}>
-            <View style={styles.topPill}>
-              <Feather
-                name={mode === 'Payment' ? 'credit-card' : mode === 'Transit' ? 'navigation' : 'book-open'}
-                size={12}
-                color="#fff"
-                style={{ opacity: 0.8 }}
-              />
-              <Text style={styles.topPillText}>{mode.toUpperCase()}</Text>
-            </View>
+          <View style={{ zIndex: 20, width: '100%', alignItems: 'center' }}>
+            
+            {/* The Row of Pills */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 }}>
+              <TouchableOpacity 
+                style={[
+                  styles.topPill, 
+                  showModeInfo && { backgroundColor: colors.primary, borderColor: colors.primary }
+                ]} 
+                onPress={() => setShowModeInfo(!showModeInfo)}
+                activeOpacity={0.8}
+              >
+                <Feather
+                  name={mode === 'Payment' ? 'credit-card' : mode === 'Transit' ? 'navigation' : 'book-open'}
+                  size={12}
+                  color="#fff"
+                  style={{ opacity: showModeInfo ? 1 : 0.8 }}
+                />
+                <Text style={[styles.topPillText, showModeInfo && { color: '#fff' }]}>
+                  {mode.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
 
-            {/* Interactive GPS Pill for All Modes */}
-            {(
+              {/* Your existing GPS Pill */}
               <TouchableOpacity
                 style={[
                   styles.topPill,
@@ -991,14 +1024,20 @@ export default function ScanScreen() {
                   size={10}
                   color={profile.locationRoutingEnabled ? colors.primary : colors.mutedForeground}
                 />
-                <Text style={[
-                  styles.topPillText,
-                  { color: profile.locationRoutingEnabled ? colors.primary : colors.mutedForeground }
-                ]}>
+                <Text style={[styles.topPillText, { color: profile.locationRoutingEnabled ? colors.primary : colors.mutedForeground }]}>
                   GPS: {profile.locationRoutingEnabled ? 'ON' : 'OFF'}
                 </Text>
               </TouchableOpacity>
+            </View>
+
+            {/* THE TOOLTIP BUBBLE - Now dynamically positioned below the row */}
+            {showModeInfo && (
+              <View style={styles.modeInfoBubble}>
+                <View style={styles.modeInfoPointer} />
+                <Text style={styles.modeInfoText}>{MODE_DESCRIPTIONS[mode]}</Text>
+              </View>
             )}
+
           </View>
         )}
       </View>
@@ -1287,4 +1326,41 @@ const styles = StyleSheet.create({
   },
   mapsButtonTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
   mapsButtonSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 1 },
+
+  // ─── Tooltip Styles ───
+  modeInfoBubble: {
+    position: 'absolute',
+    top: '100%', // Automatically snaps to the bottom of the pill row
+    marginTop: 14, // Space for the arrow
+    width: Dimensions.get('window').width * 0.85, // Responsive to phone size
+    maxWidth: 340, // Prevents it from getting too wide on tablets
+    backgroundColor: 'rgba(10, 15, 25, 0.95)',
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modeInfoPointer: {
+    position: 'absolute',
+    top: -7,
+    left: '50%',
+    marginLeft: -48, // Perfectly offsets the arrow to point directly at the Mode pill
+    width: 12,
+    height: 12,
+    backgroundColor: 'rgba(10, 15, 25, 0.95)',
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    transform: [{ rotate: '45deg' }],
+  },
+  modeInfoText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    color: '#f8fafc',
+    lineHeight: 20,
+  },
 });
