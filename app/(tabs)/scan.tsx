@@ -328,7 +328,7 @@ export default function ScanScreen() {
 
       If Mode is 'Payment':
         - FIRST, classify the primary subject of the image into one of two sub-categories: 'Signage/Terminal' OR 'Receipt/Bill'.
-        
+
         - If Sub-Category is 'Signage/Terminal':
            - Detect accepted payment methods from signage or context.
            - Badges: Flag "warn" for cash-only, "info" for IC cards, "good" for no-tipping.

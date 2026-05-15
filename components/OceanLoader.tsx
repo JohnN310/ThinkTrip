@@ -3,6 +3,7 @@ import { View, Animated, Easing, StyleSheet, Text, useWindowDimensions } from 'r
 import Svg, { Path, G, Ellipse, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 const WAVE_SEGMENT_WIDTH = 400;
+const AnimatedG = Animated.createAnimatedComponent(G);
 
 // ─── THINKTRIP BRANDED PALETTE ───
 const THEME = {
@@ -80,6 +81,12 @@ const AnimatedDolphin = ({ scale, screenWidth }: { scale: number; screenWidth: n
   const y = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
   const pitch = useRef(new Animated.Value(0)).current;
+  const tailSwing = useRef(new Animated.Value(0)).current;
+  const blink = useRef(new Animated.Value(1)).current;
+  const splashOpacity = useRef(new Animated.Value(0)).current;
+  const splashX = useRef(Array.from({ length: 6 }).map(() => new Animated.Value(0))).current;
+  const splashY = useRef(Array.from({ length: 6 }).map(() => new Animated.Value(0))).current;
+  const [jumping, setJumping] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -91,14 +98,30 @@ const AnimatedDolphin = ({ scale, screenWidth }: { scale: number; screenWidth: n
       ])
     ).start();
 
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(tailSwing, { toValue: 1, duration: 220, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(tailSwing, { toValue: -1, duration: 220, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+
+    const loopBlink = () => {
+      Animated.sequence([
+        Animated.delay(2000 + Math.random() * 4000),
+        Animated.timing(blink, { toValue: 0.1, duration: 90, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 120, useNativeDriver: true }),
+      ]).start(() => loopBlink());
+    };
+    loopBlink();
+
     const triggerSwim = () => {
       if (!isActive) return;
       x.setValue(-150);
+      setJumping(false);
 
       const isJumping = Math.random() > 0.40;
       const delay = Math.random() * 2000;
 
-      // Calculate duration dynamically based on screen width to maintain constant perceived speed
       const distance = screenWidth + 300;
       const duration = distance * (Math.random() * 5 + 6);
 
@@ -110,15 +133,39 @@ const AnimatedDolphin = ({ scale, screenWidth }: { scale: number; screenWidth: n
         y.setValue(startY);
         pitch.setValue(-1);
 
+        // /* ─── WATER SPLASH COMMENTED OUT ───
+        // setTimeout(() => {
+        //   if (!isActive) return;
+
+        //   setJumping(true);
+        //   splashOpacity.setValue(1);
+        //   splashX.forEach((sx) => sx.setValue(80));
+        //   splashY.forEach((sy) => sy.setValue(startY + 90));
+
+        //   Animated.parallel([
+        //     ...splashX.map((sx, i) =>
+        //       Animated.parallel([
+        //         Animated.timing(sx, { toValue: 80 + (Math.random() * 60 - 30), duration: 600, useNativeDriver: true }),
+        //         Animated.timing(splashY[i], { toValue: startY + (Math.random() * 40 - 20), duration: 600, useNativeDriver: true }),
+        //       ])
+        //     ),
+        //     Animated.timing(splashOpacity, { toValue: 0, duration: 600, useNativeDriver: true }),
+        //   ]).start(() => setJumping(false));
+        // }, delay + (duration * 0.45));
+        // */
+
+        // 2. Keep the main sequence completely pure of .start() callbacks
         Animated.sequence([
           Animated.delay(delay),
           Animated.parallel([
-            Animated.timing(x, { toValue: screenWidth + 150, duration, easing: Easing.linear, useNativeDriver: true }),
+            Animated.timing(x, { toValue: screenWidth + 150, duration, easing: Easing.bezier(0.42, 0, 0.58, 1), useNativeDriver: true }),
             Animated.sequence([
+              // Going UP
               Animated.parallel([
                 Animated.timing(y, { toValue: peakY, duration: duration * 0.45, easing: Easing.out(Easing.sin), useNativeDriver: true }),
-                Animated.timing(pitch, { toValue: 0, duration: duration * 0.45, easing: Easing.out(Easing.sin), useNativeDriver: true })
+                Animated.timing(pitch, { toValue: 0, duration: duration * 0.45, easing: Easing.out(Easing.sin), useNativeDriver: true }),
               ]),
+              // Going DOWN
               Animated.parallel([
                 Animated.timing(y, { toValue: endY, duration: duration * 0.55, easing: Easing.in(Easing.sin), useNativeDriver: true }),
                 Animated.timing(pitch, { toValue: 1, duration: duration * 0.55, easing: Easing.in(Easing.sin), useNativeDriver: true })
@@ -157,6 +204,21 @@ const AnimatedDolphin = ({ scale, screenWidth }: { scale: number; screenWidth: n
   const squish = bob.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.98, 1.03, 0.98] });
   const jumpRotate = pitch.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-25deg', '0deg', '35deg'] });
 
+  const tailRotate = tailSwing.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ['-18deg', '18deg'],
+  });
+
+  const bodyFlex = bob.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [-3, 3],
+  });
+
+  const smileBounce = bob.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [0, 1.5],
+  });
+
   return (
     <Animated.View style={[
       styles.dolphinContainer,
@@ -173,6 +235,41 @@ const AnimatedDolphin = ({ scale, screenWidth }: { scale: number; screenWidth: n
         ]
       }
     ]}>
+      {/* ─── WATER SPLASH PARTICLES (COMMENTED OUT) ─── */}
+
+      {/* {jumping && Array.from({ length: 6 }).map((_, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: 'absolute',
+            width: 4,
+            height: 4,
+            borderRadius: 2,
+            backgroundColor: '#dff6ff',
+            opacity: splashOpacity,
+            transform: [
+              { translateX: splashX[i] },
+              { translateY: splashY[i] },
+            ],
+          }}
+        />
+      ))} */}
+
+
+      {/* ─── INDEPENDENT TAIL ─── */}
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: -4,
+          top: 15,
+          transform: [{ rotate: tailRotate }],
+        }}
+      >
+        <Svg width="40" height="40" viewBox="0 0 40 40">
+          <Path d="M20 20 Q4 4 2 14 Q10 22 2 30 Q4 40 20 24 Q14 22 20 20" fill="#7ab8ff" />
+        </Svg>
+      </Animated.View>
+
       <Svg width="120" height="70" viewBox="0 0 120 70">
         <Defs>
           <LinearGradient id="dolphinBody" x1="0" y1="0" x2="1" y2="1">
@@ -190,19 +287,59 @@ const AnimatedDolphin = ({ scale, screenWidth }: { scale: number; screenWidth: n
           </LinearGradient>
         </Defs>
 
-        <G>
-          <Path d="M20 34 Q4 18 2 28 Q10 36 2 44 Q4 54 20 38 Q14 36 20 34" fill="#7ab8ff" />
-          <Ellipse cx="58" cy="35" rx="38" ry="18" fill="url(#dolphinBody)" />
+        {/* ─── TORSO GROUP WITH SPINE FLEX ─── */}
+        <AnimatedG rotation={bodyFlex} originX={58} originY={35}>
+          {/* Main Body Path */}
+          <Path
+            d="M18 36 C28 18, 58 10, 88 22 C108 30, 108 44, 88 50 C58 62, 30 56, 18 36 Z"
+            fill="url(#dolphinBody)"
+          />
+
           <Ellipse cx="60" cy="42" rx="24" ry="9" fill="url(#dolphinBelly)" opacity={0.95} />
+
+          {/* Dorsal Fin */}
+          <Path
+            d="M54 20 C60 2, 72 6, 68 24 C64 20, 60 18, 54 20"
+            fill="#5d8fff"
+          />
+
+          {/* Lower Fin */}
+          <Path
+            d="M56 44 C48 56, 62 60, 70 48 C64 50, 60 48, 56 44"
+            fill="#5d8fff"
+          />
+
+          {/* Specular Highlights */}
+          <Ellipse
+            cx="72"
+            cy="26"
+            rx="16"
+            ry="5"
+            fill="white"
+            opacity={0.18}
+            transform="rotate(-12 72 26)"
+          />
+          <Ellipse cx="95" cy="32" rx="3" ry="1.5" fill="white" opacity={0.15} />
+
+          {/* Nose/Snout */}
           <Path d="M90 31 Q108 32 110 35 Q108 38 90 39" fill="#6aa8ff" />
-          <Path d="M52 18 Q60 2 70 18 Q62 15 52 18" fill="#5d8fff" />
-          <Path d="M58 47 Q50 62 64 55 Q66 50 58 47" fill="#5d8fff" />
-          <Ellipse cx="82" cy="30" rx="4.5" ry="4.5" fill="white" />
-          <Ellipse cx="83" cy="31" rx="2" ry="2.5" fill="#0f172a" />
-          <Ellipse cx="84" cy="30" rx="0.8" ry="0.8" fill="white" />
-          <Path d="M86 39 Q92 43 98 38" stroke="#1e3a8a" strokeWidth="2" fill="none" strokeLinecap="round" />
+
+          {/* Animated Mouth (Smile Bounce) */}
+          <AnimatedG y={smileBounce}>
+            <Path d="M86 39 Q92 43 98 38" stroke="#1e3a8a" strokeWidth="2" fill="none" strokeLinecap="round" />
+          </AnimatedG>
+
           <Ellipse cx="78" cy="40" rx="4" ry="2" fill="#ffc1d6" opacity={0.45} />
           <Path d="M38 23 Q58 12 82 22" stroke="url(#shine)" strokeWidth="6" strokeLinecap="round" opacity={0.75} fill="none" />
+        </AnimatedG>
+
+        {/* ─── INDEPENDENT BLINKING EYE ─── */}
+        <G transform="translate(81, 28)">
+          <AnimatedG scaleY={blink} originY={2}>
+            <Ellipse cx="1" cy="2" rx="4.5" ry="4.5" fill="white" />
+            <Ellipse cx="2" cy="3" rx="2" ry="2.5" fill="#0f172a" />
+            <Ellipse cx="3" cy="2" rx="0.8" ry="0.8" fill="white" />
+          </AnimatedG>
         </G>
       </Svg>
     </Animated.View>
@@ -244,7 +381,7 @@ export default function OceanLoader() {
   const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
-    const podSize = Math.floor(Math.random() * 3) + 4;
+    const podSize = Math.floor(Math.random() * 2) + 1;
 
     // Dynamically reduce the base scale for narrow screens (like standard Androids)
     const baseScale = screenWidth < 390 ? 0.75 : 1;
@@ -328,7 +465,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 150,
     overflow: 'hidden',
-    alignItems: 'flex-start', // Fix: Anchor to left edge so the 400px loop aligns perfectly
+    alignItems: 'flex-start',
     justifyContent: 'center',
   },
   waveLayer: {
@@ -347,9 +484,9 @@ const styles = StyleSheet.create({
   caption: {
     position: 'absolute',
     bottom: '42%',
-    width: '100%',             // Fix: Confine text to the screen bounds
-    textAlign: 'center',       // Fix: Center the text inside the full-width bounds
-    paddingHorizontal: 20,     // Fix: Add a buffer so it never hits the absolute edges
+    width: '100%',
+    textAlign: 'center',
+    paddingHorizontal: 20,
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
     letterSpacing: 1.4,
