@@ -381,7 +381,7 @@ export default function OceanLoader() {
   const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
-    const podSize = Math.floor(Math.random() * 2) + 1;
+    const podSize = Math.floor(Math.random() * 2) + 2;
 
     // Dynamically reduce the base scale for narrow screens (like standard Androids)
     const baseScale = screenWidth < 390 ? 0.75 : 1;
