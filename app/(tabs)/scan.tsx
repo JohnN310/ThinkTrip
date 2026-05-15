@@ -29,6 +29,7 @@ const PROMPT_SUGGESTIONS: Record<Mode, string[]> = {
   ],
   Payment: [
     "Do they accept international Visa/Mastercard?",
+    "Are there any hidden service charges or seating fees on this bill?",
     "Is it polite to split the bill (go Dutch) here?",
     "Do I pay at the table or at the register?"
   ],
@@ -777,6 +778,19 @@ export default function ScanScreen() {
       if (croppedImage.base64) {
         const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
 
+        if (analysis.title === 'Unable to Analyze') {
+          Alert.alert(
+            "Couldn't read image",
+            `Make sure the image is clear and relevant to ${mode} mode.`,
+            [{ text: "Try again" }]
+          );
+
+          setIsCaptured(false);
+          if (cameraRef.current) cameraRef.current.resumePreview();
+          setSearchQuery('');
+          return;
+        }
+
         if (!currentLocation && profile.locationRoutingEnabled) {
           analysis.badges.unshift({
             type: 'warn',
@@ -877,10 +891,10 @@ export default function ScanScreen() {
 
       {/* 1. MOVED DISMISS OVERLAY HERE: Now it covers the entire screen safely behind the UI */}
       {showModeInfo && (
-        <TouchableOpacity 
-          style={[StyleSheet.absoluteFillObject, { zIndex: 9 }]} 
-          activeOpacity={1} 
-          onPress={() => setShowModeInfo(false)} 
+        <TouchableOpacity
+          style={[StyleSheet.absoluteFillObject, { zIndex: 9 }]}
+          activeOpacity={1}
+          onPress={() => setShowModeInfo(false)}
         />
       )}
 
@@ -988,14 +1002,14 @@ export default function ScanScreen() {
         {/* Hide the pill when expanded to keep the UI clean */}
         {!isSearchExpanded && (
           <View style={{ zIndex: 20, width: '100%', alignItems: 'center' }}>
-            
+
             {/* The Row of Pills */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 }}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
-                  styles.topPill, 
+                  styles.topPill,
                   showModeInfo && { backgroundColor: colors.primary, borderColor: colors.primary }
-                ]} 
+                ]}
                 onPress={() => setShowModeInfo(!showModeInfo)}
                 activeOpacity={0.8}
               >
@@ -1136,7 +1150,7 @@ export default function ScanScreen() {
               )}
 
               <View style={styles.badgeRow}>
-                {result?.badges.map((b, i) => {
+                {result?.badges?.map((b, i) => {
                   let bg = colors.muted;
                   let dot = colors.primary;
                   let label = colors.foreground;
@@ -1159,12 +1173,12 @@ export default function ScanScreen() {
               </View>
 
               <View style={styles.notesColumn}>
-                {result?.notes.map((n, i) => (
+                {result?.notes?.map((n, i) => (
                   <View key={i} style={[styles.noteCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                     <Text style={[styles.noteTitle, { color: colors.foreground }]}>{n.title}</Text>
                     {/* Render the beautifully formatted body */}
                     <View style={{ marginTop: 6 }}>
-                      {renderFormattedText(n.body, colors.mutedForeground)}
+                      {renderFormattedText(n?.body || "Analysis details unavailable.", colors.mutedForeground)}
                     </View>
                   </View>
                 ))}

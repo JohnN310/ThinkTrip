@@ -1,21 +1,30 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useColors } from '../hooks/useColors';
-import { AlertTriangle } from '@expo/vector-icons/Feather';
+import { View, Text, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 
 export const ErrorFallback = ({ error, resetError }: { error?: Error, resetError: () => void }) => {
-  const colors = useColors();
+  const systemTheme = useColorScheme();
+  const isDark = systemTheme === 'dark';
+
+  const bgColor = isDark ? '#020617' : '#f8fafc';
+  const fgColor = isDark ? '#f8fafc' : '#1e293b';
+  const mutedFgColor = isDark ? '#94a3b8' : '#64748b';
+  const primaryColor = isDark ? '#818cf8' : '#5c7ce5';
+  const primaryFgColor = '#f8fafc'; // Same for both
+  const destructiveColor = isDark ? '#f43f5e' : '#e11d48';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AlertTriangle color={colors.destructive} size={48} />
-      <Text style={[styles.title, { color: colors.foreground }]}>Something went wrong</Text>
-      <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{error?.message}</Text>
+    <View style={[styles.container, { backgroundColor: bgColor }]}>
+      <Feather name="alert-triangle" color={destructiveColor} size={48} />
+      <Text style={[styles.title, { color: fgColor }]}>Something went wrong</Text>
+      <Text style={[styles.subtitle, { color: mutedFgColor }]}>
+        {error?.message || "An unexpected error occurred."}
+      </Text>
       <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.primary }]}
+        style={[styles.button, { backgroundColor: primaryColor }]}
         onPress={resetError}
       >
-        <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>Try again</Text>
+        <Text style={[styles.buttonText, { color: primaryFgColor }]}>Try again</Text>
       </TouchableOpacity>
     </View>
   );
