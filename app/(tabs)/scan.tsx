@@ -82,6 +82,7 @@ export default function ScanScreen() {
   }, [mode]);
 
   const [analyzing, setAnalyzing] = useState(false);
+  const [aiFinished, setAiFinished] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const [captionIndex, setCaptionIndex] = useState(0);
@@ -130,6 +131,16 @@ export default function ScanScreen() {
         cameraRef.current.resumePreview();
       }
     });
+  };
+
+  const handleFinishComplete = () => {
+    openSheet();
+    setAnalyzing(false);
+    setAiFinished(false);
+
+    if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
   };
 
   const openMap = async (query: string) => {
@@ -788,6 +799,7 @@ export default function ScanScreen() {
           setIsCaptured(false);
           if (cameraRef.current) cameraRef.current.resumePreview();
           setSearchQuery('');
+          setAnalyzing(false);
           return;
         }
 
@@ -800,11 +812,7 @@ export default function ScanScreen() {
         }
 
         setResult(analysis);
-        openSheet();
-
-        if (Platform.OS !== 'web' && profile.hapticsEnabled) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        setAiFinished(true); // Signal to OceanLoader that the analysis has completed
         setSearchQuery('');
       }
     } catch (error) {
@@ -813,7 +821,6 @@ export default function ScanScreen() {
 
       setIsCaptured(false);
       if (cameraRef.current) cameraRef.current.resumePreview();
-    } finally {
       setAnalyzing(false);
     }
   };
@@ -929,7 +936,10 @@ export default function ScanScreen() {
 
       {analyzing && (
         <View style={[StyleSheet.absoluteFillObject, styles.analyzingOverlay]}>
-          <OceanLoader />
+          <OceanLoader
+            isFinished={aiFinished}
+            onFinishComplete={handleFinishComplete}
+          />
         </View>
       )}
 

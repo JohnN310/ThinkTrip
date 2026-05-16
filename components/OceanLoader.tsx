@@ -1,495 +1,456 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Animated, Easing, StyleSheet, Text, useWindowDimensions } from 'react-native';
-import Svg, { Path, G, Ellipse, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { View, Animated, Easing, StyleSheet, Text } from 'react-native';
+import Svg, { Path, G, Ellipse, Circle, Rect, Line, Text as SvgText } from 'react-native-svg';
 
-const WAVE_SEGMENT_WIDTH = 400;
-const AnimatedG = Animated.createAnimatedComponent(G);
+const AnimatedG = Animated.createAnimatedComponent(G) as any;
+const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse) as any;
+const AnimatedSvgText = Animated.createAnimatedComponent(SvgText) as any;
 
-// ─── THINKTRIP BRANDED PALETTE ───
-const THEME = {
-  primary: '#5c7ce5',
-  secondary: '#64748b',
-  whiteGlow: '#f8fafc',
-  deepIndigo: '#1e293b',
-};
+interface ParticleDef {
+  x: string;
+  y: string;
+  delay: number;
+  duration: number;
+}
 
-// ─── BACKGROUND DIGITAL PARTICLES ───
-const FloatingSquares = () => {
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-
-  const [squares] = useState(() =>
-    Array.from({ length: 15 }).map(() => ({
-      x: Math.random() * screenWidth,
-      y: Math.random() * screenHeight,
-      size: Math.random() * 4 + 2,
-      opacity: Math.random() * 0.5 + 0.1,
-      duration: Math.random() * 4000 + 3000,
-      delay: Math.random() * 2000,
-    }))
-  );
-
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      {squares.map((sq, i) => {
-        const animY = useRef(new Animated.Value(sq.y)).current;
-        const animOpacity = useRef(new Animated.Value(sq.opacity)).current;
-
-        useEffect(() => {
-          Animated.loop(
-            Animated.sequence([
-              Animated.parallel([
-                Animated.timing(animY, { toValue: sq.y - 40, duration: sq.duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-                Animated.timing(animOpacity, { toValue: 0, duration: sq.duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true })
-              ]),
-              Animated.parallel([
-                Animated.timing(animY, { toValue: sq.y, duration: 0, useNativeDriver: true }),
-                Animated.timing(animOpacity, { toValue: sq.opacity, duration: 0, useNativeDriver: true })
-              ])
-            ])
-          ).start();
-        }, []);
-
-        return (
-          <Animated.View
-            key={i}
-            style={{
-              position: 'absolute',
-              left: sq.x,
-              top: 0,
-              transform: [{ translateY: animY }],
-              width: sq.size,
-              height: sq.size,
-              borderWidth: 1,
-              borderColor: THEME.primary,
-              backgroundColor: sq.size > 4 ? THEME.primary : 'transparent',
-              opacity: animOpacity,
-              shadowColor: THEME.primary,
-              shadowOffset: { width: 0, height: 0 },
-              shadowOpacity: 0.8,
-              shadowRadius: 4,
-            }}
-          />
-        );
-      })}
-    </View>
-  );
-};
-
-// ─── INDEPENDENT DOLPHIN COMPONENT ───
-const AnimatedDolphin = ({ scale, screenWidth }: { scale: number; screenWidth: number }) => {
-  const x = useRef(new Animated.Value(-150)).current;
-  const y = useRef(new Animated.Value(0)).current;
-  const bob = useRef(new Animated.Value(0)).current;
-  const pitch = useRef(new Animated.Value(0)).current;
-  const tailSwing = useRef(new Animated.Value(0)).current;
-  const blink = useRef(new Animated.Value(1)).current;
-  const splashOpacity = useRef(new Animated.Value(0)).current;
-  const splashX = useRef(Array.from({ length: 6 }).map(() => new Animated.Value(0))).current;
-  const splashY = useRef(Array.from({ length: 6 }).map(() => new Animated.Value(0))).current;
-  const [jumping, setJumping] = useState(false);
+const AmbientParticle = ({ p }: { p: ParticleDef }) => {
+  const pAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    let isActive = true;
-
     Animated.loop(
       Animated.sequence([
-        Animated.timing(bob, { toValue: 1, duration: 450, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(bob, { toValue: -1, duration: 450, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.delay(p.delay),
+        Animated.timing(pAnim, { toValue: 1, duration: p.duration, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pAnim, { toValue: 0, duration: p.duration, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(tailSwing, { toValue: 1, duration: 220, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(tailSwing, { toValue: -1, duration: 220, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    ).start();
-
-    const loopBlink = () => {
-      Animated.sequence([
-        Animated.delay(2000 + Math.random() * 4000),
-        Animated.timing(blink, { toValue: 0.1, duration: 90, useNativeDriver: true }),
-        Animated.timing(blink, { toValue: 1, duration: 120, useNativeDriver: true }),
-      ]).start(() => loopBlink());
-    };
-    loopBlink();
-
-    const triggerSwim = () => {
-      if (!isActive) return;
-      x.setValue(-150);
-      setJumping(false);
-
-      const isJumping = Math.random() > 0.40;
-      const delay = Math.random() * 2000;
-
-      const distance = screenWidth + 300;
-      const duration = distance * (Math.random() * 5 + 6);
-
-      if (isJumping) {
-        const startY = Math.random() * 20 - 50;
-        const peakY = -(Math.random() * 50 + 15);
-        const endY = Math.random() * 40 - 50;
-
-        y.setValue(startY);
-        pitch.setValue(-1);
-
-        // /* ─── WATER SPLASH COMMENTED OUT ───
-        // setTimeout(() => {
-        //   if (!isActive) return;
-
-        //   setJumping(true);
-        //   splashOpacity.setValue(1);
-        //   splashX.forEach((sx) => sx.setValue(80));
-        //   splashY.forEach((sy) => sy.setValue(startY + 90));
-
-        //   Animated.parallel([
-        //     ...splashX.map((sx, i) =>
-        //       Animated.parallel([
-        //         Animated.timing(sx, { toValue: 80 + (Math.random() * 60 - 30), duration: 600, useNativeDriver: true }),
-        //         Animated.timing(splashY[i], { toValue: startY + (Math.random() * 40 - 20), duration: 600, useNativeDriver: true }),
-        //       ])
-        //     ),
-        //     Animated.timing(splashOpacity, { toValue: 0, duration: 600, useNativeDriver: true }),
-        //   ]).start(() => setJumping(false));
-        // }, delay + (duration * 0.45));
-        // */
-
-        // 2. Keep the main sequence completely pure of .start() callbacks
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.parallel([
-            Animated.timing(x, { toValue: screenWidth + 150, duration, easing: Easing.bezier(0.42, 0, 0.58, 1), useNativeDriver: true }),
-            Animated.sequence([
-              // Going UP
-              Animated.parallel([
-                Animated.timing(y, { toValue: peakY, duration: duration * 0.45, easing: Easing.out(Easing.sin), useNativeDriver: true }),
-                Animated.timing(pitch, { toValue: 0, duration: duration * 0.45, easing: Easing.out(Easing.sin), useNativeDriver: true }),
-              ]),
-              // Going DOWN
-              Animated.parallel([
-                Animated.timing(y, { toValue: endY, duration: duration * 0.55, easing: Easing.in(Easing.sin), useNativeDriver: true }),
-                Animated.timing(pitch, { toValue: 1, duration: duration * 0.55, easing: Easing.in(Easing.sin), useNativeDriver: true })
-              ])
-            ])
-          ])
-        ]).start(({ finished }) => finished && triggerSwim());
-
-      } else {
-        const startY = (Math.random() * 60) - 80;
-        const endY = (Math.random() * 60) - 80;
-
-        y.setValue(startY);
-        pitch.setValue(0);
-
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.parallel([
-            Animated.timing(x, { toValue: screenWidth + 150, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(y, { toValue: endY, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.sequence([
-              Animated.timing(pitch, { toValue: -0.15, duration: duration / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-              Animated.timing(pitch, { toValue: 0.15, duration: duration / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            ])
-          ])
-        ]).start(({ finished }) => finished && triggerSwim());
-      }
-    };
-
-    triggerSwim();
-    return () => { isActive = false; };
-  }, [x, y, bob, pitch, screenWidth]);
-
-  const wiggleY = bob.interpolate({ inputRange: [-1, 1], outputRange: [-1.5, 1.5] });
-  const wiggleRotate = bob.interpolate({ inputRange: [-1, 1], outputRange: ['-6deg', '6deg'] });
-  const squish = bob.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.98, 1.03, 0.98] });
-  const jumpRotate = pitch.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-25deg', '0deg', '35deg'] });
-
-  const tailRotate = tailSwing.interpolate({
-    inputRange: [-1, 1],
-    outputRange: ['-18deg', '18deg'],
-  });
-
-  const bodyFlex = bob.interpolate({
-    inputRange: [-1, 1],
-    outputRange: [-3, 3],
-  });
-
-  const smileBounce = bob.interpolate({
-    inputRange: [-1, 1],
-    outputRange: [0, 1.5],
-  });
-
-  return (
-    <Animated.View style={[
-      styles.dolphinContainer,
-      {
-        transform: [
-          { translateX: x },
-          { translateY: y },
-          { translateY: wiggleY },
-          { rotate: jumpRotate },
-          { rotate: wiggleRotate },
-          { scale: scale },
-          { scaleX: squish },
-          { scaleY: squish },
-        ]
-      }
-    ]}>
-      {/* ─── WATER SPLASH PARTICLES (COMMENTED OUT) ─── */}
-
-      {/* {jumping && Array.from({ length: 6 }).map((_, i) => (
-        <Animated.View
-          key={i}
-          style={{
-            position: 'absolute',
-            width: 4,
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: '#dff6ff',
-            opacity: splashOpacity,
-            transform: [
-              { translateX: splashX[i] },
-              { translateY: splashY[i] },
-            ],
-          }}
-        />
-      ))} */}
-
-
-      {/* ─── INDEPENDENT TAIL ─── */}
-      <Animated.View
-        style={{
-          position: 'absolute',
-          left: -4,
-          top: 15,
-          transform: [{ rotate: tailRotate }],
-        }}
-      >
-        <Svg width="40" height="40" viewBox="0 0 40 40">
-          <Path d="M20 20 Q4 4 2 14 Q10 22 2 30 Q4 40 20 24 Q14 22 20 20" fill="#7ab8ff" />
-        </Svg>
-      </Animated.View>
-
-      <Svg width="120" height="70" viewBox="0 0 120 70">
-        <Defs>
-          <LinearGradient id="dolphinBody" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0%" stopColor="#b8d8ff" />
-            <Stop offset="45%" stopColor="#7ab8ff" />
-            <Stop offset="100%" stopColor="#4f7cff" />
-          </LinearGradient>
-          <LinearGradient id="dolphinBelly" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
-            <Stop offset="100%" stopColor="#dbeafe" stopOpacity="0.9" />
-          </LinearGradient>
-          <LinearGradient id="shine" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
-            <Stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-          </LinearGradient>
-        </Defs>
-
-        {/* ─── TORSO GROUP WITH SPINE FLEX ─── */}
-        <AnimatedG rotation={bodyFlex} originX={58} originY={35}>
-          {/* Main Body Path */}
-          <Path
-            d="M18 36 C28 18, 58 10, 88 22 C108 30, 108 44, 88 50 C58 62, 30 56, 18 36 Z"
-            fill="url(#dolphinBody)"
-          />
-
-          <Ellipse cx="60" cy="42" rx="24" ry="9" fill="url(#dolphinBelly)" opacity={0.95} />
-
-          {/* Dorsal Fin */}
-          <Path
-            d="M54 20 C60 2, 72 6, 68 24 C64 20, 60 18, 54 20"
-            fill="#5d8fff"
-          />
-
-          {/* Lower Fin */}
-          <Path
-            d="M56 44 C48 56, 62 60, 70 48 C64 50, 60 48, 56 44"
-            fill="#5d8fff"
-          />
-
-          {/* Specular Highlights */}
-          <Ellipse
-            cx="72"
-            cy="26"
-            rx="16"
-            ry="5"
-            fill="white"
-            opacity={0.18}
-            transform="rotate(-12 72 26)"
-          />
-          <Ellipse cx="95" cy="32" rx="3" ry="1.5" fill="white" opacity={0.15} />
-
-          {/* Nose/Snout */}
-          <Path d="M90 31 Q108 32 110 35 Q108 38 90 39" fill="#6aa8ff" />
-
-          {/* Animated Mouth (Smile Bounce) */}
-          <AnimatedG y={smileBounce}>
-            <Path d="M86 39 Q92 43 98 38" stroke="#1e3a8a" strokeWidth="2" fill="none" strokeLinecap="round" />
-          </AnimatedG>
-
-          <Ellipse cx="78" cy="40" rx="4" ry="2" fill="#ffc1d6" opacity={0.45} />
-          <Path d="M38 23 Q58 12 82 22" stroke="url(#shine)" strokeWidth="6" strokeLinecap="round" opacity={0.75} fill="none" />
-        </AnimatedG>
-
-        {/* ─── INDEPENDENT BLINKING EYE ─── */}
-        <G transform="translate(81, 28)">
-          <AnimatedG scaleY={blink} originY={2}>
-            <Ellipse cx="1" cy="2" rx="4.5" ry="4.5" fill="white" />
-            <Ellipse cx="2" cy="3" rx="2" ry="2.5" fill="#0f172a" />
-            <Ellipse cx="3" cy="2" rx="0.8" ry="0.8" fill="white" />
-          </AnimatedG>
-        </G>
-      </Svg>
-    </Animated.View>
-  );
-};
-
-// ─── MAIN LOADER COMPONENT ───
-export default function OceanLoader() {
-  const { width: screenWidth } = useWindowDimensions();
-  const [dolphins, setDolphins] = useState<{ scale: number }[]>([]);
-
-  const [captionIndex, setCaptionIndex] = useState(0);
-  const CAPTIONS = [
-    'Translating from whale noises...',
-    'Math is really hard today...',
-    'Hang on tight bud...',
-    'Teaching the dolphins to read...',
-    'Uhhhh...',
-    'I should have majored in marine biology..',
-    'Almost there...'
-  ];
-
-  useEffect(() => {
-    const captionTimer = setInterval(() => {
-      setCaptionIndex((prevIndex) => {
-        if (prevIndex < CAPTIONS.length - 1) {
-          return prevIndex + 1;
-        } else {
-          clearInterval(captionTimer);
-          return prevIndex;
-        }
-      });
-    }, 2500);
-
-    return () => clearInterval(captionTimer);
   }, []);
 
-  const waveAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+  const pY = pAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -18] });
+  const pOp = pAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] });
+
+  return (
+    <Animated.View
+      style={[
+        styles.particle,
+        { left: p.x as any, top: p.y as any, transform: [{ translateY: pY }], opacity: pOp }
+      ]}
+    />
+  );
+};
+
+// ─── ThinkTrip Palette ───
+const PRIMARY = "#5c7ce5";
+const PRIMARY_DARK = "#4361c4";
+const SECONDARY = "#eff6ff";
+const TEXT = "#1e293b";
+const ACCENT = "#f5b962";
+const CAPTION_COLOR = "#f8fafc";
+
+type Scene = "think" | "search" | "calc" | "idea";
+
+interface SceneDef {
+  caption: string;
+  pupil: { x: number; y: number };
+  openness: number;
+  brow: { tilt: number; lift: number };
+  mouth: string;
+}
+
+const SCENES: Record<Scene, SceneDef> = {
+  think: {
+    caption: "Hmm, let me think…",
+    pupil: { x: -2, y: 3 }, // Changed from x: -2.5, y: -3 so it looks down-left at the paper!
+    openness: 1,
+    brow: { tilt: -8, lift: -2 },
+    mouth: "M93 124 Q 100 122 107 124",
+  },
+  search: {
+    caption: "Searching the currents…",
+    pupil: { x: -3, y: 3.5 },
+    openness: 1,
+    brow: { tilt: 6, lift: 0 },
+    mouth: "M93 126 Q 100 124 107 126",
+  },
+  calc: {
+    caption: "Crunching the numbers…",
+    pupil: { x: 0, y: 3.5 },
+    openness: 0.6,
+    brow: { tilt: 0, lift: 2 },
+    mouth: "M95 126 L 105 126",
+  },
+  idea: {
+    caption: "Got it! ✨",
+    pupil: { x: 0, y: -1 },
+    openness: 1.15,
+    brow: { tilt: 0, lift: -4 },
+    mouth: "M91 122 Q 100 134 109 122",
+  },
+};
+
+const SCENE_ORDER: Scene[] = ["think", "search", "calc", "idea"];
+
+// ─── SCENE OVERLAY COMPONENTS ───
+
+const ThinkOverlay = ({ opacity }: { opacity: Animated.Value }) => {
+  const write = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const podSize = Math.floor(Math.random() * 2) + 2;
-
-    // Dynamically reduce the base scale for narrow screens (like standard Androids)
-    const baseScale = screenWidth < 390 ? 0.75 : 1;
-
-    const generatedDolphins = Array.from({ length: podSize }).map(() => ({
-      scale: (0.5 + (Math.random() * 0.45)) * baseScale,
-    }));
-    setDolphins(generatedDolphins);
-
-    Animated.loop(
-      Animated.timing(waveAnim, {
-        toValue: 1,
-        duration: 4500,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
+    // Fast, tight looping animation to simulate rapid scribbling/writing
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0.4, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(write, { toValue: 1, duration: 160, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(write, { toValue: 0, duration: 160, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
-  }, [waveAnim, pulseAnim, screenWidth]);
+  }, []);
 
-  const waveTranslateX = waveAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -WAVE_SEGMENT_WIDTH],
-  });
+  // Animate the hand doing small horizontal strokes with a tiny vertical bob
+  const writeX = write.interpolate({ inputRange: [0, 1], outputRange: [0, 14] });
+  const writeY = write.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, -3, 0] });
+  const writeRot = write.interpolate({ inputRange: [0, 1], outputRange: ['-2deg', '4deg'] });
 
-  const wavePath1 = `M 0 60 Q 100 20 200 60 T 400 60 T 600 60 T 800 60 T 1000 60 T 1200 60 T 1400 60 T 1600 60`;
-  const wavePath2 = `M 0 70 Q 100 110 200 70 T 400 70 T 600 70 T 800 70 T 1000 70 T 1200 70 T 1400 70 T 1600 70`;
-  const wavePath3 = `M 0 50 Q 100 0 200 50 T 400 50 T 600 50 T 800 50 T 1000 50 T 1200 50 T 1400 50 T 1600 50`;
+  return (
+    <AnimatedG style={{ opacity }}>
+      {/* ─── NOTEPAD ─── */}
+      <G transform="translate(60, 130)">
+        {/* Paper base */}
+        <Rect x="0" y="0" width="70" height="50" rx="4" fill={CAPTION_COLOR} opacity={0.95} />
+        {/* Drawn text lines */}
+        <Rect x="10" y="12" width="30" height="3" rx="1.5" fill={PRIMARY_DARK} opacity={0.3} />
+        <Rect x="10" y="22" width="50" height="3" rx="1.5" fill={PRIMARY_DARK} opacity={0.3} />
+        <Rect x="10" y="32" width="40" height="3" rx="1.5" fill={PRIMARY_DARK} opacity={0.3} />
+      </G>
+
+      {/* ─── FIN HOLDING PENCIL ─── */}
+      <AnimatedG
+        originX={100}
+        originY={150}
+        style={{ transform: [{ translateX: Animated.add(writeX, 20) }, { translateY: writeY }, { rotate: writeRot }] }}
+      >
+        {/* Pencil Body */}
+        <Path d="M 86 152 L 112 115 L 118 119 L 92 156 Z" fill={ACCENT} />
+        {/* Pencil Tip (Graphite & Wood) */}
+        <Path d="M 86 152 L 92 156 L 82 160 Z" fill="#e2e8f0" />
+        <Path d="M 84 156 L 87 158 L 82 160 Z" fill={TEXT} />
+
+        {/* Fin overlapping the pencil */}
+        <Path d="M 135 145 Q 115 165 95 148 Q 115 135 145 135 Z" fill={PRIMARY_DARK} />
+      </AnimatedG>
+    </AnimatedG>
+  );
+};
+
+const SearchOverlay = ({ opacity }: { opacity: Animated.Value }) => {
+  const magnify = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(magnify, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(magnify, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const mx = magnify.interpolate({ inputRange: [0, 1], outputRange: [0, 6] });
+  const my = magnify.interpolate({ inputRange: [0, 1], outputRange: [0, -3] });
+  const mRot = magnify.interpolate({ inputRange: [0, 1], outputRange: ['-6deg', '6deg'] });
+
+  return (
+    <AnimatedG style={{ opacity }}>
+      <AnimatedG originX={55} originY={145} style={{ transform: [{ translateX: mx }, { translateY: my }, { rotate: mRot }] }}>
+        <Rect x="50" y="155" width="28" height="5" rx="2.5" fill="#3a3a3a" transform="rotate(-35 64 157)" />
+        <Circle cx="38" cy="140" r="20" fill="rgba(245,185,98,0.15)" stroke={ACCENT} strokeWidth="4" />
+        <Path d="M 26 132 Q 32 128 42 130" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" opacity={0.8} />
+      </AnimatedG>
+    </AnimatedG>
+  );
+};
+
+const CalcOverlay = ({ opacity }: { opacity: Animated.Value }) => {
+  const tap = useRef(new Animated.Value(0)).current;
+  const numAnims = useRef([0, 1, 2, 3, 4].map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    // Tapping Fins
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(tap, { toValue: 1, duration: 250, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(tap, { toValue: 0, duration: 250, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Floating Numbers
+    numAnims.forEach((anim, i) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 350),
+          Animated.timing(anim, { toValue: 1, duration: 2400, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        ])
+      ).start();
+    });
+  }, []);
+
+  const tapL = tap.interpolate({ inputRange: [0, 1], outputRange: ['-4deg', '2deg'] });
+  const tapR = tap.interpolate({ inputRange: [0, 1], outputRange: ['2deg', '-4deg'] });
+
+  const chars = [{ x: 55, c: "7" }, { x: 85, c: "+" }, { x: 110, c: "3" }, { x: 140, c: "=" }, { x: 160, c: "10" }];
+
+  return (
+    <AnimatedG style={{ opacity }}>
+      {/* Left Fin */}
+      <AnimatedG originX={75} originY={158} style={{ transform: [{ rotate: tapL }] }}>
+        <Path d="M 65 150 Q 55 165 65 178 Q 82 172 88 160 Z" fill={PRIMARY_DARK} />
+      </AnimatedG>
+      {/* Right Fin */}
+      <AnimatedG originX={125} originY={158} style={{ transform: [{ rotate: tapR }] }}>
+        <Path d="M 135 150 Q 145 165 135 178 Q 118 172 112 160 Z" fill={PRIMARY_DARK} />
+      </AnimatedG>
+
+      {/* Floating Math Characters */}
+      {chars.map((n, i) => {
+        const translateY = numAnims[i].interpolate({ inputRange: [0, 1], outputRange: [0, -45] });
+        const numOpacity = numAnims[i].interpolate({ inputRange: [0, 0.2, 0.8, 1], outputRange: [0, 1, 1, 0] });
+
+        return (
+          <AnimatedSvgText
+            key={n.x}
+            x={n.x}
+            y={28}
+            fontSize={16}
+            fontWeight="700"
+            fill={ACCENT}
+            textAnchor="middle"
+            style={{ transform: [{ translateY }], opacity: numOpacity }}
+          >
+            {n.c}
+          </AnimatedSvgText>
+        );
+      })}
+    </AnimatedG>
+  );
+};
+
+const IdeaOverlay = ({ opacity }: { opacity: Animated.Value }) => {
+  const pop = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(pop, {
+      toValue: 1,
+      friction: 4,
+      tension: 50,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const scale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
+  const translateY = pop.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
+
+  return (
+    <AnimatedG style={{ opacity }}>
+      <AnimatedG originX={100} originY={30} style={{ transform: [{ scale }, { translateY }] }}>
+        <Circle cx="100" cy="28" r="18" fill={ACCENT} opacity={0.25} />
+        <Path d="M 92 32 Q 92 18 100 18 Q 108 18 108 32 L 106 38 L 94 38 Z" fill={ACCENT} />
+        <Rect x="95" y="38" width="10" height="3" fill={TEXT} />
+        <Rect x="96" y="42" width="8" height="2" fill={TEXT} />
+        {[0, 60, 120, 180, 240, 300].map((deg) => (
+          <Line key={deg} x1="100" y1="0" x2="100" y2="6" stroke={ACCENT} strokeWidth="2.5" strokeLinecap="round" transform={`rotate(${deg} 100 28)`} />
+        ))}
+      </AnimatedG>
+    </AnimatedG>
+  );
+};
+
+interface OceanLoaderProps {
+  size?: number;
+  isFinished?: boolean;
+  onFinishComplete?: () => void;
+}
+
+export default function OceanLoader({ size = 280, isFinished = false, onFinishComplete }: OceanLoaderProps) {
+  const [sceneIdx, setSceneIdx] = useState(0);
+  const sceneKey = SCENE_ORDER[sceneIdx];
+  const s = SCENES[sceneKey];
+
+  // ── Master Animation Nodes ──
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const sceneFade = useRef(new Animated.Value(0)).current;
+
+  // ── Face Transition Nodes ──
+  const pupilX = useRef(new Animated.Value(s.pupil.x)).current;
+  const pupilY = useRef(new Animated.Value(s.pupil.y)).current;
+  const openness = useRef(new Animated.Value(s.openness)).current;
+
+  // Background Particles
+  const [particles] = useState(() => Array.from({ length: 10 }).map((_, i) => ({
+    x: `${(i * 47) % 100}%`,
+    y: `${(i * 59) % 95}%`,
+    delay: i * 300,
+    duration: 3000 + (i % 4) * 1000
+  })));
+
+  useEffect(() => {
+    // Gentle Master Float
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: 1, duration: 1700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 1700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    ).start();
+
+    if (isFinished) return;
+
+    // Scene Interval - loops through index 0, 1, 2 only
+    const id = setInterval(() => {
+      setSceneIdx((i) => (i + 1) % 3);
+    }, 2500);
+    return () => clearInterval(id);
+  }, [isFinished]);
+
+  // Handle final completion sequence transition
+  useEffect(() => {
+    if (isFinished) {
+      setSceneIdx(3); // Jump to "idea" scene
+
+      const timer = setTimeout(() => {
+        if (onFinishComplete) {
+          onFinishComplete();
+        }
+      }, 600);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isFinished, onFinishComplete]);
+
+  // Trigger smooth transitions when scene changes
+  useEffect(() => {
+    // Face Morphing
+    Animated.parallel([
+      Animated.timing(pupilX, { toValue: s.pupil.x, duration: 600, easing: Easing.bezier(0.34, 1.56, 0.64, 1), useNativeDriver: true }),
+      Animated.timing(pupilY, { toValue: s.pupil.y, duration: 600, easing: Easing.bezier(0.34, 1.56, 0.64, 1), useNativeDriver: true }),
+      Animated.timing(openness, { toValue: s.openness, duration: 600, easing: Easing.bezier(0.34, 1.56, 0.64, 1), useNativeDriver: true }),
+    ]).start();
+
+    // Fade Cycle for overlays and caption
+    sceneFade.setValue(0);
+    Animated.sequence([
+      Animated.timing(sceneFade, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.delay(1900),
+      Animated.timing(sceneFade, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start();
+
+  }, [sceneIdx]);
+
+  // ── Explicit Radius Mapping to bypass SVG scaling bugs ──
+  // By converting "openness" scaling into raw radius manipulation, the eyes 
+  // perfectly anchor to their center (cy) regardless of bezier overshoot values.
+  const whiteRy = openness.interpolate({ inputRange: [0, 1, 2], outputRange: [0.1, 8.5, 17] });
+  const pupilRy = openness.interpolate({ inputRange: [0, 1, 2], outputRange: [0.1, 5, 10] });
+  const highlightRy = openness.interpolate({ inputRange: [0, 1, 2], outputRange: [0.1, 1.8, 3.6] });
+
+  const translateY = floatAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
+  const rotate = floatAnim.interpolate({ inputRange: [0, 1], outputRange: ['-1deg', '1deg'] });
+  const captionTranslateY = sceneFade.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
 
   return (
     <View style={styles.container}>
-      <FloatingSquares />
+      <View style={[styles.canvasWrapper, { width: size, height: size }]}>
 
-      {/* ─── DIGITAL PARTICLE WAVES ─── */}
-      <View style={styles.oceanContainer}>
-        <Animated.View style={[styles.waveLayer, { transform: [{ translateX: waveTranslateX }] }]}>
-          <Svg width={1600} height="150" viewBox="0 0 1600 150">
-            <Path d={wavePath3} stroke={THEME.secondary} strokeWidth={3} fill="none" opacity={0.2} transform="translate(0, -10)" strokeDasharray="1 10" strokeLinecap="round" />
-            <Path d={wavePath2} stroke={THEME.secondary} strokeWidth={2} fill="none" opacity={0.1} transform="translate(50, -25)" strokeDasharray="1 14" strokeLinecap="round" />
-            <Path d={wavePath1} stroke={THEME.primary} strokeWidth={4} fill="none" opacity={0.4} transform="translate(-100, 0)" strokeDasharray="1 8" strokeLinecap="round" />
-            <Path d={wavePath2} stroke={THEME.whiteGlow} strokeWidth={4} fill="none" opacity={0.7} transform="translate(-200, 25)" strokeDasharray="1 7" strokeLinecap="round" />
+        {/* Background Ambient Particles */}
+        <View style={StyleSheet.absoluteFill}>
+          {particles.map((p, i) => (
+            <AmbientParticle key={i} p={p} />
+          ))}
+        </View>
+
+        {/* Floating Dolphin Canvas */}
+        <Animated.View style={{ width: size, height: size, transform: [{ translateY }, { rotate }] }}>
+          <Svg viewBox="0 0 200 200" width={size} height={size} style={{ overflow: "visible" }}>
+
+            {/* Base Shadow */}
+            <Ellipse cx="100" cy="180" rx="60" ry="6" fill={PRIMARY_DARK} opacity={0.15} />
+
+            {/* Main Head Structure */}
+            <Path d="M35 125C35 70 65 35 100 35C135 35 165 70 165 125C165 150 152 165 135 165C120 165 112 153 100 153C88 153 80 165 65 165C48 165 35 150 35 125Z" fill={PRIMARY} />
+            <Path d="M44 132C44 105 60 92 100 92C140 92 156 105 156 132C156 156 142 165 135 165C120 165 112 153 100 153C88 153 80 165 65 165C58 165 44 156 44 132Z" fill={SECONDARY} />
+            <Path d="M72 102C82 96 118 96 128 102" stroke={TEXT} strokeWidth="3" strokeLinecap="round" opacity={0.15} />
+            <Ellipse cx="68" cy="62" rx="14" ry="6" fill="rgba(255,255,255,0.45)" transform="rotate(-30 68 62)" />
+
+            {/* Dynamic Eyebrows */}
+            <Path d={`M 68 ${70 + s.brow.lift} Q 76 ${67 + s.brow.lift + s.brow.tilt} 84 ${70 + s.brow.lift}`} stroke={TEXT} strokeWidth="3" strokeLinecap="round" fill="none" />
+            <Path d={`M 116 ${70 + s.brow.lift} Q 124 ${67 + s.brow.lift - s.brow.tilt} 132 ${70 + s.brow.lift}`} stroke={TEXT} strokeWidth="3" strokeLinecap="round" fill="none" />
+
+            {/* ── LEFT EYE ── */}
+            {/* Directly bind `ry` instead of wrapping in a scale matrix */}
+            <AnimatedEllipse cx="76" cy="82" rx="8.5" ry={whiteRy} fill="#fff" />
+
+            {/* The pupil group only handles X/Y translation logic */}
+            <AnimatedG style={{ transform: [{ translateX: pupilX }, { translateY: pupilY }] }}>
+              <AnimatedEllipse cx="76" cy="82" rx="5" ry={pupilRy} fill={TEXT} />
+              <AnimatedEllipse cx="74.5" cy="80.5" rx="1.8" ry={highlightRy} fill="#fff" />
+            </AnimatedG>
+
+            {/* ── RIGHT EYE ── */}
+            <AnimatedEllipse cx="124" cy="82" rx="8.5" ry={whiteRy} fill="#fff" />
+
+            <AnimatedG style={{ transform: [{ translateX: pupilX }, { translateY: pupilY }] }}>
+              <AnimatedEllipse cx="124" cy="82" rx="5" ry={pupilRy} fill={TEXT} />
+              <AnimatedEllipse cx="122.5" cy="80.5" rx="1.8" ry={highlightRy} fill="#fff" />
+            </AnimatedG>
+
+            {/* Mouth & Expressions */}
+            <Path d={s.mouth} stroke={TEXT} strokeWidth="3.5" strokeLinecap="round" fill="none" />
+
+            {sceneKey === "idea" && (
+              <>
+                <Ellipse cx="62" cy="115" rx="8" ry="4" fill="#f9a8a8" opacity={0.6} />
+                <Ellipse cx="138" cy="115" rx="8" ry="4" fill="#f9a8a8" opacity={0.6} />
+              </>
+            )}
+
+            {/* Render Active Overlays */}
+            {sceneKey === "think" && <ThinkOverlay opacity={sceneFade} />}
+            {sceneKey === "search" && <SearchOverlay opacity={sceneFade} />}
+            {sceneKey === "calc" && <CalcOverlay opacity={sceneFade} />}
+            {sceneKey === "idea" && <IdeaOverlay opacity={sceneFade} />}
+
           </Svg>
         </Animated.View>
       </View>
 
-      {/* ─── DYNAMIC DOLPHIN POD ─── */}
-      {dolphins.map((dolphin, index) => (
-        <AnimatedDolphin
-          key={index}
-          scale={dolphin.scale}
-          screenWidth={screenWidth}
-        />
-      ))}
-
-      {/* ─── PULSING CAPTION ─── */}
-      <Animated.Text style={[styles.caption, { opacity: pulseAnim }]}>
-        {CAPTIONS[captionIndex]}
-      </Animated.Text>
+      {/* Synchronized Caption */}
+      {/* <Animated.Text style={[styles.caption, { opacity: sceneFade, transform: [{ translateY: captionTranslateY }] }]}>
+        {s.caption}
+      </Animated.Text> */}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
-    overflow: 'hidden',
+    paddingVertical: 20,
   },
-  oceanContainer: {
-    position: 'absolute',
-    bottom: '45%',
-    width: '100%',
-    height: 150,
-    overflow: 'hidden',
-    alignItems: 'flex-start',
+  canvasWrapper: {
+    alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 28,
   },
-  waveLayer: {
-    width: 1600,
-    flexDirection: 'row',
-  },
-  dolphinContainer: {
+  particle: {
     position: 'absolute',
-    left: 0,
-    zIndex: 10,
-    shadowColor: THEME.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: PRIMARY,
   },
   caption: {
-    position: 'absolute',
-    bottom: '42%',
-    width: '100%',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    letterSpacing: 1.4,
-    color: '#f8fafc',
-  },
+    color: CAPTION_COLOR,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 16,
+    letterSpacing: 0.2,
+    minHeight: 24,
+    textAlign: "center",
+  }
 });

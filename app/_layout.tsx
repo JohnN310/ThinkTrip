@@ -11,6 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 // import * as Notifications from 'expo-notifications';
 import { useColors } from '../hooks/useColors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DolphinSplashLoader from '../components/DolphinSplashLoader';
 // import '../lib/backgroundWeather';
 
 // Notifications.setNotificationHandler({
@@ -88,6 +89,9 @@ function ThemedStatusBar() {
 }
 
 export default function RootLayout() {
+  const [appIsReady, setAppIsReady] = React.useState(false);
+  const [showSplash, setShowSplash] = React.useState(true);
+
   const [loaded, error] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -98,8 +102,25 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded || error) {
       SplashScreen.hideAsync();
+      
+      // Simulate underlying system configurations or profile hydration
+      const prepareApp = async () => {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 1500)); 
+        } catch (e) {
+          console.warn(e);
+        } finally {
+          setAppIsReady(true);
+        }
+      };
+
+      prepareApp();
     }
   }, [loaded, error]);
+
+  const handleAnimationComplete = () => {
+    setShowSplash(false);
+  };
 
   if (!loaded && !error) {
     return null;
@@ -122,6 +143,13 @@ export default function RootLayout() {
                 </AuthGuard>
               </ProfileProvider>
             </AuthProvider>
+
+            {showSplash && (
+              <DolphinSplashLoader 
+                isLoading={!appIsReady} 
+                onAnimationComplete={handleAnimationComplete} 
+              />
+            )}
           </View>
         </SafeAreaProvider>
       </QueryClientProvider>
