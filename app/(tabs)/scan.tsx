@@ -860,6 +860,11 @@ export default function ScanScreen() {
     });
   };
 
+  // Filter suggestions based on user input
+  const filteredSuggestions = PROMPT_SUGGESTIONS[mode].filter(sug =>
+    sug.toLowerCase().includes(searchQuery.toLowerCase().trim())
+  );
+
   if (!permission) {
     return (
       <View style={[styles.container, { backgroundColor: '#000', justifyContent: 'center' }]}>
@@ -889,12 +894,16 @@ export default function ScanScreen() {
     <View style={styles.container}>
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="back" />
 
-      {/* 1. MOVED DISMISS OVERLAY HERE: Now it covers the entire screen safely behind the UI */}
-      {showModeInfo && (
+      {/* ─── INVISIBLE DISMISS OVERLAY ─── */}
+      {/* Covers the screen behind the UI to close popups or the keyboard when tapping empty space */}
+      {(showModeInfo || isSearchExpanded) && (
         <TouchableOpacity
           style={[StyleSheet.absoluteFillObject, { zIndex: 9 }]}
           activeOpacity={1}
-          onPress={() => setShowModeInfo(false)}
+          onPress={() => {
+            if (showModeInfo) setShowModeInfo(false);
+            if (isSearchExpanded) Keyboard.dismiss();
+          }}
         />
       )}
 
@@ -926,77 +935,95 @@ export default function ScanScreen() {
 
       {/* ─── TOP SEARCH BAR & PILL ─── */}
       <View style={[styles.topOverlay, { paddingTop: insets.top || 20 }]}>
-        <View style={[styles.searchBar, isSearchExpanded && styles.searchBarExpanded]}>
 
-          {/* Top Row: Icon & Input */}
-          <View style={styles.searchInputWrapper}>
-            <View style={{ paddingTop: Platform.OS === 'android' ? 4 : 2 }}>
-              <Feather
-                name="search"
-                size={18}
-                color="#fff"
-                style={{ opacity: 0.8 }}
+        {/* NEW WRAPPER: Keeps the search bar and the button in a row */}
+        <View style={styles.topRowWrapper}>
+          <View style={[styles.searchBar, isSearchExpanded && styles.searchBarExpanded]}>
+
+            {/* Top Row: Icon & Input */}
+            <View style={styles.searchInputWrapper}>
+              <View style={{ paddingTop: Platform.OS === 'android' ? 4 : 2 }}>
+                <Feather
+                  name="search"
+                  size={18}
+                  color="#fff"
+                  style={{ opacity: 0.8 }}
+                />
+              </View>
+
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Ask a specific question (optional)..."
+                placeholderTextColor="rgba(255,255,255,0.6)"
+                value={searchQuery}
+                onChangeText={(text) => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setSearchQuery(text);
+                }}
+                returnKeyType="done"
+                blurOnSubmit={true}
+                multiline={true}
+                textAlignVertical="top"
+                onSubmitEditing={Keyboard.dismiss}
+                onFocus={() => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setIsSearchExpanded(true);
+                }}
+                onBlur={() => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setIsSearchExpanded(false);
+                }}
               />
             </View>
 
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Ask a specific question (optional)..."
-              placeholderTextColor="rgba(255,255,255,0.6)"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              returnKeyType="done"
-              blurOnSubmit={true}
-              multiline={true}
-              textAlignVertical="top"
-              onSubmitEditing={Keyboard.dismiss}
-              onFocus={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setIsSearchExpanded(true);
-              }}
-              onBlur={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setIsSearchExpanded(false);
-              }}
-            />
-
-            {/* Submit / Minimize Button — lives in the row so it never overlaps suggestions */}
-            {isSearchExpanded && (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={Keyboard.dismiss}
-                style={styles.promptActionBtn}
-              >
-                <Feather name="arrow-up" size={18} color="#0a1f1e" />
-              </TouchableOpacity>
+            {/* Bottom Area: Suggested Prompts */}
+            {isSearchExpanded && filteredSuggestions.length > 0 && (
+              <View style={styles.suggestionsWrapper}>
+                <Text style={styles.suggestionsTitle}>SUGGESTED</Text>
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.suggestionsScrollContent}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {filteredSuggestions.map((sug, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={styles.suggestionChip}
+                      onPress={() => {
+                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                        setSearchQuery(sug);
+                        setIsSearchExpanded(false);
+                        Keyboard.dismiss();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.suggestionChipText}>{sug}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
             )}
           </View>
 
-          {/* Bottom Area: Suggested Prompts */}
-          {isSearchExpanded && (
-            <View style={styles.suggestionsWrapper}>
-              <Text style={styles.suggestionsTitle}>SUGGESTED</Text>
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.suggestionsScrollContent}
-                keyboardShouldPersistTaps="handled"
-              >
-                {PROMPT_SUGGESTIONS[mode].map((sug, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={styles.suggestionChip}
-                    onPress={() => {
-                      setSearchQuery(sug);
-                      Keyboard.dismiss();
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.suggestionChipText}>{sug}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
+          {/* Always-visible Submit Button — dimmed when idle, blue when active */}
+          {/* <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={Keyboard.dismiss}
+            style={[
+              styles.promptActionBtn,
+              {
+                backgroundColor: searchQuery.trim().length > 0
+                  ? colors.primary
+                  : 'rgba(255,255,255,0.15)'
+              }
+            ]}
+          >
+            <Feather
+              name="arrow-up"
+              size={20}
+              color={searchQuery.trim().length > 0 ? colors.primaryForeground : 'rgba(255,255,255,0.4)'}
+            />
+          </TouchableOpacity> */}
         </View>
 
         {/* Hide the pill when expanded to keep the UI clean */}
@@ -1073,7 +1100,10 @@ export default function ScanScreen() {
                 <TouchableOpacity
                   key={m}
                   style={[styles.modeBtn, isActive && { backgroundColor: colors.primary }]}
-                  onPress={() => setMode(m)}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setMode(m);
+                  }}
                   disabled={analyzing}
                 >
                   <Feather name={icon} size={14} color={isActive ? colors.primaryForeground : '#fff'} />
@@ -1201,19 +1231,28 @@ const styles = StyleSheet.create({
 
   // -- Top Overlay & Search Bar --
   topOverlay: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 20, zIndex: 10 },
+
+  // NEW: Row wrapper for the bar and the button
+  topRowWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    width: '100%',
+    gap: 12,
+  },
+
   searchBar: {
+    flex: 1,
     flexDirection: 'column',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.80)',
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    width: '100%',
     marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
   searchBarExpanded: {
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    // backgroundColor: 'rgba(0,0,0,0.85)',
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -1230,13 +1269,12 @@ const styles = StyleSheet.create({
     maxHeight: 80,
   },
   promptActionBtn: {
-    alignSelf: 'center',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#5c7ce5',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 2,
   },
 
   // ─── Suggestion Chips ───
