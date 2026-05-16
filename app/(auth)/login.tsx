@@ -127,9 +127,9 @@ export default function LoginScreen() {
       >
         <View style={styles.header}>
           <View style={styles.iconContainer}>
-            <Image 
-              source={require('../../assets/images/icon.png')} 
-              style={{ width: 64, height: 64, borderRadius: 18 }} 
+            <Image
+              source={require('../../assets/images/icon.png')}
+              style={{ width: 64, height: 64, borderRadius: 18 }}
             />
           </View>
           <Text style={[styles.title, { color: colors.foreground }]}>ThinkTrip</Text>

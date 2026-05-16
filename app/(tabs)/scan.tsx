@@ -970,7 +970,7 @@ export default function ScanScreen() {
                   setIsSearchExpanded(true);
                 }}
                 onBlur={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  // LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                   setIsSearchExpanded(false);
                 }}
               />
