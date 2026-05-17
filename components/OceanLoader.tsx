@@ -365,7 +365,7 @@ export default function OceanLoader({ size = 280, isFinished = false, onFinishCo
         </View>
 
         {/* Floating Dolphin Canvas */}
-        <Animated.View style={{ width: size, height: size, transform: [{ translateY }, { rotate }] }}>
+        <Animated.View style={{ width: size, height: size, transform: [{ translateY }, { rotate }, { scale: 0.75 }] }}>
           <Svg viewBox="0 0 200 200" width={size} height={size} style={{ overflow: "visible" }}>
 
             {/* Base Shadow */}
