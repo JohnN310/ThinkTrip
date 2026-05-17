@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, TextInput, Keyboard, LayoutAnimation, UIManager, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, Easing, TextInput, Keyboard, LayoutAnimation, UIManager, Linking } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import Svg, { Path, Ellipse, Circle, G, Line, Rect } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +12,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { BlurView } from 'expo-blur';
 import * as Location from 'expo-location';
 import OceanLoader from '../../components/OceanLoader';
+import * as Speech from 'expo-speech';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 const { width, height } = Dimensions.get('window');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -45,9 +48,124 @@ interface ScanResult {
   title: string;
   userAnswer?: string;
   mapLocationName?: string;
+  languageCode?: string;
   badges: { type: 'warn' | 'good' | 'info'; text: string }[];
   notes: { title: string; body: string }[];
 }
+
+const AnimatedG = Animated.createAnimatedComponent(G) as any;
+const AnimatedCircle = Animated.createAnimatedComponent(Circle) as any;
+
+function DolphinMascot({ size = 160, accent = '#5c7ce5', accentDark = '#4361c4', belly = '#eff6ff', ink = '#1e293b', spark = '#f5b962' }: {
+  size?: number; accent?: string; accentDark?: string; belly?: string; ink?: string; spark?: string;
+}) {
+  const float = useRef(new Animated.Value(0)).current;
+  const blink = useRef(new Animated.Value(1)).current;
+  const wave = useRef(new Animated.Value(0)).current;
+  const spk1 = useRef(new Animated.Value(0)).current;
+  const spk2 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const floatAnim = Animated.loop(Animated.sequence([
+      Animated.timing(float, { toValue: 1, duration: 1700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(float, { toValue: 0, duration: 1700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    floatAnim.start();
+
+    const blinkAnim = Animated.loop(Animated.sequence([
+      Animated.delay(2200),
+      Animated.timing(blink, { toValue: 0.05, duration: 90, useNativeDriver: true }),
+      Animated.timing(blink, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]));
+    blinkAnim.start();
+
+    const waveAnim = Animated.loop(Animated.sequence([
+      Animated.timing(wave, { toValue: 1, duration: 850, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(wave, { toValue: 0, duration: 850, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]));
+    waveAnim.start();
+
+    const spk1Anim = Animated.loop(Animated.sequence([
+      Animated.timing(spk1, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(spk1, { toValue: 0, duration: 700, useNativeDriver: true }),
+    ]));
+    spk1Anim.start();
+
+    const spk2Anim = Animated.loop(Animated.sequence([
+      Animated.delay(500),
+      Animated.timing(spk2, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(spk2, { toValue: 0, duration: 700, useNativeDriver: true }),
+    ]));
+    spk2Anim.start();
+
+    return () => {
+      floatAnim.stop();
+      blinkAnim.stop();
+      waveAnim.stop();
+      spk1Anim.stop();
+      spk2Anim.stop();
+    };
+  }, []);
+
+  const floatY = float.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
+
+  // FIX 1: Output raw numbers instead of strings for the SVG rotation prop
+  const waveDeg = wave.interpolate({ inputRange: [0, 1], outputRange: [-15, 20] });
+
+  return (
+    <Animated.View style={{ width: size, height: size, transform: [{ translateY: floatY }] }}>
+      <Svg viewBox="0 0 200 200" width={size} height={size}>
+        {/* shadow */}
+        <Ellipse cx="100" cy="180" rx="58" ry="5" fill={accentDark} opacity={0.18} />
+
+        {/* body */}
+        <Path
+          d="M35 125C35 70 65 35 100 35C135 35 165 70 165 125C165 150 152 165 135 165C120 165 112 153 100 153C88 153 80 165 65 165C48 165 35 150 35 125Z"
+          fill={accent}
+        />
+        {/* belly */}
+        <Path
+          d="M44 132C44 105 60 92 100 92C140 92 156 105 156 132C156 156 142 165 135 165C120 165 112 153 100 153C88 153 80 165 65 165C58 165 44 156 44 132Z"
+          fill={belly}
+        />
+        {/* highlight */}
+        <Ellipse cx="68" cy="62" rx="14" ry="6" fill="rgba(255,255,255,0.5)" transform="rotate(-30 68 62)" />
+
+        {/* brows */}
+        <Path d="M 68 68 Q 76 64 84 68" stroke={ink} strokeWidth="3" strokeLinecap="round" fill="none" />
+        <Path d="M 116 68 Q 124 64 132 68" stroke={ink} strokeWidth="3" strokeLinecap="round" fill="none" />
+
+        {/* FIX 2: Use scaleY as a direct prop so it respects originX/originY */}
+        <AnimatedG scaleY={blink} originX={76} originY={82}>
+          <Ellipse cx="76" cy="82" rx="8.5" ry="8.5" fill="#fff" />
+          <Ellipse cx="76" cy="82" rx="5" ry="5" fill={ink} />
+          <Ellipse cx="74.5" cy="80.5" rx="1.8" ry="1.8" fill="#fff" />
+        </AnimatedG>
+        <AnimatedG scaleY={blink} originX={124} originY={82}>
+          <Ellipse cx="124" cy="82" rx="8.5" ry="8.5" fill="#fff" />
+          <Ellipse cx="124" cy="82" rx="5" ry="5" fill={ink} />
+          <Ellipse cx="122.5" cy="80.5" rx="1.8" ry="1.8" fill="#fff" />
+        </AnimatedG>
+
+        {/* warm smile + blush */}
+        <Path d="M91 122 Q 100 134 109 122" stroke={ink} strokeWidth="3.5" strokeLinecap="round" fill="none" />
+        <Ellipse cx="62" cy="115" rx="7" ry="3.5" fill="#f9a8a8" opacity={0.55} />
+        <Ellipse cx="138" cy="115" rx="7" ry="3.5" fill="#f9a8a8" opacity={0.55} />
+
+        {/* FIX 3: Use rotation as a direct prop so it respects originX/originY */}
+        <AnimatedG rotation={waveDeg} originX={150} originY={95}>
+          <Path d="M 150 95 Q 178 70 172 45 Q 160 58 150 78 Q 142 90 150 95 Z" fill={accentDark} />
+        </AnimatedG>
+
+        {/* sparkles */}
+        <AnimatedCircle cx="42" cy="58" r="3" fill={spark} opacity={spk1} />
+        <AnimatedCircle cx="34" cy="82" r="2" fill={spark} opacity={spk2} />
+        <AnimatedCircle cx="178" cy="38" r="2.5" fill={spark} opacity={spk2} />
+      </Svg>
+    </Animated.View>
+  );
+}
+
 
 export default function ScanScreen() {
 
@@ -91,6 +209,32 @@ export default function ScanScreen() {
 
   const [showResultSheet, setShowResultSheet] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // NEW: One-Time Welcome Guide State
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
+
+  useEffect(() => {
+    const checkWelcomeGuide = async () => {
+      try {
+        const hasSeen = await AsyncStorage.getItem('@thinktrip_scan_guide_seen');
+        if (!hasSeen) {
+          setShowWelcomeGuide(true);
+        }
+      } catch (e) {
+        console.error("Error reading scan guide status:", e);
+      }
+    };
+    checkWelcomeGuide();
+  }, []);
+
+  const dismissWelcomeGuide = async () => {
+    setShowWelcomeGuide(false);
+    try {
+      await AsyncStorage.setItem('@thinktrip_scan_guide_seen', 'true');
+    } catch (e) {
+      console.error("Error saving scan guide status:", e);
+    }
+  };
   const slideAnim = useRef(new Animated.Value(800)).current; // Starts 800px off-screen
 
   const openSheet = () => {
@@ -320,11 +464,12 @@ export default function ScanScreen() {
 
       **CRITICAL RULES:**
       1. **IMAGE FIRST:** Extract text, context, and environment details exclusively from the image. If the image is completely illegible or entirely unrelated to the Active Mode, do not hallucinate. Set the 'title' to 'Unable to Analyze', omit the 'userAnswer' and 'mapLocationName', and provide a single 'warn' badge indicating the image is unclear.
-      2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS, no playful language. STRICTLY NO MARKDOWN FORMATTING (do not use **asterisks** or underscores for bolding or italics). Output pure, unformatted text only. Do not output any symbols like 🔠 or 🪂. Break your answer into short paragraphs or use bullet points ("- ") for maximum readability.
-      3. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
-      4. **CULTURAL CONFIDENCE:** Provide intuitive, English-approximated phonetic pronunciations (in parentheses). DO NOT provide literal, word-by-word English translations of foreign dish names. Instead, provide a clear culinary description.
-      5. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question. Do not summarize or repeat your recommended options, strict avoids, or behavioral norms in the 'userAnswer'. Keep the structured data strictly isolated within the 'notes' array.
-      6. **GEOGRAPHIC SPECIFICITY & ROUTING:** The 'mapLocationName' field is STRICTLY RESERVED for 'Transit' mode. If the Active Mode is 'Menu' or 'Payment', you MUST omit the 'mapLocationName' field entirely, and use the GPS coordinates solely to inform your localized cultural notes and etiquette. If the Active Mode is 'Transit', your 'mapLocationName' MUST be the official, external name of the building, station, or terminal. CRITICAL: DO NOT include indoor qualifiers like "Gate B12" or "Platform 4". Place all indoor navigation details strictly in the 'notes' section.
+      2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS. Output pure text only. DO NOT USE PARAGRAPHS in the 'notes' section. The 'body' of EVERY note MUST be a strict bulleted list ("- "). 
+      3. **BE RUTHLESSLY CONCISE:** Keep every bullet point to a maximum of 15 words. Prioritize quick scannability over complete sentences. (Note: The native phrase and phonetic spelling do not count towards this limit).
+      4. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
+      5. **CULTURAL CONFIDENCE & NATIVE SCRIPT:** You MUST use the actual native characters/script for the language strictly inside the single quotes (e.g., use '请问', NOT 'Qǐng wèn'; use 'こんにちは', NOT 'Konnichiwa'). NEVER use Romanization (like Pinyin or Romaji) inside the single quotes, as native text-to-speech engines cannot read it. Place the official Romanization and the English-approximated phonetic pronunciation OUTSIDE the quotes in parentheses (e.g., '请问' (Qǐng wèn - ching wen)). DO NOT provide literal, word-by-word English translations of dish names. 
+      6. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question. 
+      7. **GEOGRAPHIC SPECIFICITY:** The 'mapLocationName' field is STRICTLY RESERVED for 'Transit' mode. If the Active Mode is 'Menu' or 'Payment', you MUST omit the 'mapLocationName' field entirely, and use the GPS coordinates solely to inform your localized cultural notes and etiquette. If the Active Mode is 'Transit', your 'mapLocationName' MUST be the official, external name of the building, station, or terminal. CRITICAL: DO NOT include indoor qualifiers like "Gate B12" or "Platform 4". Place all indoor navigation details strictly in the 'notes' section.
 
       **MODE ADAPTATION:**
       If Mode is 'Menu':
@@ -333,40 +478,39 @@ export default function ScanScreen() {
         - Analyze the menu collectively against the User's Baseline.
         - Badges: Flag high-level context (e.g., "warn" for "Heavy Dairy Use", "info" for "English Spoken", "good" for "Diet-Friendly Options").
         - Notes: Provide exactly three notes:
-           1. "Recommended Options": 2-3 specific safe dishes matching the Baseline. Include the original name and a simple phonetic pronunciation so the user can order confidently. Use bullet points ("- ").
-           2. "Strict Avoids": Hidden ingredients or specific dishes that violate their Baseline. Use bullet points ("- "). If there are no items that violate the baseline, explicitly state 'No immediate conflicts detected based on your health profile' in the Strict Avoids body.
-           3. "Ordering & Interactions": Practical advice on how to order. If suggesting a phrase, provide ONE short, culturally accurate phrase (like requesting a modification) with a clear English-approximated phonetic spelling (e.g., "To request no cilantro, say 'Không ngò' (kohng ngo)"). Focus on behavior over complex language.
+           1. "Recommended Options": Provide 2-3 specific safe dishes matching the Baseline. Include the original name and a simple phonetic pronunciation so the user can order confidently. Use bullet points ("- ").
+           2. "Strict Avoids": Provide all Hidden ingredients or specific dishes that violate their Baseline. Use bullet points ("- "). If there are no items that violate the baseline, explicitly state 'No immediate conflicts detected based on your health profile'.
+           3. "Ordering & Interactions": Provide EXACTLY 5 of the most popular requests, ordering tips, or practical phrases for this setting. For each phrase, provide the properly accented native spelling strictly inside single quotes, followed by an English-approximated phonetic spelling in parentheses (e.g., "- To request no cilantro, say 'Không ngò' (kohng ngo)").
 
       If Mode is 'Payment':
         - FIRST, classify the primary subject of the image into one of two sub-categories: 'Signage/Terminal' OR 'Receipt/Bill'.
-
         - If Sub-Category is 'Signage/Terminal':
            - Detect accepted payment methods from signage or context.
            - Badges: Flag "warn" for cash-only, "info" for IC cards, "good" for no-tipping.
            - Notes (Provide exactly three):
-              1. "Behavioral Norms": Physical etiquette (e.g., "Place cash in the provided tray, never hand it directly to the cashier. Tipping is considered rude and will be returned.").
-              2. "Cashier Interactions": What the staff is likely to ask and how to reply. Provide ONE short, practical phrase with an English-approximated phonetic spelling (e.g., "They will ask if you need a bag. Say 'Irimasen' (ee-ree-mah-sen) to decline.").
-              3. "Receipts & Hidden Charges": Explain unwritten costs like seating charges ('otoshi'), mandatory water fees, or how to ask for a receipt. If no hidden charges exist, state that clearly so the user has peace of mind.
-
+              1. "Behavioral Norms": Physical etiquette (e.g., "Place cash in the provided tray...").
+              2. "Cashier Interactions": What the staff is likely to ask and how to reply. Provide 5 short, practical phrases with properly accented native spellings in single quotes and English phonetics (e.g., "- If they ask if you need a bag, decline by saying 'Irimasen' (ee-ree-mah-sen)").
+              3. "Receipts & Hidden Charges": Explain unwritten costs like seating charges ('otoshi').
         - If Sub-Category is 'Receipt/Bill':
            - Analyze the line items, taxes, totals, and currency.
            - Badges: Flag "warn" for high mandatory service charges, "info" for included gratuity, "good" for transparent pricing.
            - Notes (Provide exactly three):
-              1. "Bill Breakdown": Summarize the total. Explicitly clarify if taxes are included or added on, and identify any cultural hidden fees present on the bill (like 'otoshi' seating charges in Japan or 'coperto' in Italy).
-              2. "Tipping Culture": Specific advice on whether to add a tip on top of THIS specific bill, and exactly how much is customary for this region.
-              3. "Settlement Protocol": Practical advice on the physical act of paying (e.g., "Take this bill to the front register, do not leave money on the table"). Include ONE short phrase with English-approximated phonetics for asking to split the bill or pay by card.
+              1. "Bill Breakdown": Summarize the total, taxes, and hidden fees.
+              2. "Tipping Culture": Specific advice on whether to add a tip for this region.
+              3. "Settlement Protocol": Practical advice on paying. Include 5 phrases with native spellings in single quotes for asking to split the bill or pay by card.
 
       If Mode is 'Transit':
         - Identify the line, direction, signage, and next steps.
         - Badges: "info" for IC card support, "warn" for peak rush hour, "good" for step-free access.
         - Notes: Provide exactly three notes:
-           1. "Signage & Navigation": How to physically get to the right spot (e.g., "Follow the yellow painted lines on the floor for the Express train").
-           2. "Behavioral Norms": Unspoken local rules (e.g., "Silence your phone. Do not eat or drink on this line. Stand strictly on the right side of the escalator.").
-           3. "Ticketing & Assistance": Rules for validation (e.g., "Tap your IC card at both gates"). Include ONE short, practical phrase with an English-approximated phonetic spelling to confirm direction or ask for help (e.g., "To confirm this train goes to Shibuya, ask 'Shibuya yuki desu ka?' (shee-boo-yah yoo-kee dess kah)").
+           1. "Signage & Navigation": How to physically get to the right spot.
+           2. "Behavioral Norms": Unspoken local rules.
+           3. "Ticketing & Assistance": Rules for validation. Include 5 practical phrases with native spellings in single quotes to confirm direction or ask for help.
 
       **REQUIRED JSON STRUCTURE:**
       {
         "title": "Short Title (In English)",
+        "languageCode": "The exact BCP-47 language tag for the primary foreign language detected in the image (e.g., 'vi-VN', 'ja-JP', 'fr-FR', 'es-ES'). Omit this field if the image is purely English.",
         "userAnswer": "Formatted direct answer using \\n for paragraph breaks and '- ' for bullet points. Do NOT duplicate 'notes' content here (omit if no inquiry was made)",
         "mapLocationName": "The EXACT name of the primary building/station followed by city and country. CRITICAL: Omit this field entirely if the Active Mode is NOT 'Transit', if GPS Status is DISABLED, or if the image is an ambiguous street.",          
         "badges": [
@@ -825,21 +969,73 @@ export default function ScanScreen() {
     }
   };
 
-  // Helper to elegantly parse and render AI text with bullet points and spacing
-  const renderFormattedText = (text: string, textColor: string) => {
+  // Helper to extract and speak the foreign phrase
+  const speakPhrase = async (text: string, langCode?: string) => {
+    // Stop any ongoing speech to prevent overlapping audio
+    const isSpeaking = await Speech.isSpeakingAsync();
+    if (isSpeaking) {
+      Speech.stop();
+    }
+
+    // Extract the literal foreign text inside the single quotes
+    const match = text.match(/'([^']+)'/);
+    const phraseToSpeak = match ? match[1] : text;
+
+    console.log("🗣️ Speaking:", phraseToSpeak, "| Language:", langCode || "System Default");
+
+    // Configure speech options
+    const speechOptions: Speech.SpeechOptions = {
+      rate: 0.85,
+      pitch: 1.0
+    };
+
+    // If Gemini detected a foreign language, force the native TTS engine
+    if (langCode) {
+      speechOptions.language = langCode;
+    }
+
+    Speech.speak(phraseToSpeak, speechOptions);
+  };
+
+  // Helper to parse a single line and inject inline audio buttons
+  const renderInlineText = (line: string, textColor: string, langCode?: string) => {
+    // Split the string by content inside single quotes, keeping the quoted text in the array
+    const parts = line.split(/('[^']+')/g);
+
+    return parts.map((part, index) => {
+      // If this part is our quoted foreign phrase
+      if (part.startsWith("'") && part.endsWith("'")) {
+        const phrase = part.slice(1, -1); // Remove the quotes for the actual spoken text
+
+        return (
+          <Text
+            key={index}
+            style={{ color: colors.primary, fontFamily: 'Inter_700Bold' }}
+            onPress={() => speakPhrase(phrase, langCode)}
+            suppressHighlighting={true} // Removes the ugly grey tap highlight on iOS
+          >
+            {part} <Feather name="volume-2" size={14} color={colors.primary} />
+          </Text>
+        );
+      }
+      // Otherwise, return standard text
+      return <Text key={index} style={{ color: textColor }}>{part}</Text>;
+    });
+  };
+
+  // Helper to elegantly parse and render AI text with hierarchy
+  const renderFormattedText = (text: string, textColor: string, langCode?: string) => {
     return text.split('\n').map((line, index) => {
       const trimmed = line.trim();
-
-      // Preserve intentional paragraph breaks
-      if (!trimmed) return <View key={`space-${index}`} style={{ height: 8 }} />;
+      if (!trimmed) return <View key={`space-${index}`} style={{ height: 6 }} />;
 
       // Handle bullet points ("- item" or "* item")
       if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
         return (
           <View key={`bullet-${index}`} style={styles.bulletRow}>
             <Text style={[styles.bulletDot, { color: textColor }]}>•</Text>
-            <Text style={[styles.noteBody, { color: textColor, flex: 1 }]}>
-              {trimmed.substring(2).trim()}
+            <Text style={[styles.noteBody, { flex: 1 }]}>
+              {renderInlineText(trimmed.substring(2).trim(), textColor, langCode)}
             </Text>
           </View>
         );
@@ -850,9 +1046,9 @@ export default function ScanScreen() {
       if (numberMatch) {
         return (
           <View key={`num-${index}`} style={styles.bulletRow}>
-            <Text style={[styles.bulletDot, { color: textColor, width: 18 }]}>{numberMatch[1]}</Text>
-            <Text style={[styles.noteBody, { color: textColor, flex: 1 }]}>
-              {numberMatch[2]}
+            <Text style={[styles.bulletDot, { color: textColor, width: 20 }]}>{numberMatch[1]}</Text>
+            <Text style={[styles.noteBody, { flex: 1 }]}>
+              {renderInlineText(numberMatch[2], textColor, langCode)}
             </Text>
           </View>
         );
@@ -860,8 +1056,8 @@ export default function ScanScreen() {
 
       // Regular paragraph text
       return (
-        <Text key={`text-${index}`} style={[styles.noteBody, { color: textColor, marginBottom: 8 }]}>
-          {trimmed}
+        <Text key={`text-${index}`} style={[styles.noteBody, { marginBottom: 8 }]}>
+          {renderInlineText(trimmed, textColor, langCode)}
         </Text>
       );
     });
@@ -1051,7 +1247,7 @@ export default function ScanScreen() {
                 activeOpacity={0.8}
               >
                 <Feather
-                  name={mode === 'Payment' ? 'credit-card' : mode === 'Transit' ? 'navigation' : 'book-open'}
+                  name="info"
                   size={12}
                   color="#fff"
                   style={{ opacity: showModeInfo ? 1 : 0.8 }}
@@ -1144,6 +1340,98 @@ export default function ScanScreen() {
       </View>
 
 
+      {/* ─── FIRST-TIME WELCOME GUIDE (with mascot) ─── */}
+      <Modal visible={showWelcomeGuide} transparent animationType="fade">
+        <View style={[styles.modalBackdrop, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+          <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '90%' }]}>
+
+            {/* Added ScrollView to prevent overflow on smaller devices with the new content */}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+
+              {/* Mascot hero band */}
+              <View style={[styles.welcomeHero, { backgroundColor: colors.muted }]}>
+                <View style={styles.welcomeHeroOrb} />
+                <View style={styles.welcomeHeroOrb2} />
+                <DolphinMascot size={150} accent={colors.primary} accentDark={colors.primary} belly={colors.card} ink={colors.foreground} />
+              </View>
+
+              {/* Greeting */}
+              <View style={styles.welcomeGreetRow}>
+                <View style={[styles.welcomeGreetDot, { backgroundColor: colors.primary }]} />
+                <Text style={[styles.welcomeGreetText, { color: colors.mutedForeground }]}>YOUR TRAVEL COMPANION</Text>
+              </View>
+
+              <Text style={[styles.welcomeTitle, { color: colors.foreground }]}>
+                Hi, I'm Finn — let's read the scene together.
+              </Text>
+              <Text style={[styles.welcomeBody, { color: colors.mutedForeground }]}>
+                Point your camera at anything confusing abroad. I'll translate, decode and explain it in seconds.
+              </Text>
+
+              <View style={styles.welcomeModesList}>
+                {(['Menu', 'Payment', 'Transit'] as Mode[]).map((m) => {
+                  let icon: any = 'book-open';
+                  if (m === 'Payment') icon = 'credit-card';
+                  else if (m === 'Transit') icon = 'navigation';
+
+                  return (
+                    <View key={m} style={styles.welcomeModeRow}>
+                      <View style={[styles.welcomeModeIcon, { backgroundColor: colors.muted }]}>
+                        <Feather name={icon} size={16} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.welcomeModeTitle, { color: colors.foreground }]}>{m.toUpperCase()}</Text>
+                        <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground }]}>
+                          {MODE_DESCRIPTIONS[m]}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* NEW: Quick Tips Section for Feature Discovery */}
+              <View style={{ marginTop: 8, marginBottom: 28, paddingTop: 24, borderTopWidth: 1, borderColor: colors.border }}>
+                <Text style={[styles.welcomeModeTitle, { color: colors.foreground, marginBottom: 16 }]}>QUICK TIPS</Text>
+
+                <View style={{ gap: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <Feather name="search" size={16} color={colors.primary} style={{ width: 20, textAlign: 'center' }} />
+                    <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground, flex: 1, lineHeight: 20 }]}>
+                      Interact with the <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>search bar</Text> at the top to ask specific questions about the scene.
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <Feather name="map-pin" size={16} color={colors.primary} style={{ width: 20, textAlign: 'center' }} />
+                    <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground, flex: 1, lineHeight: 20 }]}>
+                      Toggle <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>GPS</Text> on for hyper-local transit routing and location awareness.
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <Feather name="info" size={16} color={colors.primary} style={{ width: 20, textAlign: 'center' }} />
+                    <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground, flex: 1, lineHeight: 20 }]}>
+                      Tap the <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>Mode pill</Text> at the top to reopen these instructions anytime.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.welcomeBtn, { backgroundColor: colors.primary }]}
+                onPress={dismissWelcomeGuide}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.welcomeBtnText, { color: colors.primaryForeground }]}>Let's go</Text>
+                <Feather name="arrow-right" size={18} color={colors.primaryForeground} style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
+
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Result Modal */}
       <Modal visible={showResultSheet} transparent animationType="none" onRequestClose={closeSheet}>
         <Animated.View style={[styles.modalBackdrop, { opacity: fadeAnim }]}>
@@ -1159,7 +1447,7 @@ export default function ScanScreen() {
                   <Text style={[styles.userAnswerLabel, { color: colors.primary }]}>DIRECT ANSWER</Text>
                   {/* Apply formatting to the direct answer too */}
                   <View style={{ marginTop: 4 }}>
-                    {renderFormattedText(result.userAnswer, colors.foreground)}
+                    {renderFormattedText(result.userAnswer, colors.foreground, result?.languageCode)}
                   </View>
                 </View>
               )}
@@ -1213,15 +1501,17 @@ export default function ScanScreen() {
               </View>
 
               <View style={styles.notesColumn}>
-                {result?.notes?.map((n, i) => (
-                  <View key={i} style={[styles.noteCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-                    <Text style={[styles.noteTitle, { color: colors.foreground }]}>{n.title}</Text>
-                    {/* Render the beautifully formatted body */}
-                    <View style={{ marginTop: 6 }}>
-                      {renderFormattedText(n?.body || "Analysis details unavailable.", colors.mutedForeground)}
+                {result?.notes?.map((n, i) => {
+                  return (
+                    <View key={i} style={[styles.noteCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                      <Text style={[styles.noteTitle, { color: colors.primary }]}>{n.title}</Text>
+                      <View style={{ marginTop: 8 }}>
+                        {/* Pass the languageCode down into the parser */}
+                        {renderFormattedText(n?.body || "Analysis details unavailable.", colors.foreground, result?.languageCode)}
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
 
               <TouchableOpacity style={[styles.gotItBtn, { backgroundColor: colors.primary }]} onPress={closeSheet}>
@@ -1358,17 +1648,19 @@ const styles = StyleSheet.create({
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
   notesColumn: { gap: 12, marginBottom: 24 },
   noteCard: { padding: 14, borderRadius: 14, borderWidth: 1 },
-  noteTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 14, marginBottom: 4 },
-  noteBody: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 20 }, // Increased line-height slightly for readability
+  noteTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 14, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
 
-  // Added List Styles
-  bulletRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6, paddingRight: 8 },
-  bulletDot: { fontFamily: 'Inter_600SemiBold', fontSize: 13, marginRight: 8, lineHeight: 20, opacity: 0.7 },
+  // Base text is now larger and uses Inter_500Medium
+  noteBody: { fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 22 },
+
+  bulletRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8, paddingRight: 8 },
+  // Bullet dots are now bolder and align perfectly with the larger text
+  bulletDot: { fontFamily: 'Inter_700Bold', fontSize: 15, marginRight: 10, lineHeight: 22, opacity: 0.8 },
   gotItBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   gotItText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
 
   userAnswerBox: { padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 18, gap: 6 },
-  userAnswerLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.2 },
+  userAnswerLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 14, letterSpacing: 1.2 },
   userAnswerText: { fontFamily: 'Inter_500Medium', fontSize: 14, lineHeight: 20 },
   mapsButton: {
     flexDirection: 'row',
@@ -1425,4 +1717,57 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
     lineHeight: 20,
   },
+  // ─── Welcome Guide Styles ───
+  welcomeCard: {
+    width: '100%',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  welcomeIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  welcomeTitle: { fontFamily: 'Inter_700Bold', fontSize: 22, letterSpacing: -0.4, marginBottom: 8 },
+  welcomeBody: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22, marginBottom: 24 },
+  welcomeModesList: { gap: 18, marginBottom: 32 },
+  welcomeModeRow: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  welcomeModeIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  welcomeModeTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, letterSpacing: 1, marginBottom: 2 },
+  welcomeModeDesc: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
+  welcomeBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  welcomeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
+  welcomeHero: {
+    height: 170,
+    borderRadius: 20,
+    marginBottom: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  welcomeHeroOrb: {
+    position: 'absolute',
+    width: 220, height: 220, borderRadius: 110,
+    backgroundColor: 'rgba(92,124,229,0.10)',
+    top: -90, left: -60,
+  },
+  welcomeHeroOrb2: {
+    position: 'absolute',
+    width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(245,185,98,0.10)',
+    bottom: -60, right: -40,
+  },
+  welcomeGreetRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  welcomeGreetDot: { width: 6, height: 6, borderRadius: 3 },
+  welcomeGreetText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.4 },
+
 });
