@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, Easing, TextInput, Keyboard, LayoutAnimation, UIManager, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, Easing, TextInput, Keyboard, LayoutAnimation, UIManager, Linking, Image } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Svg, { Path, Ellipse, Circle, G, Line, Rect } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { useColors } from '../../hooks/useColors';
 import { useProfile } from '../../contexts/ProfileContext';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
 import * as Location from 'expo-location';
 import OceanLoader from '../../components/OceanLoader';
@@ -178,7 +179,8 @@ export default function ScanScreen() {
   const bottomUIOffset = Platform.select({
     ios: insets.bottom + 70, // Accounts for the dynamic iOS home indicator
     android: 20,              // Fixed value to sit perfectly above Android's 60px tab bar
-  });
+    default: 20,
+  }) ?? 20;
 
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
 
@@ -206,6 +208,7 @@ export default function ScanScreen() {
   const [captionIndex, setCaptionIndex] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [isCaptured, setIsCaptured] = useState(false);
+  const [pendingUploadPhoto, setPendingUploadPhoto] = useState<{uri: string, base64: string} | null>(null);
 
   const [showResultSheet, setShowResultSheet] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -270,6 +273,7 @@ export default function ScanScreen() {
       setShowResultSheet(false);
       setResult(null);
       setIsCaptured(false);
+      setPendingUploadPhoto(null);
 
       if (cameraRef.current) {
         cameraRef.current.resumePreview();
@@ -868,7 +872,8 @@ export default function ScanScreen() {
 
   const handleShutter = async () => {
     Keyboard.dismiss();
-    if (analyzing || isCaptured || !cameraRef.current) return;
+    if (analyzing || isCaptured) return;
+    if (!pendingUploadPhoto && !cameraRef.current) return;
 
     if (Platform.OS !== 'web' && profile.hapticsEnabled) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -883,14 +888,6 @@ export default function ScanScreen() {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
-      // 3. Capture the frame immediately so the photo matches what the user saw
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.5 });
-
-      // 4. Freeze the feed (Android safe: after capture)
-      // cameraRef.current.pausePreview();
-
-      if (!photo) throw new Error("Photo capture failed");
-
       // 5. CONCURRENCY: Start GPS and Image Processing at the same time
       const locationPromise = (async () => {
         if (!profile.locationRoutingEnabled) return null;
@@ -908,22 +905,30 @@ export default function ScanScreen() {
         }
       })();
 
-      const imagePromise = (async () => {
-        const tabBarHeightPixels = insets.bottom + 84;
-        const tabBarPercent = tabBarHeightPixels / Dimensions.get('window').height;
+      let imagePromise;
+      if (pendingUploadPhoto) {
+        imagePromise = Promise.resolve({ base64: pendingUploadPhoto.base64 });
+      } else {
+        const photo = await cameraRef.current!.takePictureAsync({ quality: 0.5 });
+        if (!photo) throw new Error("Photo capture failed");
 
-        // Ensure strict integers for Android stability
-        const cropX = 0;
-        const cropY = 0;
-        const cropWidth = Math.round(photo.width);
-        const cropHeight = Math.round(photo.height * (1 - tabBarPercent));
+        imagePromise = (async () => {
+          const tabBarHeightPixels = insets.bottom + 84;
+          const tabBarPercent = tabBarHeightPixels / Dimensions.get('window').height;
 
-        return await ImageManipulator.manipulateAsync(
-          photo.uri,
-          [{ crop: { originX: cropX, originY: cropY, width: cropWidth, height: cropHeight } }],
-          { base64: true, compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-        );
-      })();
+          // Ensure strict integers for Android stability
+          const cropX = 0;
+          const cropY = 0;
+          const cropWidth = Math.round(photo.width);
+          const cropHeight = Math.round(photo.height * (1 - tabBarPercent));
+
+          return await ImageManipulator.manipulateAsync(
+            photo.uri,
+            [{ crop: { originX: cropX, originY: cropY, width: cropWidth, height: cropHeight } }],
+            { base64: true, compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+          );
+        })();
+      }
 
       // Wait for both to finish simultaneously
       const [currentLocation, croppedImage] = await Promise.all([locationPromise, imagePromise]);
@@ -941,7 +946,7 @@ export default function ScanScreen() {
           );
 
           setIsCaptured(false);
-          if (cameraRef.current) cameraRef.current.resumePreview();
+          if (!pendingUploadPhoto && cameraRef.current) cameraRef.current.resumePreview();
           setSearchQuery('');
           setAnalyzing(false);
           return;
@@ -964,9 +969,47 @@ export default function ScanScreen() {
       Alert.alert("Analysis Failed", "Could not analyze the image. Please try again.");
 
       setIsCaptured(false);
-      if (cameraRef.current) cameraRef.current.resumePreview();
+      if (!pendingUploadPhoto && cameraRef.current) cameraRef.current.resumePreview();
       setAnalyzing(false);
     }
+  };
+
+  const handleImagePick = async () => {
+    Keyboard.dismiss();
+    if (analyzing || isCaptured) return;
+
+    if (pendingUploadPhoto) {
+      setPendingUploadPhoto(null);
+      return;
+    }
+
+    if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted === false) {
+      Alert.alert("Permission Required", "You need to grant camera roll permissions to upload an image.");
+      return;
+    }
+
+    const pickerResult = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 0.5,
+    });
+
+    if (pickerResult.canceled || !pickerResult.assets || pickerResult.assets.length === 0) {
+      return;
+    }
+
+    const photo = pickerResult.assets[0];
+    if (!photo.base64) {
+        Alert.alert("Error", "Could not read image data.");
+        return;
+    }
+
+    setPendingUploadPhoto({ uri: photo.uri, base64: photo.base64 });
   };
 
   // Helper to extract and speak the foreign phrase
@@ -1096,6 +1139,25 @@ export default function ScanScreen() {
   return (
     <View style={styles.container}>
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="back" />
+      {pendingUploadPhoto && (
+        <View 
+          style={[
+            StyleSheet.absoluteFillObject, 
+            { 
+              backgroundColor: '#000',
+              paddingTop: (insets.top || 20) + 85,
+              paddingBottom: bottomUIOffset + 160,
+              paddingHorizontal: 16
+            }
+          ]}
+        >
+          <Image 
+            source={{ uri: pendingUploadPhoto.uri }} 
+            style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }} 
+            resizeMode="contain" 
+          />
+        </View>
+      )}
 
       {/* ─── INVISIBLE DISMISS OVERLAY ─── */}
       {/* Covers the screen behind the UI to close popups or the keyboard when tapping empty space */}
@@ -1129,6 +1191,8 @@ export default function ScanScreen() {
           pointerEvents="none"
         />
       )}
+
+
 
       {analyzing && (
         <View style={[StyleSheet.absoluteFillObject, styles.analyzingOverlay]}>
@@ -1320,19 +1384,33 @@ export default function ScanScreen() {
           </View>
         )}
 
-        <TouchableOpacity
-          style={styles.shutterRing}
-          onPress={handleShutter}
-          activeOpacity={0.95}
-        >
-          <View style={styles.shutterInner}>
-            {analyzing ? (
-              <ActivityIndicator color="#0a1f1e" />
-            ) : (
-              <Feather name="zap" size={22} color="#f4fffeff" />
-            )}
-          </View>
-        </TouchableOpacity>
+        <View style={styles.shutterRow}>
+          <TouchableOpacity
+            style={styles.galleryBtn}
+            onPress={handleImagePick}
+            disabled={analyzing}
+            activeOpacity={0.8}
+          >
+            <Feather name={pendingUploadPhoto ? "x" : "image"} size={22} color="#fff" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.shutterRing}
+            onPress={handleShutter}
+            activeOpacity={0.95}
+          >
+            <View style={styles.shutterInner}>
+              {analyzing ? (
+                <ActivityIndicator color="#0a1f1e" />
+              ) : (
+                <Feather name="zap" size={22} color="#f4fffeff" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Spacer to keep shutter centered */}
+          <View style={{ width: 44 }} />
+        </View>
 
         <Text style={styles.captionText}>
           {analyzing ? 'READING THE SCENE…' : 'SCAN ENVIRONMENT'}
@@ -1632,7 +1710,9 @@ const styles = StyleSheet.create({
   modeBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, gap: 6 },
   modeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
 
-  shutterRing: { width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  shutterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 32, marginBottom: 12 },
+  galleryBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  shutterRing: { width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#5c7ce5', alignItems: 'center', justifyContent: 'center' },
   captionText: { color: '#fff', fontFamily: 'Inter_500Medium', fontSize: 12, opacity: 0.8, letterSpacing: 1 },
 
