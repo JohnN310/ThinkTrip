@@ -139,12 +139,12 @@ function DolphinMascot({ size = 160, accent = '#5c7ce5', accentDark = '#4361c4',
         {/* FIX 2: Use scaleY as a direct prop so it respects originX/originY */}
         <AnimatedG scaleY={blink} originX={76} originY={82}>
           <Ellipse cx="76" cy="82" rx="8.5" ry="8.5" fill="#fff" />
-          <Ellipse cx="76" cy="82" rx="5" ry="5" fill={ink} />
+          <Ellipse cx="76" cy="82" rx="5" ry="5" fill="#1e293b" />
           <Ellipse cx="74.5" cy="80.5" rx="1.8" ry="1.8" fill="#fff" />
         </AnimatedG>
         <AnimatedG scaleY={blink} originX={124} originY={82}>
           <Ellipse cx="124" cy="82" rx="8.5" ry="8.5" fill="#fff" />
-          <Ellipse cx="124" cy="82" rx="5" ry="5" fill={ink} />
+          <Ellipse cx="124" cy="82" rx="5" ry="5" fill="#1e293b" />
           <Ellipse cx="122.5" cy="80.5" rx="1.8" ry="1.8" fill="#fff" />
         </AnimatedG>
 
@@ -208,7 +208,7 @@ export default function ScanScreen() {
   const [captionIndex, setCaptionIndex] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [isCaptured, setIsCaptured] = useState(false);
-  const [pendingUploadPhoto, setPendingUploadPhoto] = useState<{uri: string, base64: string} | null>(null);
+  const [pendingUploadPhoto, setPendingUploadPhoto] = useState<{ uri: string, base64: string } | null>(null);
 
   const [showResultSheet, setShowResultSheet] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -1005,8 +1005,8 @@ export default function ScanScreen() {
 
     const photo = pickerResult.assets[0];
     if (!photo.base64) {
-        Alert.alert("Error", "Could not read image data.");
-        return;
+      Alert.alert("Error", "Could not read image data.");
+      return;
     }
 
     setPendingUploadPhoto({ uri: photo.uri, base64: photo.base64 });
@@ -1140,10 +1140,10 @@ export default function ScanScreen() {
     <View style={styles.container}>
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="back" />
       {pendingUploadPhoto && (
-        <View 
+        <View
           style={[
-            StyleSheet.absoluteFillObject, 
-            { 
+            StyleSheet.absoluteFillObject,
+            {
               backgroundColor: '#000',
               paddingTop: (insets.top || 20) + 85,
               paddingBottom: bottomUIOffset + 160,
@@ -1151,10 +1151,10 @@ export default function ScanScreen() {
             }
           ]}
         >
-          <Image 
-            source={{ uri: pendingUploadPhoto.uri }} 
-            style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }} 
-            resizeMode="contain" 
+          <Image
+            source={{ uri: pendingUploadPhoto.uri }}
+            style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}
+            resizeMode="contain"
           />
         </View>
       )}
@@ -1430,7 +1430,7 @@ export default function ScanScreen() {
               <View style={[styles.welcomeHero, { backgroundColor: colors.muted }]}>
                 <View style={styles.welcomeHeroOrb} />
                 <View style={styles.welcomeHeroOrb2} />
-                <DolphinMascot size={150} accent={colors.primary} accentDark={colors.primary} belly={colors.card} ink={colors.foreground} />
+                <DolphinMascot size={150} />
               </View>
 
               {/* Greeting */}
@@ -1440,7 +1440,7 @@ export default function ScanScreen() {
               </View>
 
               <Text style={[styles.welcomeTitle, { color: colors.foreground }]}>
-                Hi, I'm Finn — let's read the scene together.
+                Hi, let's read this together.
               </Text>
               <Text style={[styles.welcomeBody, { color: colors.mutedForeground }]}>
                 Point your camera at anything confusing abroad. I'll translate, decode and explain it in seconds.
