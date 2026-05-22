@@ -136,13 +136,6 @@ export const buildPackingList = (
         { brand: 'La Roche-Posay', name: 'Cicaplast Baume B5', price: '$18.00', query: 'La Roche-Posay Cicaplast Baume B5' }
       ]
     );
-  } else if (humidity >= 70) {
-    if (profile.usesChemicalExfoliants || profile.usesRetinoids) {
-      add('recommended', 'Climate & Respiratory', 'Pause topical actives', `High humidity (${humidity}%) increases skin sensitivity to strong active ingredients.`, '⚠️',
-        "High humidity drastically increases the skin's permeability. Using strong acids or retinoids in these conditions can lead to unexpected chemical burns and severe irritation.",
-        []
-      );
-    }
   }
 
   if (tempLow <= coldThreshold) {

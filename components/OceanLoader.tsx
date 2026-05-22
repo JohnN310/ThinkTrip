@@ -369,7 +369,7 @@ export default function OceanLoader({ size = 280, isFinished = false, onFinishCo
           <Svg viewBox="0 0 200 200" width={size} height={size} style={{ overflow: "visible" }}>
 
             {/* Base Shadow */}
-            <Ellipse cx="100" cy="180" rx="60" ry="6" fill={PRIMARY_DARK} opacity={0.15} />
+            {/* <Ellipse cx="100" cy="180" rx="60" ry="6" fill={PRIMARY_DARK} opacity={0.15} /> */}
 
             {/* Main Head Structure */}
             <Path d="M35 125C35 70 65 35 100 35C135 35 165 70 165 125C165 150 152 165 135 165C120 165 112 153 100 153C88 153 80 165 65 165C48 165 35 150 35 125Z" fill={PRIMARY} />

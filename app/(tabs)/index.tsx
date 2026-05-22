@@ -15,6 +15,8 @@ import { SegmentedControl } from '../../components/SegmentedControl';
 import { LinearGradient } from 'expo-linear-gradient';
 import { WeatherBackground } from '../../components/WeatherEffects';
 import Slider from '@react-native-community/slider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DolphinMascot } from '../../components/DolphinMascot';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -62,6 +64,27 @@ export default function PlanScreen() {
   } | null>(null);
 
   const [trueLiveWeather, setTrueLiveWeather] = useState<any>(null);
+
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
+  // Use state (not a ref) so that when the timer fires a re-render occurs,
+  // which lets the useEffect below react even if the tab is already focused.
+  const [guideReady, setGuideReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setGuideReady(true), 2200);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || !guideReady) return;
+    AsyncStorage.getItem('@thinktrip_plan_guide_seen').then(val => {
+      if (!val) setShowWelcomeGuide(true);
+    });
+  }, [hydrated, guideReady]);
+
+  const dismissWelcomeGuide = async () => {
+    await AsyncStorage.setItem('@thinktrip_plan_guide_seen', 'true');
+    setShowWelcomeGuide(false);
+  };
 
   const heroTheme = useMemo(() => {
     if (!liveWeather) return { bg: colors.muted, accent: colors.mutedForeground, muted: colors.mutedForeground };
@@ -952,25 +975,26 @@ export default function PlanScreen() {
 
         {/* ─── Packing List ─── */}
         <View style={[styles.section, { paddingHorizontal: 20 }]}>
-          <SectionHeader
-            title="Packing list"
-            rightElement={
-              !liveWeather ? (
-                initialLoadFailed ? (
-                  <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>Unavailable</Text>
-                ) : (
-                  <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>Analyzing...</Text>
-                )
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Feather name="briefcase" size={18} color={colors.foreground} />
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Packing list</Text>
+            </View>
+            {!liveWeather ? (
+              initialLoadFailed ? (
+                <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>Unavailable</Text>
               ) : (
-                <View style={styles.essentialCountRow}>
-                  <View style={[styles.dot, { backgroundColor: colors.destructive }]} />
-                  <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>
-                    {packingList.filter(i => i.priority === 'essential').length} essential
-                  </Text>
-                </View>
+                <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>Analyzing...</Text>
               )
-            }
-          />
+            ) : (
+              <View style={styles.essentialCountRow}>
+                <View style={[styles.dot, { backgroundColor: colors.destructive }]} />
+                <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>
+                  {packingList.filter(i => i.priority === 'essential').length} essential
+                </Text>
+              </View>
+            )}
+          </View>
           {!liveWeather ? (
             initialLoadFailed ? (
               <Card padded={false}>
@@ -1008,9 +1032,6 @@ export default function PlanScreen() {
                   </View>
                   <Card padded={false}>
                     {group.items.map((item, index) => {
-                      let dotColor = colors.mutedForeground;
-                      if (item.priority === 'essential') dotColor = colors.destructive;
-                      else if (item.priority === 'recommended') dotColor = colors.accent;
 
                       return (
                         <View key={item.id}>
@@ -1024,7 +1045,6 @@ export default function PlanScreen() {
                             }}
                           >
                             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
-                              <View style={[styles.dot, { backgroundColor: dotColor, width: 6, height: 6 }]} />
                               {item.emoji && <Text style={{ fontSize: 16 }}>{item.emoji}</Text>}
                               <Text style={[styles.packingTitle, { color: colors.foreground, flex: 1, fontSize: 15 }]} numberOfLines={1}>
                                 {item.title}
@@ -1289,6 +1309,82 @@ export default function PlanScreen() {
           </Animated.View>
         </Animated.View>
       </Modal>
+
+      {/* ─── FIRST-TIME WELCOME GUIDE (with mascot) ─── */}
+      <Modal visible={showWelcomeGuide} transparent animationType="fade">
+        <View style={[styles.modalBackdrop, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+          <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '90%' }]}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+              
+              <View style={[styles.welcomeHero, { backgroundColor: colors.muted }]}>
+                <View style={styles.welcomeHeroOrb} />
+                <View style={styles.welcomeHeroOrb2} />
+                <DolphinMascot size={150} />
+              </View>
+
+              <View style={styles.welcomeGreetRow}>
+                <View style={[styles.welcomeGreetDot, { backgroundColor: colors.primary }]} />
+                <Text style={[styles.welcomeGreetText, { color: colors.mutedForeground }]}>PLAN & PREPARE</Text>
+              </View>
+
+              <Text style={[styles.welcomeTitle, { color: colors.foreground }]}>
+                Hi, let's plan your journey.
+              </Text>
+              <Text style={[styles.welcomeBody, { color: colors.mutedForeground }]}>
+                Search for any destination worldwide. I'll analyze the climate, air quality, and local conditions to help you prepare.
+              </Text>
+
+              <View style={styles.welcomeModesList}>
+                <View style={styles.welcomeModeRow}>
+                  <View style={[styles.welcomeModeIcon, { backgroundColor: colors.muted }]}>
+                    <Feather name="cloud" size={16} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.welcomeModeTitle, { color: colors.foreground }]}>LIVE FORECASTS</Text>
+                    <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground }]}>
+                      Get dynamic weather forecasts and AQI alerts so you're never caught off guard.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.welcomeModeRow}>
+                  <View style={[styles.welcomeModeIcon, { backgroundColor: colors.muted }]}>
+                    <Feather name="briefcase" size={16} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.welcomeModeTitle, { color: colors.foreground }]}>SMART PACKING</Text>
+                    <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground }]}>
+                      Automatically generates a health-conscious packing list tailored to your profile and the local climate.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.welcomeModeRow}>
+                  <View style={[styles.welcomeModeIcon, { backgroundColor: colors.muted }]}>
+                    <Feather name="heart" size={16} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.welcomeModeTitle, { color: colors.foreground }]}>WATCHLIST</Text>
+                    <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground }]}>
+                      Save your favorite destinations to quickly check up on them later.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.welcomeBtn, { backgroundColor: colors.primary }]}
+                onPress={dismissWelcomeGuide}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.welcomeBtnText, { color: colors.primaryForeground }]}>Let's go</Text>
+                <Feather name="arrow-right" size={18} color={colors.primaryForeground} style={{ marginLeft: 8 }} />
+              </TouchableOpacity>
+
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1332,6 +1428,7 @@ const styles = StyleSheet.create({
   categoryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   categoryLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase' },
   section: { marginTop: 22 },
+  sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 18, letterSpacing: -0.3 },
   alertCount: { fontFamily: 'Inter_500Medium', fontSize: 12 },
   alertBanner: { flexDirection: 'row', padding: 14, borderRadius: 14, borderWidth: 1, gap: 12 },
   alertContent: { flex: 1 },
@@ -1367,4 +1464,21 @@ const styles = StyleSheet.create({
   suggestionsContainer: { maxHeight: 200, borderWidth: 1, borderRadius: 16, marginTop: -4 },
   suggestionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
   suggestionText: { fontFamily: 'Inter_500Medium', fontSize: 14, flex: 1 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  welcomeCard: { width: '100%', borderRadius: 24, padding: 24, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
+  welcomeHero: { width: '100%', height: 160, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 24, overflow: 'hidden' },
+  welcomeHeroOrb: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)', top: -40, left: -40 },
+  welcomeHeroOrb2: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.03)', bottom: -20, right: -20 },
+  welcomeGreetRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  welcomeGreetDot: { width: 8, height: 8, borderRadius: 4 },
+  welcomeGreetText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.5 },
+  welcomeTitle: { fontFamily: 'Inter_700Bold', fontSize: 28, letterSpacing: -0.5, marginBottom: 10 },
+  welcomeBody: { fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 22, marginBottom: 28 },
+  welcomeModesList: { gap: 20, marginBottom: 32 },
+  welcomeModeRow: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  welcomeModeIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  welcomeModeTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 14, letterSpacing: 0.5, marginBottom: 4 },
+  welcomeModeDesc: { fontFamily: 'Inter_500Medium', fontSize: 14, lineHeight: 20 },
+  welcomeBtn: { width: '100%', paddingVertical: 16, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  welcomeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
 });
