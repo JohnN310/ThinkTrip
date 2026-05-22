@@ -924,7 +924,7 @@ export default function ScanScreen() {
 
     // Configure speech options
     const speechOptions: Speech.SpeechOptions = {
-      rate: 0.85,
+      rate: 0.65,
       pitch: 1.0
     };
 
