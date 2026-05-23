@@ -14,6 +14,7 @@ import { BlurView } from 'expo-blur';
 import * as Location from 'expo-location';
 import { useFocusEffect } from 'expo-router';
 import OceanLoader from '../../components/OceanLoader';
+import DolphinLoaderScreen from '../../components/DolphinLoaderScreen';
 import { DolphinMascot } from '../../components/DolphinMascot';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1089,7 +1090,17 @@ export default function ScanScreen() {
       )}
 
 
+      {/* Dolphin Loader Screen */}
+      {/* {analyzing && (
+        <View style={[StyleSheet.absoluteFillObject, styles.analyzingOverlay]}>
+          <DolphinLoaderScreen
+            isFinished={aiFinished}
+            onFinishComplete={handleFinishComplete}
+          />
+        </View>
+      )} */}
 
+      {/* Ocean Loader Screen */}
       {analyzing && (
         <View style={[StyleSheet.absoluteFillObject, styles.analyzingOverlay]}>
           <OceanLoader

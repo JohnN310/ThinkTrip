@@ -980,20 +980,7 @@ export default function PlanScreen() {
               <Feather name="briefcase" size={18} color={colors.foreground} />
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Packing list</Text>
             </View>
-            {!liveWeather ? (
-              initialLoadFailed ? (
-                <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>Unavailable</Text>
-              ) : (
-                <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>Analyzing...</Text>
-              )
-            ) : (
-              <View style={styles.essentialCountRow}>
-                <View style={[styles.dot, { backgroundColor: colors.destructive }]} />
-                <Text style={[styles.essentialCountText, { color: colors.mutedForeground }]}>
-                  {packingList.filter(i => i.priority === 'essential').length} essential
-                </Text>
-              </View>
-            )}
+
           </View>
           {!liveWeather ? (
             initialLoadFailed ? (
