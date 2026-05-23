@@ -70,7 +70,7 @@ export default function PlanScreen() {
   // which lets the useEffect below react even if the tab is already focused.
   const [guideReady, setGuideReady] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setGuideReady(true), 2200);
+    const t = setTimeout(() => setGuideReady(true), 1000);
     return () => clearTimeout(t);
   }, []);
 
@@ -201,7 +201,7 @@ export default function PlanScreen() {
       if (typeof locationQuery === 'string') {
         let lookupLat: number | null = null;
         let lookupLon: number | null = null;
-        
+
         try {
           const geoRes = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(locationQuery)}&limit=5&appid=${OPENWEATHER_API_KEY}`);
           if (geoRes.ok) {
@@ -210,11 +210,11 @@ export default function PlanScreen() {
               lookupLat = geoData[0].lat;
               lookupLon = geoData[0].lon;
               foundGeoData = geoData[0];
-              
+
               // Attempt exact matching if the query has 3 parts (City, State, Country)
               const queryParts = locationQuery.split(',').map(p => p.trim().toLowerCase());
               if (queryParts.length === 3) {
-                const exactMatch = geoData.find((g: any) => 
+                const exactMatch = geoData.find((g: any) =>
                   g.name?.toLowerCase() === queryParts[0] &&
                   g.state?.toLowerCase() === queryParts[1] &&
                   g.country?.toLowerCase() === queryParts[2]
@@ -236,7 +236,7 @@ export default function PlanScreen() {
         } else {
           weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(locationQuery)}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`;
         }
-        
+
         targetName = locationQuery;
       } else {
         weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${locationQuery.lat}&lon=${locationQuery.lon}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`;
@@ -258,7 +258,7 @@ export default function PlanScreen() {
       if (typeof locationQuery === 'string') {
         const matchedSaved = savedLocations.find(loc => loc.toLowerCase() === locationQuery.toLowerCase());
         const matchedPopular = POPULAR_CITIES.find(loc => loc.toLowerCase() === locationQuery.toLowerCase());
-        
+
         if (matchedSaved) {
           finalName = matchedSaved;
         } else if (matchedPopular) {
@@ -588,8 +588,8 @@ export default function PlanScreen() {
 
   // 2. Refactor searchCity to strictly handle UI state and call the centralized load function
   const searchCity = async (locationQuery: string | GeocodeSuggestion, fromChip = false) => {
-    const queryStr = typeof locationQuery === 'string' 
-      ? locationQuery 
+    const queryStr = typeof locationQuery === 'string'
+      ? locationQuery
       : `${locationQuery.name}${locationQuery.state && locationQuery.state !== locationQuery.name ? `, ${locationQuery.state}` : ''}, ${locationQuery.country}`;
 
     if (!queryStr.trim()) return;
@@ -625,7 +625,7 @@ export default function PlanScreen() {
   const handleSearch = () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     latestQueryRef.current = '';
-    
+
     if (suggestions.length > 0) {
       searchCity(suggestions[0], false);
       Keyboard.dismiss();
@@ -793,8 +793,8 @@ export default function PlanScreen() {
             {/* Destination Name + Heart Button */}
             <View style={styles.heroDestinationRow}>
               <Text style={[styles.heroDestination, { color: heroTheme.accent }]} numberOfLines={1} adjustsFontSizeToFit>
-                {destination.name.split(', ').length > 1 
-                  ? destination.name.split(', ').slice(0, -1).join(', ') 
+                {destination.name.split(', ').length > 1
+                  ? destination.name.split(', ').slice(0, -1).join(', ')
                   : destination.name}
               </Text>
               <TouchableOpacity
@@ -1141,7 +1141,7 @@ export default function PlanScreen() {
                 // ─── Detailed Icon Mapping ───
                 const iconPrefix = currentPoint.iconCode.substring(0, 2);
                 const isNight = currentPoint.iconCode.includes('n');
-                
+
                 let dynamicIcon = 'sun';
                 if (iconPrefix === '01') dynamicIcon = isNight ? 'moon' : 'sun';
                 else if (['02', '03', '04'].includes(iconPrefix)) dynamicIcon = 'cloud';
@@ -1315,7 +1315,7 @@ export default function PlanScreen() {
         <View style={[styles.modalBackdrop, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
           <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '90%' }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
-              
+
               <View style={[styles.welcomeHero, { backgroundColor: colors.muted }]}>
                 <View style={styles.welcomeHeroOrb} />
                 <View style={styles.welcomeHeroOrb2} />
