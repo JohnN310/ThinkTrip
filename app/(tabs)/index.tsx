@@ -188,6 +188,32 @@ export default function PlanScreen() {
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestQueryRef = useRef('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const loadRecents = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('@thinktrip_recent_searches');
+        if (stored) {
+          setRecentSearches(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.warn("Failed to load recent searches", e);
+      }
+    };
+    loadRecents();
+  }, [hydrated]);
+
+  const addRecentSearch = (cityName: string) => {
+    setRecentSearches(prev => {
+      const filtered = prev.filter(c => c.toLowerCase() !== cityName.toLowerCase());
+      const updated = [cityName, ...filtered].slice(0, 5); // Keep top 5
+      AsyncStorage.setItem('@thinktrip_recent_searches', JSON.stringify(updated)).catch(e => console.warn(e));
+      return updated;
+    });
+  };
 
   // 1. Centralize all fetching logic into a single reusable function
   const loadDestinationData = async (locationQuery: string | GeocodeSuggestion) => {
@@ -605,11 +631,17 @@ export default function PlanScreen() {
     try {
       setLiveWeather(null); // Optional: triggers the loading state visually
       const resolvedName = await loadDestinationData(locationQuery); // Perform ONE combined fetch
+
+      addRecentSearch(resolvedName);
+
       setSelectedChip(resolvedName);
       setSearchQuery('');
       setSuggestions([]);
       setSelectedDayIndex(-1);
       setSelectedPointIndex(0);
+
+      setIsSearchFocused(false);
+
     } catch (error) {
       console.warn('Search failed:', error);
       if (fromChip) setSelectedChip('');
@@ -688,6 +720,8 @@ export default function PlanScreen() {
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={{ paddingBottom: insets.bottom + 84 + 20 }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={!isSearchFocused}
       >
         {/* ─── Header Area ─── */}
         <View style={[styles.headerArea, { paddingTop: (insets.top || 20) + 8 }]}>
@@ -857,6 +891,11 @@ export default function PlanScreen() {
               onSubmitEditing={handleSearch}
               returnKeyType="search"
               editable={!isSearching}
+
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => {
+
+              }}
             />
             {isFetchingSuggestions && (
               <ActivityIndicator size="small" color={heroTheme.accent} style={{ marginRight: 6 }} />
@@ -870,6 +909,37 @@ export default function PlanScreen() {
               <Feather name="arrow-right" size={18} color={isSearching ? colors.mutedForeground : heroTheme.accent} />
             </TouchableOpacity>
           </View>
+
+          {/* ─── NEW: Recent Searches Dropdown ─── */}
+          {isSearchFocused && searchQuery.length === 0 && recentSearches.length > 0 && (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+              style={[styles.suggestionsContainer, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 1.2, color: colors.mutedForeground }}>
+                  RECENT SEARCHES
+                </Text>
+              </View>
+              {recentSearches.map((city, index) => (
+                <TouchableOpacity
+                  key={`recent-${index}`}
+                  style={[styles.suggestionItem, index < recentSearches.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    searchCity(city, false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="clock" size={14} color={colors.mutedForeground} />
+                  <Text style={[styles.suggestionText, { color: colors.foreground }]} numberOfLines={1}>
+                    {city}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
           {suggestions.length > 0 && (
             <ScrollView
@@ -1164,7 +1234,15 @@ export default function PlanScreen() {
                           const pct = (p.temp - minTemp) / tempRange;
                           const barHeight = p.isPast ? 2 : Math.max(pct * 80, 6);
                           return (
-                            <View key={i} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4, opacity: p.isPast ? 0.3 : 1 }}>
+                            <TouchableOpacity
+                              key={i}
+                              activeOpacity={0.8}
+                              onPress={() => {
+                                setSelectedPointIndex(i);
+                                if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
+                              }}
+                              style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4, opacity: p.isPast ? 0.3 : 1 }}
+                            >
                               <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: isActivePoint ? colors.foreground : colors.mutedForeground }}>
                                 {p.isPast ? '' : `${p.temp}°`}
                               </Text>
@@ -1174,20 +1252,29 @@ export default function PlanScreen() {
                                 borderRadius: 4,
                                 backgroundColor: isActivePoint ? colors.accent : colors.accent + '55',
                               }} />
-                            </View>
+                            </TouchableOpacity>
                           );
                         })}
                       </View>
+
                       {/* Time labels row */}
                       <View style={{ flexDirection: 'row' }}>
                         {activePoints.map((p: any, i: number) => {
                           const isActivePoint = i === selectedPointIndex;
                           return (
-                            <View key={i} style={{ flex: 1, alignItems: 'center', opacity: p.isPast ? 0.3 : 1 }}>
+                            <TouchableOpacity
+                              key={i}
+                              activeOpacity={0.8}
+                              onPress={() => {
+                                setSelectedPointIndex(i);
+                                if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
+                              }}
+                              style={{ flex: 1, alignItems: 'center', opacity: p.isPast ? 0.3 : 1 }}
+                            >
                               <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 9, color: isActivePoint ? colors.accent : colors.mutedForeground }} numberOfLines={1}>
                                 {p.timeLabel}
                               </Text>
-                            </View>
+                            </TouchableOpacity>
                           );
                         })}
                       </View>
@@ -1261,6 +1348,28 @@ export default function PlanScreen() {
                     {selectedPackingItem.detailedDescription || selectedPackingItem.reason}
                   </Text>
                 </View>
+
+                {/* ─── NEW: Styled Warning Banner ─── */}
+                {selectedPackingItem.warning && (
+                  <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: colors.isDark ? 'rgba(245, 185, 98, 0.12)' : '#fdf2dc',
+                    borderColor: '#a76b1833',
+                    borderWidth: 1,
+                    padding: 14,
+                    borderRadius: 14,
+                    gap: 12,
+                    marginTop: 4
+                  }}>
+                    <Feather name="alert-triangle" size={18} color="#a76b18" style={{ marginTop: 2 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#a76b18', marginBottom: 2 }}>Medical Disclaimer</Text>
+                      <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.foreground, lineHeight: 18 }}>
+                        {selectedPackingItem.warning}
+                      </Text>
+                    </View>
+                  </View>
+                )}
 
                 {/* Recommended Options */}
                 {selectedPackingItem.productSamples && selectedPackingItem.productSamples.length > 0 && (
@@ -1405,7 +1514,7 @@ const styles = StyleSheet.create({
   statIconRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statLabel: { color: '#a8c2c0', fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', },
   statValue: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16, textTransform: 'capitalize' },
-  searchSection: { paddingHorizontal: 20, paddingTop: 14, gap: 12 },
+  searchSection: { paddingHorizontal: 20, paddingTop: 14, gap: 12, position: 'relative', zIndex: 999 },
   searchPill: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, gap: 12 },
   searchInput: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15 },
   searchButton: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -1448,7 +1557,21 @@ const styles = StyleSheet.create({
   forecastDayName: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
   forecastCondition: { fontFamily: 'Inter_400Regular', fontSize: 13 },
   forecastTemp: { fontFamily: 'Inter_700Bold', fontSize: 16 },
-  suggestionsContainer: { maxHeight: 200, borderWidth: 1, borderRadius: 16, marginTop: -4 },
+  suggestionsContainer: {
+    position: 'absolute',
+    top: 70,
+    left: 20,
+    right: 20,
+    maxHeight: 320,
+    borderWidth: 1,
+    borderRadius: 16,
+    zIndex: 99,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
   suggestionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
   suggestionText: { fontFamily: 'Inter_500Medium', fontSize: 14, flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

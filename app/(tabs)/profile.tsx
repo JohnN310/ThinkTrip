@@ -416,7 +416,7 @@ export default function ProfileScreen() {
           paddingHorizontal: 16,
           paddingTop: insets.top || 16,
           paddingBottom: insets.bottom + 84 + 16,
-          gap: 18
+          gap: 6
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -503,8 +503,7 @@ export default function ProfileScreen() {
           /> */}
           <SettingsRow
             icon={<Feather name="navigation" size={16} color={colors.foreground} />}
-            label="Location-aware scanning"
-            description="Use GPS for better map directions. No location data is stored."
+            label="Location Services"
             onPress={() => handleToggleLocationRouting(!profile.locationRoutingEnabled)}
             rightElement={
               <View pointerEvents="none">
@@ -549,7 +548,7 @@ export default function ProfileScreen() {
           />
         </SettingsGroup>
 
-        <SettingsGroup title="PRIVACY & DATA">
+        <SettingsGroup title="PRIVACY & DATA" footnote="ThinkTrip • v1.0.0 (build 1)">
           <SettingsRow icon={<Feather name="shield" size={16} color={colors.foreground} />} label="Privacy" rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} onPress={() => handleOpenLink('https://thinktrip.app/privacy')} />
           <SettingsRow icon={<Feather name="download" size={16} color={colors.foreground} />} label="Export my data" rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} onPress={handleExportData} />
           {/* <SettingsRow 
@@ -558,9 +557,7 @@ export default function ProfileScreen() {
             label="Clear all trip history" 
             rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} 
           /> */}
-        </SettingsGroup>
 
-        <SettingsGroup footnote="ThinkTrip • v1.0.0 (build 1)">
           <SettingsRow icon={<Feather name="help-circle" size={16} color={colors.foreground} />} label="Help center" rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} onPress={() => handleOpenLink('https://thinktrip.app/help')} />
           {/* <SettingsRow icon={<Feather name="message-square" size={16} color={colors.foreground} />} label="Send feedback" rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />} onPress={() => handleOpenLink('mailto:support@thinktrip.app?subject=ThinkTrip%20Feedback')} /> */}
 

@@ -47,6 +47,7 @@ export interface PackingItem {
   emoji: string;
   detailedDescription?: string;
   productSamples?: ProductSample[];
+  warning?: string;
 }
 
 export interface LiveWeatherContext {
@@ -72,7 +73,8 @@ export const buildPackingList = (
     reason: string,
     emoji: string,
     detailedDescription?: string,
-    productSamples?: ProductSample[]
+    productSamples?: ProductSample[],
+    warning?: string // <-- 3. ADD TO PARAMS
   ) => {
     items.push({
       id: `item_${idCounter++}`,
@@ -83,6 +85,7 @@ export const buildPackingList = (
       emoji,
       detailedDescription,
       productSamples,
+      warning, // <-- 4. PUSH TO OBJECT
     });
   };
 
@@ -100,6 +103,8 @@ export const buildPackingList = (
   const tempUnit = isMetric ? '°C' : '°F';
   const coldThreshold = isMetric ? 10 : 50;
   const hotThreshold = isMetric ? 28 : 82;
+
+  const DRUG_WARNING = "Consult a healthcare professional before using new medications or supplements.";
 
   // Note that we can use brand names here for when we do sponsorships.
   // ─── RESPIRATORY & CLIMATE HEALTH ───
@@ -185,7 +190,8 @@ export const buildPackingList = (
       "Language barriers and unfamiliar ingredients dramatically increase the risk of accidental allergen exposure. You must carry immediate anaphylaxis treatments on your person at all times.",
       [
         { brand: 'Benadryl', name: 'Allergy Ultratabs', price: '$9.00', query: 'Benadryl Allergy Ultratabs' }
-      ]
+      ],
+      DRUG_WARNING
     );
     add('essential', 'Systemic & Dietary', 'Translated allergy cards', 'Ensures clear communication of severe dietary restrictions when dining.', '📇',
       "Restaurant kitchens need explicit instructions to prevent cross-contamination. Professionally translated cards leave no room for misinterpretation by local chefs.",
@@ -201,7 +207,8 @@ export const buildPackingList = (
       [
         { brand: 'Zenwise', name: 'Digestive Enzymes Plus Prebiotics', price: '$26.00', query: 'Zenwise Digestive Enzymes' },
         { brand: 'Enzymedica', name: 'Digest Gold', price: '$30.00', query: 'Enzymedica Digest Gold' }
-      ]
+      ],
+      DRUG_WARNING
     );
   }
 
@@ -221,7 +228,8 @@ export const buildPackingList = (
       [
         { brand: 'OLLY', name: 'Sleep Blackberry Zen Gummies', price: '$14.00', query: 'OLLY Sleep Gummies' },
         { brand: 'Doctor\'s Best', name: 'High Absorption Magnesium', price: '$16.00', query: 'Doctor\'s Best Magnesium Glycinate' }
-      ]
+      ],
+      DRUG_WARNING
     );
   }
 

@@ -191,43 +191,42 @@ export default function ScanScreen() {
   const openMap = async (query: string) => {
     const encodedQuery = encodeURIComponent(query);
 
-    // 1. Primary Native Schemes (Forces the OS to look for the actual app)
-    let iosUrl = `maps://?q=${encodedQuery}`;
-    if (userLocation) {
-      iosUrl += `&sll=${userLocation.coords.latitude},${userLocation.coords.longitude}`;
-    }
+    // 1. Apple Maps (iOS)
+    // We use just the query so Apple Maps searches for the actual place
+    // rather than pinning the user's current location.
+    const appleMapsUrl = `https://maps.apple.com/?q=${encodedQuery}`;
 
-    let androidUrl = `geo:0,0?q=${encodedQuery}`;
-    if (userLocation) {
-      androidUrl = `geo:${userLocation.coords.latitude},${userLocation.coords.longitude}?q=${encodedQuery}`;
-    }
+    // 2. Google Maps Native (Android)
+    const androidUrl = `geo:0,0?q=${encodedQuery}`;
 
-    // 2. Universal Web Fallbacks (If the native app is deleted/unavailable)
-    const fallbackIosUrl = `https://maps.apple.com/?q=${encodedQuery}`;
-    // Note: I fixed a missing '$' typo in your original Android fallback here!
-    const fallbackAndroidUrl = `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
+    // 3. Google Maps Web (Fallback/Web)
+    const googleMapsWebUrl = `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
 
-    const nativeUrl = Platform.select({ ios: iosUrl, android: androidUrl }) || fallbackIosUrl;
-    const webUrl = Platform.select({ ios: fallbackIosUrl, android: fallbackAndroidUrl }) || fallbackIosUrl;
+    // Determine target URL based on platform
+    const urlToOpen = Platform.select({
+      ios: appleMapsUrl,
+      android: androidUrl,
+      default: googleMapsWebUrl
+    });
 
     try {
-      // 3. Try the native app first
-      const supported = await Linking.canOpenURL(nativeUrl);
+      const supported = await Linking.canOpenURL(urlToOpen as string);
 
       if (supported) {
-        await Linking.openURL(nativeUrl);
+        await Linking.openURL(urlToOpen as string);
       } else {
-        // 4. Fall back to the browser if they don't have the app installed
-        const webSupported = await Linking.canOpenURL(webUrl);
-        if (webSupported) {
-          await Linking.openURL(webUrl);
-        } else {
-          Alert.alert("Map Unavailable", "Could not open the map application or browser.");
-        }
+        // Fallback to web browser if the native scheme isn't supported
+        await Linking.openURL(googleMapsWebUrl);
       }
     } catch (error) {
       console.error("Linking error:", error);
-      Alert.alert("Map Unavailable", "An error occurred while trying to open the map.");
+
+      // If native Apple/Google Maps fails, fallback to Google Maps web
+      try {
+        await Linking.openURL(googleMapsWebUrl);
+      } catch (fallbackError) {
+        Alert.alert("Map Unavailable", "Could not open the map application or browser.");
+      }
     }
   };
 
@@ -1026,7 +1025,16 @@ export default function ScanScreen() {
         <Text style={[styles.deniedBody, { color: colors.mutedForeground }]}>
           Camera access powers menu translation, payment etiquette, and transit decoding. Photos never leave your device.
         </Text>
-        <TouchableOpacity style={[styles.enableBtn, { backgroundColor: colors.primary }]} onPress={requestPermission}>
+        <TouchableOpacity 
+          style={[styles.enableBtn, { backgroundColor: colors.primary }]} 
+          onPress={() => {
+            if (permission.canAskAgain) {
+              requestPermission();
+            } else {
+              Linking.openSettings();
+            }
+          }}
+        >
           <Text style={[styles.enableBtnText, { color: colors.primaryForeground }]}>Enable Camera</Text>
         </TouchableOpacity>
       </View>
