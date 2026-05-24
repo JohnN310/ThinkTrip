@@ -35,6 +35,26 @@ const AVATAR_EMOJIS = [
   '🧭', '🌿', '🧳', '🌙', '❄️', '⛵', '🗺️', '🏰', '🏛️'
 ];
 
+const PREDEFINED_ALLERGIES = [
+  'Peanuts', 'Shellfish', 'Fish', 'Eggs',
+  'Soy', 'Sesame', 'Pollen', 'Dust Mites'
+];
+
+const ALLERGY_METADATA: Record<string, { emoji: string; lightBg: string; darkBg: string; lightText: string; darkText: string }> = {
+  'Peanuts': { emoji: '🥜', lightBg: '#fef3c7', darkBg: '#451a03', lightText: '#92400e', darkText: '#fde68a' },
+  'Tree Nuts': { emoji: '🌰', lightBg: '#ffedd5', darkBg: '#431407', lightText: '#9a3412', darkText: '#fed7aa' },
+  'Shellfish': { emoji: '🦐', lightBg: '#ffe4e6', darkBg: '#4c0519', lightText: '#e11d48', darkText: '#fecdd3' },
+  'Fish': { emoji: '🐟', lightBg: '#3b82f6', darkBg: '#1d4ed8', lightText: '#ffffff', darkText: '#ffffff' }, // Vibrant blue
+  'Eggs': { emoji: '🥚', lightBg: '#fef9c3', darkBg: '#422006', lightText: '#a16207', darkText: '#fef08a' },
+  'Soy': { emoji: '🫘', lightBg: '#dcfce7', darkBg: '#052e16', lightText: '#15803d', darkText: '#bbf7d0' },
+  'Sesame': { emoji: '🧆', lightBg: '#a1bdf5ff', darkBg: '#28497eff', lightText: '#1f2937', darkText: '#f3f4f6' },
+  'Latex': { emoji: '🧤', lightBg: '#f3e8ff', darkBg: '#3b0764', lightText: '#7e22ce', darkText: '#e9d5ff' },
+  'Penicillin': { emoji: '💊', lightBg: '#fce7f3', darkBg: '#500724', lightText: '#be185d', darkText: '#fbcfe8' },
+  'Bee Stings': { emoji: '🐝', lightBg: '#fef3c7', darkBg: '#451a03', lightText: '#92400e', darkText: '#fde68a' },
+  'Pollen': { emoji: '🌸', lightBg: '#fce7f3', darkBg: '#500724', lightText: '#be185d', darkText: '#fbcfe8' },
+  'Dust Mites': { emoji: '🦠', lightBg: '#e0f2fe', darkBg: '#082f49', lightText: '#0369a1', darkText: '#bae6fd' },
+};
+
 type SheetType = 'Account' | 'Skin' | 'Diet' | 'Travel' | 'Units' | 'About' | 'Theme' | null;
 
 export default function ProfileScreen() {
@@ -47,6 +67,7 @@ export default function ProfileScreen() {
   const [showToast, setShowToast] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [cityError, setCityError] = useState<string | null>(null);
+  const [customAllergyInput, setCustomAllergyInput] = useState('');
 
   const validateCity = async (cityName: string): Promise<{ name: string; exists: boolean }> => {
     if (!cityName.trim()) return { name: '', exists: true };
@@ -327,44 +348,291 @@ export default function ProfileScreen() {
       );
     }
     if (activeSheet === 'Skin') {
+      const SKIN_TYPES = [
+        { id: 'dry', label: 'dry', emoji: '🏜️' },
+        { id: 'combination', label: 'combination', emoji: '🌗' },
+        { id: 'oily', label: 'oily', emoji: '💧' },
+        { id: 'reactive', label: 'reactive', emoji: '⚡' },
+      ];
+
       return (
-        <View style={{ gap: 18 }}>
-          <SegmentedControl
-            options={['dry', 'combination', 'oily', 'reactive']}
-            value={draft.skinType}
-            onChange={(v: any) => setDraft({ skinType: v })}
-          />
-          <View style={{ marginTop: 8 }}>
-            <ToggleRow title="Active retinoid routine" description="Tretinoin, retinal, retinol — paused when humid." value={draft.usesRetinoids} onValueChange={(v) => setDraft({ usesRetinoids: v })} />
-            <ToggleRow title="Benzoyl peroxide" description="Can stain hotel linens." value={draft.usesBenzoylPeroxide} onValueChange={(v) => setDraft({ usesBenzoylPeroxide: v })} />
-            <ToggleRow title="Chemical exfoliants" description="AHA / BHA — paused on sunny days." value={draft.usesChemicalExfoliants} onValueChange={(v) => setDraft({ usesChemicalExfoliants: v })} />
-            <ToggleRow title="Fragrance-free only" value={draft.fragranceFree} onValueChange={(v) => setDraft({ fragranceFree: v })} />
+        <View style={{ gap: 24 }}>
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+              <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 0 }]}>SKIN TYPE</Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {SKIN_TYPES.map(type => {
+                const isSelected = draft.skinType === type.id;
+                return (
+                  <TouchableOpacity
+                    key={type.id}
+                    activeOpacity={0.7}
+                    onPress={() => setDraft({ skinType: type.id as any })}
+                    style={{
+                      flexBasis: '48%',
+                      flexGrow: 1,
+                      backgroundColor: isSelected ? (colors.isDark ? '#374151' : '#e2e8f0') : colors.card,
+                      borderWidth: 1,
+                      borderColor: isSelected ? colors.foreground : colors.border,
+                      borderRadius: 12,
+                      paddingVertical: 16,
+                      alignItems: 'center',
+                      position: 'relative'
+                    }}
+                  >
+                    <Text style={{ fontSize: 20, marginBottom: 4 }}>{type.emoji}</Text>
+                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.foreground }}>{type.label}</Text>
+                    {isSelected && (
+                      <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: colors.foreground, borderRadius: 10, padding: 2 }}>
+                        <Feather name="check" size={10} color={colors.background} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          </View>
+
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+              <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 0 }]}>ACTIVE ROUTINES</Text>
+            </View>
+            <View style={{}}>
+              <ToggleRow title="🌙 Active retinoid routine" description="Tretinoin, retinal, retinol — paused when humid." value={draft.usesRetinoids} onValueChange={(v) => setDraft({ usesRetinoids: v })} />
+              <ToggleRow title="🧴 Benzoyl peroxide" description="Can stain hotel linens." value={draft.usesBenzoylPeroxide} onValueChange={(v) => setDraft({ usesBenzoylPeroxide: v })} />
+              <ToggleRow title="✨ Chemical exfoliants" description="AHA / BHA — paused on sunny days." value={draft.usesChemicalExfoliants} onValueChange={(v) => setDraft({ usesChemicalExfoliants: v })} />
+              <ToggleRow title="🌸 Fragrance-free only" value={draft.fragranceFree} onValueChange={(v) => setDraft({ fragranceFree: v })} />
+            </View>
           </View>
         </View>
       );
     }
     if (activeSheet === 'Diet') {
+      // Safely ensure arrays exist in draft
+      const draftAllergies = draft.allergies || [];
+      const draftCustom = draft.customAllergies || [];
+
+      const togglePredefined = (allergy: string) => {
+        if (draftAllergies.includes(allergy)) {
+          setDraft({ allergies: draftAllergies.filter((a: string) => a !== allergy) });
+        } else {
+          setDraft({ allergies: [...draftAllergies, allergy] });
+        }
+      };
+
+      const addCustomAllergy = () => {
+        const trimmed = customAllergyInput.trim();
+        if (trimmed && !draftCustom.includes(trimmed)) {
+          setDraft({ customAllergies: [...draftCustom, trimmed] });
+          setCustomAllergyInput('');
+        }
+      };
+
+      const removeCustomAllergy = (allergy: string) => {
+        setDraft({ customAllergies: draftCustom.filter((a: string) => a !== allergy) });
+      };
+
       return (
-        <View style={{ gap: 12 }}>
-          <ToggleRow title="Sodium sensitive" description="Watch out for salty dishes." value={draft.sodiumSensitive} onValueChange={(v) => setDraft({ sodiumSensitive: v })} />
-          <ToggleRow title="Caffeine limit" description="Keep caffeine under ~200mg/day." value={draft.caffeineLimit} onValueChange={(v) => setDraft({ caffeineLimit: v })} />
-          <ToggleRow title="Gluten-free" value={draft.glutenFree} onValueChange={(v) => setDraft({ glutenFree: v })} />
-          <ToggleRow title="Dairy-free" value={draft.dairyFree} onValueChange={(v) => setDraft({ dairyFree: v })} />
-          <ToggleRow title="Shellfish allergy" value={draft.shellfishAllergy} onValueChange={(v) => setDraft({ shellfishAllergy: v })} />
-          <ToggleRow title="Peanut allergy" value={draft.peanutAllergy} onValueChange={(v) => setDraft({ peanutAllergy: v })} />
+        <View style={{ gap: 24 }}>
+          {/* Dietary Sensitivities (Toggles) */}
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+              <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 0 }]}>SENSITIVITIES & DIET</Text>
+            </View>
+            <View style={{}}>
+              <ToggleRow title="🧂 Sodium sensitive" description="Watch out for salty dishes." value={draft.sodiumSensitive} onValueChange={(v) => setDraft({ sodiumSensitive: v })} />
+              <ToggleRow title="☕ Caffeine limit" description="Keep caffeine under ~200mg/day." value={draft.caffeineLimit} onValueChange={(v) => setDraft({ caffeineLimit: v })} />
+              <ToggleRow title="🌾 Gluten-free" value={draft.glutenFree} onValueChange={(v) => setDraft({ glutenFree: v })} />
+              <ToggleRow title="🥛 Dairy-free" value={draft.dairyFree} onValueChange={(v) => setDraft({ dairyFree: v })} />
+            </View>
+          </View>
+
+          {/* Medical Allergies (Pill Grid) */}
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#ef4444' }} />
+              <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 0 }]}>CLINICAL ALLERGIES</Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {PREDEFINED_ALLERGIES.map(allergy => {
+                const isActive = draftAllergies.includes(allergy);
+                const meta = ALLERGY_METADATA[allergy];
+                const activeBg = colors.isDark ? meta.darkBg : meta.lightBg;
+                const activeText = colors.isDark ? meta.darkText : meta.lightText;
+
+                return (
+                  <TouchableOpacity
+                    key={allergy}
+                    activeOpacity={0.7}
+                    onPress={() => togglePredefined(allergy)}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 999,
+                      backgroundColor: isActive ? activeBg : colors.muted,
+                      borderWidth: 1,
+                      borderColor: isActive ? activeBg : colors.border,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Text style={{
+                      fontFamily: 'Inter_500Medium',
+                      fontSize: 13,
+                      color: isActive ? activeText : colors.foreground
+                    }}>
+                      {meta.emoji} {allergy}
+                    </Text>
+                    {isActive && (
+                      <Feather name="x" size={12} color={activeText} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* Render Custom Added Allergies */}
+              {draftCustom.map(allergy => (
+                <TouchableOpacity
+                  key={`custom-${allergy}`}
+                  activeOpacity={0.7}
+                  onPress={() => removeCustomAllergy(allergy)}
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    backgroundColor: colors.isDark ? '#4c1d95' : '#ede9fe', // A subtle purple to indicate "custom"
+                    borderWidth: 1,
+                    borderColor: colors.isDark ? '#6d28d9' : '#c4b5fd',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.isDark ? '#ddd6fe' : '#5b21b6' }}>
+                    {allergy}
+                  </Text>
+                  <Feather name="x" size={12} color={colors.isDark ? '#ddd6fe' : '#5b21b6'} />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Custom Input Field */}
+            <View style={{ marginTop: 12, flexDirection: 'row', gap: 8 }}>
+              <TextInput
+                style={[styles.input, { flex: 1, borderColor: colors.border, color: colors.foreground, paddingVertical: 10 }]}
+                placeholder="Add other allergy..."
+                placeholderTextColor={colors.mutedForeground}
+                value={customAllergyInput}
+                onChangeText={setCustomAllergyInput}
+                onSubmitEditing={addCustomAllergy}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, width: 44, alignItems: 'center', justifyContent: 'center' }}
+                onPress={addCustomAllergy}
+              >
+                <Feather name="plus" size={18} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       );
     }
     if (activeSheet === 'Travel') {
+      const ACTIVITY_LEVELS = [
+        { id: 'low', label: 'low', emoji: '🧘‍♂️' },
+        { id: 'moderate', label: 'moderate', emoji: '🚶' },
+        { id: 'high', label: 'high', emoji: '⛰️' },
+      ];
+
+      const TRAVEL_TYPES = [
+        { id: 'business', label: 'business', emoji: '💼' },
+        { id: 'vacation', label: 'vacation', emoji: '🌴' },
+        { id: 'adventure', label: 'adventure', emoji: '🧭' },
+        { id: 'wellness', label: 'wellness', emoji: '🌿' },
+      ];
+
       return (
         <View style={{ gap: 24 }}>
           <View>
-            <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 8 }]}>ACTIVITY LEVEL</Text>
-            <SegmentedControl options={['low', 'moderate', 'high']} value={draft.activityLevel} onChange={(v: any) => setDraft({ activityLevel: v })} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' }} />
+              <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 0 }]}>ACTIVITY LEVEL</Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {ACTIVITY_LEVELS.map(level => {
+                const isSelected = draft.activityLevel === level.id;
+                return (
+                  <TouchableOpacity
+                    key={level.id}
+                    activeOpacity={0.7}
+                    onPress={() => setDraft({ activityLevel: level.id as any })}
+                    style={{
+                      flexBasis: '30%',
+                      flexGrow: 1,
+                      backgroundColor: isSelected ? (colors.isDark ? '#374151' : '#e2e8f0') : colors.card,
+                      borderWidth: 1,
+                      borderColor: isSelected ? colors.foreground : colors.border,
+                      borderRadius: 12,
+                      paddingVertical: 16,
+                      alignItems: 'center',
+                      position: 'relative'
+                    }}
+                  >
+                    <Text style={{ fontSize: 20, marginBottom: 4 }}>{level.emoji}</Text>
+                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.foreground }}>{level.label}</Text>
+                    {isSelected && (
+                      <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: colors.foreground, borderRadius: 10, padding: 2 }}>
+                        <Feather name="check" size={10} color={colors.background} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
           </View>
+
           <View>
-            <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 8 }]}>TRAVEL TYPE</Text>
-            <SegmentedControl options={['business', 'vacation', 'adventure', 'wellness']} value={draft.travelType} onChange={(v: any) => setDraft({ travelType: v })} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' }} />
+              <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 0 }]}>TRAVEL TYPE</Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {TRAVEL_TYPES.map(type => {
+                const isSelected = draft.travelType === type.id;
+                return (
+                  <TouchableOpacity
+                    key={type.id}
+                    activeOpacity={0.7}
+                    onPress={() => setDraft({ travelType: type.id as any })}
+                    style={{
+                      flexBasis: '48%',
+                      flexGrow: 1,
+                      backgroundColor: isSelected ? (colors.isDark ? '#374151' : '#e2e8f0') : colors.card,
+                      borderWidth: 1,
+                      borderColor: isSelected ? colors.foreground : colors.border,
+                      borderRadius: 12,
+                      paddingVertical: 16,
+                      alignItems: 'center',
+                      position: 'relative'
+                    }}
+                  >
+                    <Text style={{ fontSize: 20, marginBottom: 4 }}>{type.emoji}</Text>
+                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.foreground }}>{type.label}</Text>
+                    {isSelected && (
+                      <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: colors.foreground, borderRadius: 10, padding: 2 }}>
+                        <Feather name="check" size={10} color={colors.background} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
           </View>
         </View>
       );
@@ -407,7 +675,7 @@ export default function ProfileScreen() {
   const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   const skinActiveCount = [profile.usesRetinoids, profile.usesBenzoylPeroxide, profile.usesChemicalExfoliants, profile.fragranceFree].filter(Boolean).length;
-  const dietActiveCount = [profile.sodiumSensitive, profile.caffeineLimit, profile.glutenFree, profile.dairyFree, profile.shellfishAllergy, profile.peanutAllergy].filter(Boolean).length;
+  const dietActiveCount = [profile.sodiumSensitive, profile.caffeineLimit, profile.glutenFree, profile.dairyFree].filter(Boolean).length + (profile.allergies?.length || 0) + (profile.customAllergies?.length || 0);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -448,32 +716,58 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </Card>
 
-        <SettingsGroup title="HEALTH BASELINE">
-          <SettingsRow
-            icon={<Feather name="droplet" size={16} color={colors.isDark ? '#bae6fd' : '#1d4e89'} />}
-            iconBackgroundColor={colors.muted}
-            label="Skin & body"
-            description={`${capitalize(profile.skinType)}${skinActiveCount > 0 ? ` • ${skinActiveCount} active` : ''}`}
-            rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />}
-            onPress={() => setActiveSheet('Skin')}
-          />
-          <SettingsRow
-            icon={<Feather name="coffee" size={16} color={colors.accent} />}
-            iconBackgroundColor={colors.muted}
-            label="Diet & allergies"
-            description={dietActiveCount > 0 ? `${dietActiveCount} restriction(s) active` : 'None set'}
-            rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />}
-            onPress={() => setActiveSheet('Diet')}
-          />
-          <SettingsRow
-            icon={<Feather name="briefcase" size={16} color={colors.isDark ? '#86efac' : '#15803d'} />}
-            iconBackgroundColor={colors.muted}
-            label="Travel context"
-            description={`${capitalize(profile.travelType)} • ${capitalize(profile.activityLevel)} activity`}
-            rightElement={<Feather name="chevron-right" size={20} color={colors.mutedForeground} />}
-            onPress={() => setActiveSheet('Travel')}
-          />
-        </SettingsGroup>
+        <View style={{ marginBottom: 24 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginLeft: 4 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.mutedForeground }} />
+            <Text style={[styles.groupTitle, { color: colors.mutedForeground, marginBottom: 0, marginLeft: 0 }]}>HEALTH BASELINE</Text>
+          </View>
+          <View style={{ gap: 8 }}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setActiveSheet('Skin')}
+              style={[styles.healthCard, { backgroundColor: colors.isDark ? 'rgba(59, 130, 246, 0.1)' : '#e0f2fe', borderColor: colors.isDark ? 'rgba(59, 130, 246, 0.2)' : '#bae6fd' }]}
+            >
+              <View style={[styles.healthIconBox, { backgroundColor: '#3b82f6' }]}>
+                <Feather name="droplet" size={16} color="#fff" />
+              </View>
+              <View style={styles.healthTextCol}>
+                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Skin & body</Text>
+                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{`${capitalize(profile.skinType)}${skinActiveCount > 0 ? ` • ${skinActiveCount} active` : ''}`}</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setActiveSheet('Diet')}
+              style={[styles.healthCard, { backgroundColor: colors.isDark ? 'rgba(249, 115, 22, 0.1)' : '#ffedd5', borderColor: colors.isDark ? 'rgba(249, 115, 22, 0.2)' : '#fed7aa' }]}
+            >
+              <View style={[styles.healthIconBox, { backgroundColor: '#f97316' }]}>
+                <Feather name="shield" size={16} color="#fff" />
+              </View>
+              <View style={styles.healthTextCol}>
+                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Diet & allergies</Text>
+                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{dietActiveCount > 0 ? `${dietActiveCount} restriction(s) active` : 'None set'}</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setActiveSheet('Travel')}
+              style={[styles.healthCard, { backgroundColor: colors.isDark ? 'rgba(34, 197, 94, 0.1)' : '#dcfce7', borderColor: colors.isDark ? 'rgba(34, 197, 94, 0.2)' : '#bbf7d0' }]}
+            >
+              <View style={[styles.healthIconBox, { backgroundColor: '#22c55e' }]}>
+                <Feather name="compass" size={16} color="#fff" />
+              </View>
+              <View style={styles.healthTextCol}>
+                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Travel context</Text>
+                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{`${capitalize(profile.travelType)} • ${capitalize(profile.activityLevel)} activity`}</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+        </View>
 
         <SettingsGroup title="APP PREFERENCES">
           <SettingsRow
@@ -639,10 +933,39 @@ const styles = StyleSheet.create({
   identityName: { fontFamily: 'Inter_700Bold', fontSize: 18, letterSpacing: -0.3 },
   identityEmail: { fontFamily: 'Inter_400Regular', fontSize: 13 },
   identityMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  identityCity: { fontFamily: 'Inter_500Medium', fontSize: 12 },
-  editBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  identityCity: { fontFamily: 'Inter_500Medium', fontSize: 13 },
+  editBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   signOutBtn: { width: '100%', paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center', marginBottom: 20 },
   signOutText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+
+  healthCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  healthIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  healthTextCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  healthLabel: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
+  },
+  healthDesc: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    marginTop: 2,
+  },
 
   toast: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
   toastText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
@@ -654,7 +977,18 @@ const styles = StyleSheet.create({
   sheetActionText: { fontFamily: 'Inter_500Medium', fontSize: 15 },
   sheetTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
 
-  inputHint: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.4, marginTop: 8 },
+  inputHint: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  groupTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
   hintTop: { fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 6 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontFamily: 'Inter_500Medium', fontSize: 15 },
   errorText: {

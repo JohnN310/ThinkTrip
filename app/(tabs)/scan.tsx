@@ -108,6 +108,31 @@ export default function ScanScreen() {
   // NEW: One-Time Welcome Guide State
   const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
 
+  // --- Welcome Guide Scroll State ---
+  const welcomeScrollRef = useRef<ScrollView>(null);
+  const [welcomeScrollHeight, setWelcomeScrollHeight] = useState(0);
+  const [welcomeContentHeight, setWelcomeContentHeight] = useState(0);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const isWelcomeScrollable = welcomeContentHeight > welcomeScrollHeight;
+
+  const handleWelcomeScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 20) {
+      setIsAtBottom(true);
+    } else {
+      setIsAtBottom(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isWelcomeScrollable) {
+      setIsAtBottom(false);
+    } else {
+      setIsAtBottom(true);
+    }
+  }, [isWelcomeScrollable]);
+
   useFocusEffect(
     useCallback(() => {
       if (!hydrated) return;
@@ -1336,10 +1361,17 @@ export default function ScanScreen() {
       {/* ─── FIRST-TIME WELCOME GUIDE (with mascot) ─── */}
       <Modal visible={showWelcomeGuide} transparent animationType="fade">
         <View style={[styles.modalBackdrop, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-          <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '90%' }]}>
+          <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
 
-            {/* Added ScrollView to prevent overflow on smaller devices with the new content */}
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+            <ScrollView 
+              ref={welcomeScrollRef}
+              showsVerticalScrollIndicator={false} 
+              contentContainerStyle={{ paddingBottom: 80 }} // Room for the floating button
+              onLayout={(e) => setWelcomeScrollHeight(e.nativeEvent.layout.height)}
+              onContentSizeChange={(w, h) => setWelcomeContentHeight(h)}
+              onScroll={handleWelcomeScroll}
+              scrollEventThrottle={16}
+            >
 
               {/* Mascot hero band */}
               <View style={[styles.welcomeHero, { backgroundColor: colors.muted }]}>
@@ -1383,7 +1415,7 @@ export default function ScanScreen() {
                 })}
               </View>
 
-              {/* NEW: Quick Tips Section for Feature Discovery */}
+              {/* Quick Tips Section for Feature Discovery */}
               <View style={{ marginTop: 8, marginBottom: 28, paddingTop: 24, borderTopWidth: 1, borderColor: colors.border }}>
                 <Text style={[styles.welcomeModeTitle, { color: colors.foreground, marginBottom: 16 }]}>QUICK TIPS</Text>
 
@@ -1410,17 +1442,37 @@ export default function ScanScreen() {
                   </View>
                 </View>
               </View>
-
-              <TouchableOpacity
-                style={[styles.welcomeBtn, { backgroundColor: colors.primary }]}
-                onPress={dismissWelcomeGuide}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.welcomeBtnText, { color: colors.primaryForeground }]}>Let's go</Text>
-                <Feather name="arrow-right" size={18} color={colors.primaryForeground} style={{ marginLeft: 8 }} />
-              </TouchableOpacity>
-
             </ScrollView>
+
+            {/* Fixed Bottom Right Action Button */}
+            <TouchableOpacity
+              style={[
+                styles.welcomeBtnFixed, 
+                { backgroundColor: (!isWelcomeScrollable || isAtBottom) ? colors.primary : colors.muted }
+              ]}
+              onPress={() => {
+                if (!isWelcomeScrollable || isAtBottom) {
+                  dismissWelcomeGuide();
+                } else {
+                  welcomeScrollRef.current?.scrollToEnd({ animated: true });
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={[
+                styles.welcomeBtnText, 
+                { color: (!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground }
+              ]}>
+                {(!isWelcomeScrollable || isAtBottom) ? "Let's go" : "Scroll down"}
+              </Text>
+              <Feather 
+                name={(!isWelcomeScrollable || isAtBottom) ? "arrow-right" : "arrow-down"} 
+                size={18} 
+                color={(!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground} 
+                style={{ marginLeft: 8 }} 
+              />
+            </TouchableOpacity>
+
           </View>
         </View>
       </Modal>
@@ -1715,13 +1767,17 @@ const styles = StyleSheet.create({
   // ─── Welcome Guide Styles ───
   welcomeCard: {
     width: '100%',
+    height: '85%',
+    maxHeight: 700,
     borderRadius: 24,
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 24,
     borderWidth: 1,
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 10,
+    overflow: 'hidden'
   },
   welcomeIconBox: {
     width: 52,
@@ -1738,7 +1794,23 @@ const styles = StyleSheet.create({
   welcomeModeIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   welcomeModeTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, letterSpacing: 1, marginBottom: 2 },
   welcomeModeDesc: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
-  welcomeBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  // Add this new style for the absolute pinned button
+  welcomeBtnFixed: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 999, // Pill shape
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6
+  },
   welcomeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
   welcomeHero: {
     height: 170,

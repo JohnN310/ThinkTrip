@@ -66,6 +66,33 @@ export default function PlanScreen() {
   const [trueLiveWeather, setTrueLiveWeather] = useState<any>(null);
 
   const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
+
+  // --- Welcome Guide Scroll State ---
+  const welcomeScrollRef = useRef<ScrollView>(null);
+  const [welcomeScrollHeight, setWelcomeScrollHeight] = useState(0);
+  const [welcomeContentHeight, setWelcomeContentHeight] = useState(0);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const isWelcomeScrollable = welcomeContentHeight > welcomeScrollHeight;
+
+  const handleWelcomeScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    // 20px threshold to comfortably trigger "at bottom"
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 20) {
+      setIsAtBottom(true);
+    } else {
+      setIsAtBottom(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isWelcomeScrollable) {
+      setIsAtBottom(false);
+    } else {
+      setIsAtBottom(true);
+    }
+  }, [isWelcomeScrollable]);
+
   // Use state (not a ref) so that when the timer fires a re-render occurs,
   // which lets the useEffect below react even if the tab is already focused.
   const [guideReady, setGuideReady] = useState(false);
@@ -1409,9 +1436,17 @@ export default function PlanScreen() {
       {/* ─── FIRST-TIME WELCOME GUIDE (with mascot) ─── */}
       <Modal visible={showWelcomeGuide} transparent animationType="fade">
         <View style={[styles.modalBackdrop, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-          <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border, maxHeight: '90%' }]}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
-
+          <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            
+            <ScrollView 
+              ref={welcomeScrollRef}
+              showsVerticalScrollIndicator={false} 
+              contentContainerStyle={{ paddingBottom: 80 }} // Leaves room for the floating button
+              onLayout={(e) => setWelcomeScrollHeight(e.nativeEvent.layout.height)}
+              onContentSizeChange={(w, h) => setWelcomeContentHeight(h)}
+              onScroll={handleWelcomeScroll}
+              scrollEventThrottle={16}
+            >
               <View style={[styles.welcomeHero, { backgroundColor: colors.muted }]}>
                 <View style={styles.welcomeHeroOrb} />
                 <View style={styles.welcomeHeroOrb2} />
@@ -1467,17 +1502,38 @@ export default function PlanScreen() {
                   </View>
                 </View>
               </View>
-
-              <TouchableOpacity
-                style={[styles.welcomeBtn, { backgroundColor: colors.primary }]}
-                onPress={dismissWelcomeGuide}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.welcomeBtnText, { color: colors.primaryForeground }]}>Let's go</Text>
-                <Feather name="arrow-right" size={18} color={colors.primaryForeground} style={{ marginLeft: 8 }} />
-              </TouchableOpacity>
-
             </ScrollView>
+
+            {/* Fixed Bottom Right Action Button */}
+            <TouchableOpacity
+              style={[
+                styles.welcomeBtnFixed, 
+                { backgroundColor: (!isWelcomeScrollable || isAtBottom) ? colors.primary : colors.muted }
+              ]}
+              onPress={() => {
+                if (!isWelcomeScrollable || isAtBottom) {
+                  dismissWelcomeGuide();
+                } else {
+                  // User needs to scroll down
+                  welcomeScrollRef.current?.scrollToEnd({ animated: true });
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={[
+                styles.welcomeBtnText, 
+                { color: (!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground }
+              ]}>
+                {(!isWelcomeScrollable || isAtBottom) ? "Let's go" : "Scroll down"}
+              </Text>
+              <Feather 
+                name={(!isWelcomeScrollable || isAtBottom) ? "arrow-right" : "arrow-down"} 
+                size={18} 
+                color={(!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground} 
+                style={{ marginLeft: 8 }} 
+              />
+            </TouchableOpacity>
+
           </View>
         </View>
       </Modal>
@@ -1575,7 +1631,20 @@ const styles = StyleSheet.create({
   suggestionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
   suggestionText: { fontFamily: 'Inter_500Medium', fontSize: 14, flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  welcomeCard: { width: '100%', borderRadius: 24, padding: 24, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
+  welcomeCard: { 
+    width: '100%', 
+    height: '85%',     // Fixes the height to exactly 85% of whatever screen it's on
+    maxHeight: 700,    // Ensures it doesn't get ridiculously large on iPads/tablets
+    borderRadius: 24, 
+    paddingHorizontal: 24, 
+    paddingTop: 24,
+    borderWidth: 1, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.15, 
+    shadowRadius: 20, 
+    elevation: 10,
+    overflow: 'hidden' // Keeps the inner scroll view contained
+  },
   welcomeHero: { width: '100%', height: 160, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 24, overflow: 'hidden' },
   welcomeHeroOrb: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)', top: -40, left: -40 },
   welcomeHeroOrb2: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.03)', bottom: -20, right: -20 },
@@ -1589,6 +1658,21 @@ const styles = StyleSheet.create({
   welcomeModeIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   welcomeModeTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 14, letterSpacing: 0.5, marginBottom: 4 },
   welcomeModeDesc: { fontFamily: 'Inter_500Medium', fontSize: 14, lineHeight: 20 },
-  welcomeBtn: { width: '100%', paddingVertical: 16, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  welcomeBtnFixed: { 
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 14, 
+    borderRadius: 999, // Pill shape
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6
+  },
   welcomeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
 });

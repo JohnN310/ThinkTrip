@@ -13,8 +13,9 @@ export interface ProfileContextState {
   caffeineLimit: boolean;
   glutenFree: boolean;
   dairyFree: boolean;
-  shellfishAllergy: boolean;
-  peanutAllergy: boolean;
+  // NEW: Replace boolean allergies with dynamic arrays
+  allergies: string[]; 
+  customAllergies: string[];
   activityLevel: "low" | "moderate" | "high";
   travelType: "business" | "vacation" | "adventure" | "wellness";
   units: "metric" | "imperial";
@@ -185,7 +186,11 @@ export const buildPackingList = (
 
   // ─── SYSTEMIC & DIETARY HEALTH ───
 
-  if (profile.shellfishAllergy || profile.peanutAllergy) {
+  // 1. Severe Anaphylaxis Risks (Triggers EpiPen)
+  const severeRisks = ['Peanuts', 'Tree Nuts', 'Shellfish', 'Fish', 'Bee Stings', 'Latex', 'Penicillin'];
+  const hasSevereAllergy = profile.allergies?.some(a => severeRisks.includes(a));
+
+  if (hasSevereAllergy) {
     add('essential', 'Systemic & Dietary', 'EpiPen (2x) & Antihistamines', 'Critical allergy protocol. Keep accessible in your personal carry-on.', '💉',
       "Language barriers and unfamiliar ingredients dramatically increase the risk of accidental allergen exposure. You must carry immediate anaphylaxis treatments on your person at all times.",
       [
@@ -198,6 +203,27 @@ export const buildPackingList = (
       [
         { brand: 'Equal Eats', name: 'Custom Plastic Allergy Translation Card', price: '$15.00', query: 'Equal Eats Translation Card' }
       ]
+    );
+  }
+
+  // 2. Environmental Allergies (Triggers Antihistamines)
+  const hasEnvironmentalAllergy = profile.allergies?.some(a => ['Pollen', 'Dust Mites'].includes(a));
+  if (hasEnvironmentalAllergy) {
+    add('recommended', 'Systemic & Dietary', 'Non-drowsy Antihistamines', 'Recommended for environmental allergen exposure in new climates.', '🤧',
+      "Different regions harbor completely different pollen and dust profiles. A daily non-drowsy antihistamine prevents sudden flare-ups from local flora.",
+      [
+        { brand: 'Zyrtec', name: '24 Hour Allergy Relief', price: '$18.00', query: 'Zyrtec 24 Hour Allergy Relief' },
+        { brand: 'Claritin', name: 'Non-Drowsy Allergy Tablets', price: '$15.00', query: 'Claritin Allergy Tablets' }
+      ]
+    );
+  }
+
+  // 3. Custom Free-Text Allergies (Catch-all reminder)
+  if (profile.customAllergies && profile.customAllergies.length > 0) {
+    add('essential', 'Systemic & Dietary', 'Personalized allergy medication', 'Bring specific medications for your custom logged allergies.', '🩹',
+      `You noted specific allergies (${profile.customAllergies.join(', ')}). Ensure you pack all necessary personalized prescriptions and over-the-counter remedies.`,
+      [],
+      DRUG_WARNING
     );
   }
 
