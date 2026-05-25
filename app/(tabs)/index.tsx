@@ -1107,39 +1107,52 @@ export default function PlanScreen() {
               </View>
             </Card>
           ) : (
-            <View style={{ gap: 14 }}>
+            <View style={{ gap: 24 }}>
               {groupedPacking.map((group) => (
                 <View key={group.category}>
-                  <View style={styles.categoryHeader}>
-                    <Feather name={CATEGORY_ICONS[group.category] as any} size={13} color={colors.mutedForeground} />
-                    <Text style={[styles.categoryLabel, { color: colors.mutedForeground }]}>{group.category}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginLeft: 4 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.mutedForeground }} />
+                    <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.2, color: colors.mutedForeground, textTransform: 'uppercase' }}>
+                      {group.category}
+                    </Text>
                   </View>
-                  <Card padded={false}>
+                  <View style={{ gap: 6 }}>
                     {group.items.map((item, index) => {
-
                       return (
-                        <View key={item.id}>
-                          {index > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
-                          <TouchableOpacity
-                            style={styles.packingRow}
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
-                              openPackingSheet(item);
-                            }}
-                          >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
-                              {item.emoji && <Text style={{ fontSize: 16 }}>{item.emoji}</Text>}
-                              <Text style={[styles.packingTitle, { color: colors.foreground, flex: 1, fontSize: 15 }]} numberOfLines={1}>
-                                {item.title}
-                              </Text>
-                            </View>
-                            <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-                          </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity
+                          key={item.id}
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
+                            openPackingSheet(item);
+                          }}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            padding: 16,
+                            borderRadius: 16,
+                            borderWidth: 1,
+                            gap: 16,
+                            backgroundColor: colors.card,
+                            borderColor: colors.border
+                          }}
+                        >
+                          <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+                            <Feather name={(item as any).icon || "check"} size={20} color={colors.foreground} />
+                          </View>
+                          <View style={{ flex: 1, gap: 4 }}>
+                            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 16, color: colors.foreground }}>
+                              {item.title}
+                            </Text>
+                            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.mutedForeground }} numberOfLines={1}>
+                              {item.reason}
+                            </Text>
+                          </View>
+                          <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+                        </TouchableOpacity>
                       );
                     })}
-                  </Card>
+                  </View>
                 </View>
               ))}
             </View>
@@ -1360,7 +1373,7 @@ export default function PlanScreen() {
               <ScrollView contentContainerStyle={{ paddingHorizontal: 20, gap: 20, paddingBottom: 20 }}>
                 {/* Header */}
                 <View style={{ gap: 4, alignItems: 'center', marginBottom: 10 }}>
-                  <Text style={{ fontSize: 32 }}>{selectedPackingItem.emoji}</Text>
+                  <Feather name={(selectedPackingItem as any).icon || "check"} size={32} color={colors.foreground} style={{ marginBottom: 8 }} />
                   <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: colors.foreground, textAlign: 'center' }}>
                     {selectedPackingItem.title}
                   </Text>
@@ -1437,10 +1450,10 @@ export default function PlanScreen() {
       <Modal visible={showWelcomeGuide} transparent animationType="fade">
         <View style={[styles.modalBackdrop, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
           <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            
-            <ScrollView 
+
+            <ScrollView
               ref={welcomeScrollRef}
-              showsVerticalScrollIndicator={false} 
+              showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 80 }} // Leaves room for the floating button
               onLayout={(e) => setWelcomeScrollHeight(e.nativeEvent.layout.height)}
               onContentSizeChange={(w, h) => setWelcomeContentHeight(h)}
@@ -1507,7 +1520,7 @@ export default function PlanScreen() {
             {/* Fixed Bottom Right Action Button */}
             <TouchableOpacity
               style={[
-                styles.welcomeBtnFixed, 
+                styles.welcomeBtnFixed,
                 { backgroundColor: (!isWelcomeScrollable || isAtBottom) ? colors.primary : colors.muted }
               ]}
               onPress={() => {
@@ -1521,16 +1534,16 @@ export default function PlanScreen() {
               activeOpacity={0.85}
             >
               <Text style={[
-                styles.welcomeBtnText, 
+                styles.welcomeBtnText,
                 { color: (!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground }
               ]}>
                 {(!isWelcomeScrollable || isAtBottom) ? "Let's go" : "Scroll down"}
               </Text>
-              <Feather 
-                name={(!isWelcomeScrollable || isAtBottom) ? "arrow-right" : "arrow-down"} 
-                size={18} 
-                color={(!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground} 
-                style={{ marginLeft: 8 }} 
+              <Feather
+                name={(!isWelcomeScrollable || isAtBottom) ? "arrow-right" : "arrow-down"}
+                size={18}
+                color={(!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground}
+                style={{ marginLeft: 8 }}
               />
             </TouchableOpacity>
 
@@ -1631,17 +1644,17 @@ const styles = StyleSheet.create({
   suggestionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
   suggestionText: { fontFamily: 'Inter_500Medium', fontSize: 14, flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  welcomeCard: { 
-    width: '100%', 
+  welcomeCard: {
+    width: '100%',
     height: '85%',     // Fixes the height to exactly 85% of whatever screen it's on
     maxHeight: 700,    // Ensures it doesn't get ridiculously large on iPads/tablets
-    borderRadius: 24, 
-    paddingHorizontal: 24, 
+    borderRadius: 24,
+    paddingHorizontal: 24,
     paddingTop: 24,
-    borderWidth: 1, 
-    shadowColor: '#000', 
-    shadowOpacity: 0.15, 
-    shadowRadius: 20, 
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
     elevation: 10,
     overflow: 'hidden' // Keeps the inner scroll view contained
   },
@@ -1658,15 +1671,15 @@ const styles = StyleSheet.create({
   welcomeModeIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   welcomeModeTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 14, letterSpacing: 0.5, marginBottom: 4 },
   welcomeModeDesc: { fontFamily: 'Inter_500Medium', fontSize: 14, lineHeight: 20 },
-  welcomeBtnFixed: { 
+  welcomeBtnFixed: {
     position: 'absolute',
     bottom: 24,
     right: 24,
     paddingHorizontal: 24,
-    paddingVertical: 14, 
+    paddingVertical: 14,
     borderRadius: 999, // Pill shape
-    flexDirection: 'row', 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
