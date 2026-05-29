@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, Easing, TextInput, Keyboard, LayoutAnimation, UIManager, Linking, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, Easing, TextInput, Keyboard, LayoutAnimation, UIManager, Linking, Image, SectionList } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Svg, { Path, Ellipse, Circle, G, Line, Rect } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
@@ -18,6 +18,8 @@ import DolphinLoaderScreen from '../../components/DolphinLoaderScreen';
 import { DolphinMascot } from '../../components/DolphinMascot';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MenuData } from '../../lib/scanTypes';
+import { MenuItemRow, MenuCategoryHeader } from '../../components/MenuRenderer';
 const { width, height } = Dimensions.get('window');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -55,6 +57,7 @@ interface ScanResult {
   languageCode?: string;
   badges: { type: 'warn' | 'good' | 'info'; text: string }[];
   notes: { title: string; body: string }[];
+  menuData?: MenuData;
 }
 
 
@@ -81,6 +84,37 @@ export default function ScanScreen() {
 
   const [mode, setMode] = useState<Mode>('Menu');
   const [showModeInfo, setShowModeInfo] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategoryExpand = (categoryName: string) => {
+    // 1. Replace the basic easeInEaseOut with a custom, premium animation config
+    LayoutAnimation.configureNext({
+      duration: 300, // Slightly longer duration for a calmer feel
+      create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity, // Fades new items in smoothly
+      },
+      update: {
+        type: LayoutAnimation.Types.spring,
+        springDamping: 12, // Adds a very subtle, natural deceleration
+      },
+      delete: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity, // Fades items out when collapsing
+      },
+    });
+
+    // 2. State update remains exactly the same
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryName)) {
+        next.delete(categoryName);
+      } else {
+        next.add(categoryName);
+      }
+      return next;
+    });
+  };
 
   const MODE_DESCRIPTIONS: Record<Mode, string> = {
     Menu: "Scan restaurant or cafe menus to decode dishes, identify allergens, and get ordering tips.",
@@ -351,10 +385,8 @@ export default function ScanScreen() {
         glutenFree: profile.glutenFree,
         dairyFree: profile.dairyFree,
       },
-      allergies: {
-        shellfish: profile.shellfishAllergy,
-        peanut: profile.peanutAllergy,
-      },
+      allergies: profile.allergies,
+      customAllergies: profile.customAllergies,
       body: {
         activityLevel: profile.activityLevel,
       }
@@ -366,8 +398,9 @@ export default function ScanScreen() {
     const genAI = new GoogleGenerativeAI(apiKey);
     const generationConfig = {
       responseMimeType: "application/json",
+      maxOutputTokens: 8192,
     };
-    let model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview", generationConfig });
+    let model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite", generationConfig });
 
     const prompt = `
       You are the intelligence engine for "ThinkTrip", a premium, clinical, biometrically-aware travel OS. 
@@ -392,20 +425,30 @@ export default function ScanScreen() {
       2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS. Output pure text only. DO NOT USE PARAGRAPHS in the 'notes' section. The 'body' of EVERY note MUST be a strict bulleted list ("- "). 
       3. **BE RUTHLESSLY CONCISE:** Keep every bullet point to a maximum of 15 words. Prioritize quick scannability over complete sentences. (Note: The native phrase and phonetic spelling do not count towards this limit).
       4. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
-      5. **CULTURAL CONFIDENCE & NATIVE SCRIPT:** Single quotes are STRICTLY RESERVED for the native text-to-speech engine. You MUST use single quotes EXCLUSIVELY to wrap the actual native characters/script (e.g., '请问'). DO NOT use single quotes for ANY other purpose in the entire JSON. Do not use them for emphasis, concept names, English words, or translations. You MUST use the actual native characters/script for the language strictly inside the single quotes (e.g., use '请问', NOT 'Qǐng wèn'; use 'こんにちは', NOT 'Konnichiwa'). NEVER use Romanization (like Pinyin or Romaji) inside the single quotes, as native text-to-speech engines cannot read it. Place the official Romanization and the English-approximated phonetic pronunciation OUTSIDE the quotes in parentheses (e.g., '请问' (Qǐng wèn - ching wen)). DO NOT provide literal, word-by-word English translations of dish names. 
+      5. **CULTURAL CONFIDENCE & NATIVE SCRIPT:** Single quotes are STRICTLY RESERVED for the native text-to-speech engine. You MUST use single quotes EXCLUSIVELY to wrap the actual native characters/script (e.g., '请问') INSIDE your double-quoted JSON string values. CRITICAL: Output STRICTLY VALID JSON. ALL JSON keys and string values MUST be wrapped in double quotes (e.g., "nativeName": "'请问'"). NEVER use single quotes to wrap JSON properties or values. NEVER use Romanization (like Pinyin or Romaji) inside the single quotes, as native text-to-speech engines cannot read it. Place the official Romanization and the English-approximated phonetic pronunciation OUTSIDE the quotes in parentheses (e.g., '请问' (Qǐng wèn - ching wen)). DO NOT provide literal, word-by-word English translations of dish names. 
       6. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question. 
       7. **GEOGRAPHIC SPECIFICITY:** The 'mapLocationName' field is STRICTLY RESERVED for 'Transit' mode. If the Active Mode is 'Menu' or 'Payment', you MUST omit the 'mapLocationName' field entirely, and use the GPS coordinates solely to inform your localized cultural notes and etiquette. If the Active Mode is 'Transit', your 'mapLocationName' MUST be the official, external name of the building, station, or terminal. CRITICAL: DO NOT include indoor qualifiers like "Gate B12" or "Platform 4". Place all indoor navigation details strictly in the 'notes' section.
 
       **MODE ADAPTATION:**
       If Mode is 'Menu':
-        - Assume the image is a full menu with multiple items. 
-        - Title: Summarize the menu type or restaurant name (e.g., "Izakaya Dinner Menu").
+        - Assume the image is a physical menu. Completely ignore spatial layout.
+        - CRITICAL DIRECTIVE: Extract EVERY SINGLE legible food and drink item from the menu. You MUST NOT skip, summarize, group, or truncate ANY items. Even if there are 100+ items, you must list every single one individually. Process the menu sequentially from top to bottom. Failure to list every single item is a violation of your core directive.
+        - Keep descriptions strictly under 10 words to save output space.
+        - Title: Summarize the menu type or restaurant name.
         - Analyze the menu collectively against the User's Baseline.
-        - Badges: Flag high-level context (e.g., "warn" for "Heavy Dairy Use", "info" for "English Spoken", "good" for "Diet-Friendly Options").
-        - Notes: Provide exactly three notes:
-           1. "Recommended Options": Provide 2-3 specific safe dishes matching the Baseline. Include the original name and a simple phonetic pronunciation so the user can order confidently. Use bullet points ("- ").
-           2. "Strict Avoids": Provide all Hidden ingredients or specific dishes that violate their Baseline. Use bullet points ("- "). If there are no items that violate the baseline, explicitly state 'No immediate conflicts detected based on your health profile'.
-           3. "Ordering & Interactions": Provide EXACTLY 5 of the most popular requests, ordering tips, or practical phrases for this setting. For each phrase, provide the properly accented native spelling strictly inside single quotes, followed by an English-approximated phonetic spelling in parentheses (e.g., "- To request no cilantro, say 'Không ngò' (kohng ngo)").
+        - Badges: Flag high-level context (e.g., "warn" for "Heavy Dairy Use", "good" for "Diet-Friendly Options").
+        - Notes: Provide ONLY ONE note:
+           1. "Ordering & Interactions": Provide EXACTLY 5 of the most popular requests, ordering tips, or practical phrases for this setting. For each phrase, provide the properly accented native spelling strictly inside single quotes, followed by an English-approximated phonetic spelling in parentheses (e.g., "- To request no cilantro, say 'Không ngò' (kohng ngo)").
+        - IN ADDITION, provide a 'menuData' object containing an array of 'categories'.
+        - Group the extracted dishes into logical 'categories' (e.g., "Mains", "Sides", "Drinks").
+        - For each item, provide:
+          1. 'nativeName': The name in the original language using proper native script.
+          2. 'translatedName': A concise English translation.
+          3. 'description': A short explanation of the dish ingredients (max 12 words).
+          4. 'price': The price exactly as written.
+          5. 'dietaryFlags': Cross-reference the item's ingredients with the User's Health Baseline. Set to "critical_avoid" if it violates their baseline, "safe" if it aligns, or "warning" if it is ambiguous.
+          6. 'isHighlight': For EACH category, flag exactly 1 or 2 items as a top recommendation by setting a boolean field "isHighlight": true. Prioritize items that are highly recommended and strictly 'safe' for the user's health baseline.
+          7. 'conflictReason': If 'dietaryFlags' is 'warning' or 'critical_avoid', you MUST provide a short explanation of the specific conflicting ingredient (max 5 words, e.g., 'Contains peanuts and soy'). Omit this field if the item is 'safe'.
 
       If Mode is 'Payment':
         - FIRST, classify the primary subject of the image into one of two sub-categories: 'Signage/Terminal' OR 'Receipt/Bill'.
@@ -443,7 +486,25 @@ export default function ScanScreen() {
         ],
         "notes": [
           { "title": "Category (e.g., Behavioral Norms)", "body": "Clinical, concise explanation with phonetic phrasing if needed. CRITICAL: Use \\n for paragraph breaks and '- ' for bullet points." }
-        ]
+        ]${currentMode === 'Menu' ? `,
+        "menuData": {
+          "categories": [
+            {
+              "categoryName": "String",
+              "items": [
+                {
+                  "nativeName": "'String'",
+                  "translatedName": "String",
+                  "description": "String",
+                  "price": "String",
+                  "dietaryFlags": "safe | warning | critical_avoid",
+                  "isHighlight": false,
+                  "conflictReason": "String (omit if safe)"
+                }
+              ]
+            }
+          ]
+        }` : ''}
       }
     `;
 
@@ -463,8 +524,14 @@ export default function ScanScreen() {
         throw new Error("AI analysis failed after multiple attempts.");
       }
     }
-    const responseText = contentResult.response.text().trim();
-    return JSON.parse(responseText) as ScanResult;
+    try {
+      let responseText = contentResult.response.text().trim();
+      responseText = responseText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+      return JSON.parse(responseText) as ScanResult;
+    } catch (e) {
+      console.error("JSON parsing error:", e);
+      throw new Error("Analysis failed: Received malformed data from AI. Please try again.");
+    }
     // ── END LIVE GEMINI MODE ──
 
     // -- Openrouter API Mode --
@@ -1050,8 +1117,8 @@ export default function ScanScreen() {
         <Text style={[styles.deniedBody, { color: colors.mutedForeground }]}>
           Camera access powers menu translation, payment etiquette, and transit decoding. Photos never leave your device.
         </Text>
-        <TouchableOpacity 
-          style={[styles.enableBtn, { backgroundColor: colors.primary }]} 
+        <TouchableOpacity
+          style={[styles.enableBtn, { backgroundColor: colors.primary }]}
           onPress={() => {
             if (permission.canAskAgain) {
               requestPermission();
@@ -1065,6 +1132,91 @@ export default function ScanScreen() {
       </View>
     );
   }
+
+  const renderListHeader = () => (
+    <View style={{ paddingBottom: 4 }}>
+      <Text style={[styles.sheetEyebrow, { color: colors.mutedForeground }]}>{mode.toUpperCase()} INTELLIGENCE</Text>
+      <Text style={[styles.sheetTitle, { color: colors.foreground }]}>{result?.title}</Text>
+
+      {result?.userAnswer && (
+        <View style={[styles.userAnswerBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <Text style={[styles.userAnswerLabel, { color: colors.primary }]}>DIRECT ANSWER</Text>
+          <View style={{ marginTop: 4 }}>
+            {renderFormattedText(result.userAnswer, colors.foreground, result?.languageCode)}
+          </View>
+        </View>
+      )}
+
+      {mode === 'Transit' && result?.mapLocationName && (
+        <TouchableOpacity
+          style={[styles.mapsButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => openMap(result.mapLocationName!)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.mapsIconBox, { backgroundColor: colors.primary }]}>
+            <Feather name="navigation" size={16} color={colors.primaryForeground} />
+          </View>
+
+          <View style={{ flex: 1, marginRight: 12 }}>
+            <Text style={[styles.mapsButtonTitle, { color: colors.foreground }]}>Open in Maps</Text>
+            <Text
+              style={[styles.mapsButtonSubtitle, { color: colors.mutedForeground }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {result.mapLocationName}
+            </Text>
+          </View>
+
+          <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      )}
+
+      <View style={styles.badgeRow}>
+        {result?.badges?.map((b, i) => {
+          let bg = colors.muted;
+          let dot = colors.primary;
+          let label = colors.foreground;
+          if (b.type === 'warn') {
+            bg = colors.isDark ? 'rgba(245, 185, 98, 0.15)' : '#fdf2dc';
+            dot = colors.isDark ? '#f5b962' : '#a76b18';
+            label = colors.isDark ? '#f5b962' : '#7a4f12';
+          } else if (b.type === 'good') {
+            bg = colors.isDark ? 'rgba(21, 128, 61, 0.2)' : '#dff1e1';
+            dot = colors.isDark ? '#4ade80' : '#15803d';
+            label = colors.isDark ? '#4ade80' : '#14532d';
+          }
+          return (
+            <View key={i} style={[styles.badge, { backgroundColor: bg }]}>
+              <View style={[styles.badgeDot, { backgroundColor: dot }]} />
+              <Text style={[styles.badgeText, { color: label }]}>{b.text}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  const renderListFooter = () => (
+    <View style={{ paddingTop: 16 }}>
+      <View style={styles.notesColumn}>
+        {result?.notes?.map((n, i) => {
+          return (
+            <View key={i} style={[styles.noteCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Text style={[styles.noteTitle, { color: colors.primary }]}>{n.title}</Text>
+              <View style={{ marginTop: 8 }}>
+                {renderFormattedText(n?.body || "Analysis details unavailable.", colors.foreground, result?.languageCode)}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      <TouchableOpacity style={[styles.gotItBtn, { backgroundColor: colors.primary }]} onPress={closeSheet}>
+        <Text style={[styles.gotItText, { color: colors.primaryForeground }]}>Got it</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -1363,9 +1515,9 @@ export default function ScanScreen() {
         <View style={[styles.modalBackdrop, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
           <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
 
-            <ScrollView 
+            <ScrollView
               ref={welcomeScrollRef}
-              showsVerticalScrollIndicator={false} 
+              showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 80 }} // Room for the floating button
               onLayout={(e) => setWelcomeScrollHeight(e.nativeEvent.layout.height)}
               onContentSizeChange={(w, h) => setWelcomeContentHeight(h)}
@@ -1447,7 +1599,7 @@ export default function ScanScreen() {
             {/* Fixed Bottom Right Action Button */}
             <TouchableOpacity
               style={[
-                styles.welcomeBtnFixed, 
+                styles.welcomeBtnFixed,
                 { backgroundColor: (!isWelcomeScrollable || isAtBottom) ? colors.primary : colors.muted }
               ]}
               onPress={() => {
@@ -1460,16 +1612,16 @@ export default function ScanScreen() {
               activeOpacity={0.85}
             >
               <Text style={[
-                styles.welcomeBtnText, 
+                styles.welcomeBtnText,
                 { color: (!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground }
               ]}>
                 {(!isWelcomeScrollable || isAtBottom) ? "Let's go" : "Scroll down"}
               </Text>
-              <Feather 
-                name={(!isWelcomeScrollable || isAtBottom) ? "arrow-right" : "arrow-down"} 
-                size={18} 
-                color={(!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground} 
-                style={{ marginLeft: 8 }} 
+              <Feather
+                name={(!isWelcomeScrollable || isAtBottom) ? "arrow-right" : "arrow-down"}
+                size={18}
+                color={(!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground}
+                style={{ marginLeft: 8 }}
               />
             </TouchableOpacity>
 
@@ -1483,86 +1635,52 @@ export default function ScanScreen() {
           <TouchableOpacity style={styles.modalDismissArea} activeOpacity={1} onPress={closeSheet} />
           <Animated.View style={[styles.sheet, { backgroundColor: colors.card, maxHeight: Dimensions.get('window').height * 0.82, transform: [{ translateY: slideAnim }] }]}>
             <View style={styles.handle} />
-            <ScrollView showsVerticalScrollIndicator bounces contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: insets.bottom + 24 }}>
-              <Text style={[styles.sheetEyebrow, { color: colors.mutedForeground }]}>{mode.toUpperCase()} INTELLIGENCE</Text>
-              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>{result?.title}</Text>
-
-              {result?.userAnswer && (
-                <View style={[styles.userAnswerBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-                  <Text style={[styles.userAnswerLabel, { color: colors.primary }]}>DIRECT ANSWER</Text>
-                  {/* Apply formatting to the direct answer too */}
-                  <View style={{ marginTop: 4 }}>
-                    {renderFormattedText(result.userAnswer, colors.foreground, result?.languageCode)}
-                  </View>
-                </View>
-              )}
-
-              {mode === 'Transit' && result?.mapLocationName && (
-                <TouchableOpacity
-                  style={[styles.mapsButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-                  onPress={() => openMap(result.mapLocationName!)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.mapsIconBox, { backgroundColor: colors.primary }]}>
-                    <Feather name="navigation" size={16} color={colors.primaryForeground} />
-                  </View>
-
-                  <View style={{ flex: 1, marginRight: 12 }}>
-                    <Text style={[styles.mapsButtonTitle, { color: colors.foreground }]}>Open in Maps</Text>
-                    <Text
-                      style={[styles.mapsButtonSubtitle, { color: colors.mutedForeground }]}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
+            {mode === 'Menu' && result?.menuData ? (
+              <SectionList
+                stickySectionHeadersEnabled={false}
+                sections={result.menuData.categories.map(c => {
+                  const isExpanded = expandedCategories.has(c.categoryName);
+                  const data = (c.items.length > 3 && !isExpanded) ? c.items.slice(0, 3) : c.items;
+                  return { title: c.categoryName, data, totalItems: c.items.length };
+                })}
+                keyExtractor={(item, index) => item.nativeName + index}
+                renderItem={({ item }) => (
+                  <MenuItemRow item={item as any} colors={colors} languageCode={result.languageCode} />
+                )}
+                renderSectionHeader={({ section: { title } }) => (
+                  <MenuCategoryHeader categoryName={title} colors={colors} />
+                )}
+                renderSectionFooter={({ section }) => {
+                  if (section.totalItems <= 3) return null;
+                  const isExpanded = expandedCategories.has(section.title);
+                  return (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => toggleCategoryExpand(section.title)}
+                      style={{ paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
                     >
-                      {result.mapLocationName}
-                    </Text>
-                  </View>
-
-                  <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              )}
-
-              <View style={styles.badgeRow}>
-                {result?.badges?.map((b, i) => {
-                  let bg = colors.muted;
-                  let dot = colors.primary;
-                  let label = colors.foreground;
-                  if (b.type === 'warn') {
-                    bg = colors.isDark ? 'rgba(245, 185, 98, 0.15)' : '#fdf2dc';
-                    dot = colors.isDark ? '#f5b962' : '#a76b18';
-                    label = colors.isDark ? '#f5b962' : '#7a4f12';
-                  } else if (b.type === 'good') {
-                    bg = colors.isDark ? 'rgba(21, 128, 61, 0.2)' : '#dff1e1';
-                    dot = colors.isDark ? '#4ade80' : '#15803d';
-                    label = colors.isDark ? '#4ade80' : '#14532d';
-                  }
-                  return (
-                    <View key={i} style={[styles.badge, { backgroundColor: bg }]}>
-                      <View style={[styles.badgeDot, { backgroundColor: dot }]} />
-                      <Text style={[styles.badgeText, { color: label }]}>{b.text}</Text>
-                    </View>
+                      <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: colors.primary }}>
+                        {isExpanded ? "Show less" : `Show more`}
+                      </Text>
+                      <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.primary} />
+                    </TouchableOpacity>
                   );
-                })}
-              </View>
-
-              <View style={styles.notesColumn}>
-                {result?.notes?.map((n, i) => {
-                  return (
-                    <View key={i} style={[styles.noteCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-                      <Text style={[styles.noteTitle, { color: colors.primary }]}>{n.title}</Text>
-                      <View style={{ marginTop: 8 }}>
-                        {/* Pass the languageCode down into the parser */}
-                        {renderFormattedText(n?.body || "Analysis details unavailable.", colors.foreground, result?.languageCode)}
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-
-              <TouchableOpacity style={[styles.gotItBtn, { backgroundColor: colors.primary }]} onPress={closeSheet}>
-                <Text style={[styles.gotItText, { color: colors.primaryForeground }]}>Got it</Text>
-              </TouchableOpacity>
-            </ScrollView>
+                }}
+                ListHeaderComponent={renderListHeader}
+                ListFooterComponent={renderListFooter}
+                contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: insets.bottom + 24 }}
+                initialNumToRender={10}
+                windowSize={5}
+                maxToRenderPerBatch={5}
+                showsVerticalScrollIndicator
+                bounces
+              />
+            ) : (
+              <ScrollView showsVerticalScrollIndicator bounces contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: insets.bottom + 24 }}>
+                {renderListHeader()}
+                {renderListFooter()}
+              </ScrollView>
+            )}
           </Animated.View>
         </Animated.View>
       </Modal>
@@ -1689,7 +1807,14 @@ const styles = StyleSheet.create({
   handle: { width: 38, height: 4, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   sheetEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.4, marginBottom: 4 },
   sheetTitle: { fontFamily: 'Inter_700Bold', fontSize: 22, letterSpacing: -0.4, marginBottom: 8 },
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
+  categoryHeader: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 18,
+    letterSpacing: -0.3,
+    marginBottom: 12,
+    marginTop: 24,
+  },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 0 },
   badge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, gap: 6 },
   badgeDot: { width: 6, height: 6, borderRadius: 3 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
