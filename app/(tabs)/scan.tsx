@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MenuData, ScanResult, ReceiptData, ReceiptItem } from '../../lib/scanTypes';
 import { MenuItemRow, MenuCategoryHeader } from '../../components/MenuRenderer';
 import { ReceiptRenderer } from '../../components/ReceiptRenderer';
+import { SignRenderer } from '../../components/SignRenderer';
 const { width, height } = Dimensions.get('window');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -28,7 +29,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 
-type Mode = 'Menu' | 'Bill/Receipt' | 'Transit';
+type Mode = 'Menu' | 'Bill/Receipt' | 'Sign';
 
 const PROMPT_SUGGESTIONS: Record<Mode, string[]> = {
   Menu: [
@@ -43,11 +44,11 @@ const PROMPT_SUGGESTIONS: Record<Mode, string[]> = {
     "Is it polite to split the bill (go Dutch) here?",
     "Do I pay at the table or at the register?"
   ],
-  Transit: [
-    "How do I get to Terminal...",
-    "Where is Gate...",
-    "Is it polite to talk on the phone on this train?",
-    "Do I need to buy a ticket before boarding?"
+  Sign: [
+    "What does this sign mean?",
+    "Am I allowed to park here right now?",
+    "Is this a warning or just an informational notice?",
+    "Where is this directing me?"
   ]
 };
 
@@ -111,7 +112,7 @@ export default function ScanScreen() {
   const MODE_DESCRIPTIONS: Record<Mode, string> = {
     Menu: "Scan restaurant or cafe menus to extract all dishes, decode ingredients, and check dietary safety.",
     "Bill/Receipt": "Scan restaurant bills or store receipts to itemize costs, detect hidden fees, and understand tipping culture.",
-    Transit: "Scan train schedules, station signs, or turnstiles for navigation and boarding etiquette."
+    Sign: "Scan physical signs, notices, or warnings to translate them and extract actionable instructions."
   };
 
   // Auto-close the tooltip if they change the mode using the bottom bar
@@ -239,47 +240,7 @@ export default function ScanScreen() {
     }
   };
 
-  const openMap = async (query: string) => {
-    const encodedQuery = encodeURIComponent(query);
 
-    // 1. Apple Maps (iOS)
-    // We use just the query so Apple Maps searches for the actual place
-    // rather than pinning the user's current location.
-    const appleMapsUrl = `https://maps.apple.com/?q=${encodedQuery}`;
-
-    // 2. Google Maps Native (Android)
-    const androidUrl = `geo:0,0?q=${encodedQuery}`;
-
-    // 3. Google Maps Web (Fallback/Web)
-    const googleMapsWebUrl = `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
-
-    // Determine target URL based on platform
-    const urlToOpen = Platform.select({
-      ios: appleMapsUrl,
-      android: androidUrl,
-      default: googleMapsWebUrl
-    });
-
-    try {
-      const supported = await Linking.canOpenURL(urlToOpen as string);
-
-      if (supported) {
-        await Linking.openURL(urlToOpen as string);
-      } else {
-        // Fallback to web browser if the native scheme isn't supported
-        await Linking.openURL(googleMapsWebUrl);
-      }
-    } catch (error) {
-      console.error("Linking error:", error);
-
-      // If native Apple/Google Maps fails, fallback to Google Maps web
-      try {
-        await Linking.openURL(googleMapsWebUrl);
-      } catch (fallbackError) {
-        Alert.alert("Map Unavailable", "Could not open the map application or browser.");
-      }
-    }
-  };
 
   const CAPTIONS = [
     'Mapping the scene...',
@@ -413,13 +374,12 @@ export default function ScanScreen() {
         : `No specific question was asked. Omit the 'userAnswer' field entirely.`}
 
       **CRITICAL RULES:**
-      1. **IMAGE FIRST:** Extract text, context, and environment details exclusively from the image. If the image is completely illegible or entirely unrelated to the Active Mode, do not hallucinate. Set the 'title' to 'Unable to Analyze', omit the 'userAnswer' and 'mapLocationName', and provide a single 'warn' badge indicating the image is unclear.
+      1. **IMAGE FIRST:** Extract text, context, and environment details exclusively from the image. If the image is completely illegible or entirely unrelated to the Active Mode, do not hallucinate. Set the 'title' to 'Unable to Analyze', omit the 'userAnswer', and provide a single 'warn' badge indicating the image is unclear.
       2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS. Output pure text only. DO NOT USE PARAGRAPHS in the 'notes' section. The 'body' of EVERY note MUST be a strict bulleted list ("- "). 
       3. **BE RUTHLESSLY CONCISE:** Keep every bullet point to a maximum of 15 words. Prioritize quick scannability over complete sentences. (Note: The native phrase and phonetic spelling do not count towards this limit).
       4. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
       5. **CULTURAL CONFIDENCE & NATIVE SCRIPT:** Single quotes are STRICTLY RESERVED for the native text-to-speech engine. You MUST use single quotes EXCLUSIVELY to wrap the actual native characters/script (e.g., '请问') INSIDE your double-quoted JSON string values. CRITICAL: Output STRICTLY VALID JSON. ALL JSON keys and string values MUST be wrapped in double quotes (e.g., "nativeName": "'请问'"). NEVER use single quotes to wrap JSON properties or values. NEVER use Romanization (like Pinyin or Romaji) inside the single quotes, as native text-to-speech engines cannot read it. Place the official Romanization and the English-approximated phonetic pronunciation OUTSIDE the quotes in parentheses (e.g., '请问' (Qǐng wèn - ching wen)). DO NOT provide literal, word-by-word English translations of dish names. 
-      6. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question. 
-      7. **GEOGRAPHIC SPECIFICITY:** The 'mapLocationName' field is STRICTLY RESERVED for 'Transit' mode. If the Active Mode is 'Menu' or 'Bill/Receipt', you MUST omit the 'mapLocationName' field entirely, and use the GPS coordinates solely to inform your localized cultural notes and etiquette. If the Active Mode is 'Transit', your 'mapLocationName' MUST be the official, external name of the building, station, or terminal. CRITICAL: DO NOT include indoor qualifiers like "Gate B12" or "Platform 4". Place all indoor navigation details strictly in the 'notes' section.
+      6. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question.
 
       **MODE ADAPTATION:**
       If Mode is 'Menu':
@@ -457,20 +417,22 @@ export default function ScanScreen() {
         - Extract the 'subtotal', 'tax', 'serviceCharge', and 'total'. If a value is not present on the receipt, return "0" or "N/A".
         - Identify the 'currencySymbol' (e.g., "¥", "€", "$", "₫").
 
-      If Mode is 'Transit':
-        - Identify the line, direction, signage, and next steps.
-        - Badges: "info" for IC card support, "warn" for peak rush hour, "good" for step-free access.
-        - Notes: Provide exactly three notes:
-           1. "Signage & Navigation": How to physically get to the right spot.
-           2. "Behavioral Norms": Unspoken local rules.
-           3. "Ticketing & Assistance": Rules for validation. Include 5 practical phrases with native spellings in single quotes to confirm direction or ask for help.
+      If Mode is 'Sign':
+        - Assume the image is a street sign, warning, notice, or directional board. Completely ignore spatial layout.
+        - Title: Summarize the type of sign (e.g., "Parking Restriction", "Transit Notice").
+        - Badges: "info" for general context, "warn" for restrictions or penalties, "good" for allowed actions.
+        - Notes: Provide exactly ONE note:
+           1. "Context & Norms": Explain any unspoken local rules or cultural context surrounding this type of sign.
+        - IN ADDITION, provide a 'signData' object.
+           1. 'originalText': EXACTLY transcribe ALL legible text from the sign in the native script. Do not summarize, truncate, or skip any text.
+           2. 'translatedText': A complete, direct English translation of ALL the transcribed text.
+           3. 'instruction': Clinical, actionable advice on what the user MUST do (e.g., 'Do not park here between 8 AM and 6 PM', 'Enter through the left turnstile').
 
       **REQUIRED JSON STRUCTURE:**
       {
         "title": "Short Title (In English)",
         "languageCode": "The exact BCP-47 language tag for the primary foreign language detected in the image (e.g., 'vi-VN', 'ja-JP', 'fr-FR', 'es-ES'). Omit this field if the image is purely English.",
         "userAnswer": "Formatted direct answer using \\n for paragraph breaks and '- ' for bullet points. Do NOT duplicate 'notes' content here (omit if no inquiry was made)",
-        "mapLocationName": "The EXACT name of the primary building/station followed by city and country. CRITICAL: Omit this field entirely if the Active Mode is NOT 'Transit', if GPS Status is DISABLED, or if the image is an ambiguous street.",          
         "badges": [
           { "type": "good" | "warn" | "info", "text": "Short badge text" }
         ],
@@ -508,6 +470,11 @@ export default function ScanScreen() {
               "price": "String"
             }
           ]
+        }` : ''}${currentMode === 'Sign' ? `,
+        "signData": {
+          "originalText": "'String'",
+          "translatedText": "String",
+          "instruction": "String"
         }` : ''}
       }
     `;
@@ -753,7 +720,7 @@ export default function ScanScreen() {
   //             type: 'warn',
   //             text: 'Routing disabled • No GPS'
   //           });
-  //           delete analysis.mapLocationName;
+
   //         }
 
   //         setResult(analysis);
@@ -837,7 +804,7 @@ export default function ScanScreen() {
   //             type: 'warn',
   //             text: 'Routing disabled • No GPS'
   //           });
-  //           delete analysis.mapLocationName;
+
   //         }
 
   //         setResult(analysis);
@@ -949,7 +916,7 @@ export default function ScanScreen() {
             type: 'warn',
             text: 'Routing disabled • Weak GPS'
           });
-          delete analysis.mapLocationName;
+
         }
 
         setResult(analysis);
@@ -1138,7 +1105,7 @@ export default function ScanScreen() {
   }
 
   const renderListHeader = () => (
-    <View style={{ paddingBottom: 4 }}>
+    <View style={{ paddingBottom: 0 }}>
       <Text style={[styles.sheetEyebrow, { color: colors.mutedForeground }]}>{mode.toUpperCase()} INTELLIGENCE</Text>
       <Text style={[styles.sheetTitle, { color: colors.foreground }]}>{result?.title}</Text>
 
@@ -1149,31 +1116,6 @@ export default function ScanScreen() {
             {renderFormattedText(result.userAnswer, colors.foreground, result?.languageCode)}
           </View>
         </View>
-      )}
-
-      {mode === 'Transit' && result?.mapLocationName && (
-        <TouchableOpacity
-          style={[styles.mapsButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => openMap(result.mapLocationName!)}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.mapsIconBox, { backgroundColor: colors.primary }]}>
-            <Feather name="navigation" size={16} color={colors.primaryForeground} />
-          </View>
-
-          <View style={{ flex: 1, marginRight: 12 }}>
-            <Text style={[styles.mapsButtonTitle, { color: colors.foreground }]}>Open in Maps</Text>
-            <Text
-              style={[styles.mapsButtonSubtitle, { color: colors.mutedForeground }]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {result.mapLocationName}
-            </Text>
-          </View>
-
-          <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-        </TouchableOpacity>
       )}
 
       <View style={styles.badgeRow}>
@@ -1198,11 +1140,15 @@ export default function ScanScreen() {
           );
         })}
       </View>
+
+      {mode === 'Sign' && result?.signData && (
+        <SignRenderer sign={result.signData} colors={colors} languageCode={result.languageCode} />
+      )}
     </View>
   );
 
   const renderListFooter = () => (
-    <View style={{ paddingTop: 16 }}>
+    <View style={{ paddingTop: 12 }}>
       <View style={styles.notesColumn}>
         {result?.notes?.map((n, i) => {
           return (
@@ -1456,11 +1402,11 @@ export default function ScanScreen() {
       <View style={[styles.bottomBar, { bottom: bottomUIOffset }]}>
         {!analyzing && (
           <View style={styles.modeSelector}>
-            {(['Menu', 'Bill/Receipt', 'Transit'] as Mode[]).map((m) => {
+            {(['Menu', 'Bill/Receipt', 'Sign'] as Mode[]).map((m) => {
               const isActive = m === mode;
               let icon: any = 'book-open';
               if (m === 'Bill/Receipt') icon = 'credit-card';
-              else if (m === 'Transit') icon = 'navigation';
+              else if (m === 'Sign') icon = 'type';
 
               return (
                 <TouchableOpacity
@@ -1550,10 +1496,10 @@ export default function ScanScreen() {
               </Text>
 
               <View style={styles.welcomeModesList}>
-                {(['Menu', 'Bill/Receipt', 'Transit'] as Mode[]).map((m) => {
+                {(['Menu', 'Bill/Receipt', 'Sign'] as Mode[]).map((m) => {
                   let icon: any = 'book-open';
                   if (m === 'Bill/Receipt') icon = 'credit-card';
-                  else if (m === 'Transit') icon = 'navigation';
+                  else if (m === 'Sign') icon = 'type';
 
                   return (
                     <View key={m} style={styles.welcomeModeRow}>
@@ -1825,7 +1771,7 @@ const styles = StyleSheet.create({
   badge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, gap: 6 },
   badgeDot: { width: 6, height: 6, borderRadius: 3 },
   badgeText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-  notesColumn: { gap: 12, marginBottom: 24 },
+  notesColumn: { gap: 12, marginBottom: 16 },
   noteCard: { padding: 14, borderRadius: 14, borderWidth: 1 },
   noteTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 14, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
 

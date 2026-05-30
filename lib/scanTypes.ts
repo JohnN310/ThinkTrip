@@ -32,13 +32,19 @@ export interface ReceiptData {
   items: ReceiptItem[];
 }
 
+export interface SignData {
+  originalText: string;
+  translatedText: string;
+  instruction: string;
+}
+
 export interface ScanResult {
   title: string;
   userAnswer?: string;
-  mapLocationName?: string;
   languageCode?: string;
   badges: { type: 'warn' | 'good' | 'info'; text: string }[];
   notes: { title: string; body: string }[];
   menuData?: MenuData; 
   receiptData?: ReceiptData;
+  signData?: SignData;
 }
