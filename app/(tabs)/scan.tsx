@@ -13,6 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { BlurView } from 'expo-blur';
 import * as Location from 'expo-location';
 import { useFocusEffect } from 'expo-router';
+import Markdown from 'react-native-markdown-display';
 import OceanLoader from '../../components/OceanLoader';
 import DolphinLoaderScreen from '../../components/DolphinLoaderScreen';
 import { DolphinMascot } from '../../components/DolphinMascot';
@@ -55,24 +56,7 @@ const TypingIndicator = ({ color }: { color: string }) => {
   );
 };
 
-const renderChatText = (text: string, defaultColor: string) => {
-  // Split the string by **text**, keeping the matches in the array
-  const parts = text.split(/(\*\*.*?\*\*)/g);
 
-  return parts.map((part, index) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      // Remove the ** wrapper and apply the bold font
-      const boldText = part.slice(2, -2);
-      return (
-        <Text key={index} style={{ fontFamily: 'Inter_700Bold', color: defaultColor }}>
-          {boldText}
-        </Text>
-      );
-    }
-    // Return standard text for everything else
-    return <Text key={index} style={{ color: defaultColor }}>{part}</Text>;
-  });
-};
 
 type Mode = 'Menu' | 'Bill/Receipt' | 'Sign';
 
@@ -100,6 +84,83 @@ const PROMPT_SUGGESTIONS: Record<Mode, string[]> = {
 
 
 
+
+const getMarkdownStyles = (textColor: string, colors: any) => ({
+  body: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+    lineHeight: 22,
+    color: textColor,
+  },
+  heading1: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    color: textColor,
+  },
+  heading2: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 18,
+    marginTop: 10,
+    marginBottom: 6,
+    color: textColor,
+  },
+  heading3: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    color: textColor,
+  },
+  strong: {
+    fontFamily: 'Inter_700Bold',
+  },
+  em: {
+    fontStyle: 'italic' as const,
+  },
+  blockquote: {
+    backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+    borderColor: colors.border,
+    borderLeftWidth: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginVertical: 8,
+    borderRadius: 4,
+  },
+  code_inline: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    backgroundColor: colors.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontSize: 13,
+  },
+  fence: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+    borderColor: colors.border,
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 8,
+    fontSize: 13,
+    color: textColor,
+  },
+  link: {
+    color: colors.primary,
+    textDecorationLine: 'none' as const,
+  },
+  list_item: {
+    marginVertical: 4,
+  },
+  bullet_list_icon: {
+    color: textColor,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 18,
+    marginTop: Platform.OS === 'ios' ? 0 : 2, 
+  }
+});
 
 export default function ScanScreen() {
 
@@ -1685,19 +1746,21 @@ export default function ScanScreen() {
                   showsVerticalScrollIndicator={false}
                   onContentSizeChange={() => chatListRef.current?.scrollToEnd({ animated: true })}
                   onLayout={() => chatListRef.current?.scrollToEnd({ animated: true })}
-                  renderItem={({ item }) => (
-                    <View style={[
-                      styles.chatBubble,
-                      item.role === 'user' ? styles.chatBubbleUser : [styles.chatBubbleModel, { backgroundColor: colors.muted }]
-                    ]}>
-                      <Text style={[
-                        styles.chatText,
-                        item.role === 'user' ? { color: '#fff' } : { color: colors.foreground }
+                  renderItem={({ item }) => {
+                    const isUser = item.role === 'user';
+                    const textColor = isUser ? '#fff' : (colors.foreground as string);
+                    
+                    return (
+                      <View style={[
+                        styles.chatBubble,
+                        isUser ? styles.chatBubbleUser : [styles.chatBubbleModel, { backgroundColor: colors.muted }]
                       ]}>
-                        {renderChatText(item.text, item.role === 'user' ? '#fff' : (colors.foreground as string))}
-                      </Text>
-                    </View>
-                  )}
+                        <Markdown style={getMarkdownStyles(textColor, colors)}>
+                          {item.text}
+                        </Markdown>
+                      </View>
+                    );
+                  }}
                   ListFooterComponent={
                     isChatTyping ? (
                       <View style={[
