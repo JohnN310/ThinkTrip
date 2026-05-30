@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, Easing, TextInput, Keyboard, LayoutAnimation, UIManager, Linking, Image, SectionList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal, ScrollView, Platform, Alert, Dimensions, Animated, Easing, TextInput, Keyboard, LayoutAnimation, UIManager, Linking, Image, SectionList, PanResponder, KeyboardAvoidingView, FlatList } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Svg, { Path, Ellipse, Circle, G, Line, Rect } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
@@ -27,7 +27,52 @@ const { width, height } = Dimensions.get('window');
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+const TypingIndicator = ({ color }: { color: string }) => {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
 
+  useEffect(() => {
+    const animate = (dot: Animated.Value, delay: number) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(dot, { toValue: 1, duration: 400, delay, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0.3, duration: 400, useNativeDriver: true })
+        ])
+      ).start();
+    };
+    animate(dot1, 0);
+    animate(dot2, 200);
+    animate(dot3, 400);
+  }, []);
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, height: 22 }}>
+      <Animated.View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color, opacity: dot1 }} />
+      <Animated.View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color, opacity: dot2 }} />
+      <Animated.View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color, opacity: dot3 }} />
+    </View>
+  );
+};
+
+const renderChatText = (text: string, defaultColor: string) => {
+  // Split the string by **text**, keeping the matches in the array
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      // Remove the ** wrapper and apply the bold font
+      const boldText = part.slice(2, -2);
+      return (
+        <Text key={index} style={{ fontFamily: 'Inter_700Bold', color: defaultColor }}>
+          {boldText}
+        </Text>
+      );
+    }
+    // Return standard text for everything else
+    return <Text key={index} style={{ color: defaultColor }}>{part}</Text>;
+  });
+};
 
 type Mode = 'Menu' | 'Bill/Receipt' | 'Sign';
 
@@ -72,8 +117,102 @@ export default function ScanScreen() {
 
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'model', text: string }[]>([]);
+  const [isChatTyping, setIsChatTyping] = useState(false);
+  const chatInputRef = useRef<TextInput>(null);
+  const chatListRef = useRef<FlatList>(null);
+
+  // ─── CHAT ANIMATION STATE ───
+  const chatAnim = useRef(new Animated.Value(0)).current;
+  const [chatOrigin, setChatOrigin] = useState({ x: 0, y: 0 });
+
+  const openChat = () => {
+    // 1. Calculate the center of the target Chat Sheet (which sits at the bottom, 65% height)
+    const sheetCenterY = height - (height * 0.80) / 2;
+    const sheetCenterX = width / 2;
+
+    // 2. Get safe absolute coordinates of the mascot
+    const mascotCenter = getMascotCenter();
+
+    // 3. Set the translation origin delta
+    setChatOrigin({
+      x: mascotCenter.x - sheetCenterX,
+      y: mascotCenter.y - sheetCenterY,
+    });
+
+    // 4. Open modal and spring the animation
+    setIsChatOpen(true);
+    Animated.spring(chatAnim, {
+      toValue: 1,
+      tension: 60,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+
+    // 5. Automatically pull up the keyboard
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 150);
+  };
+
+  const closeChat = () => {
+    // 1. Dismiss the keyboard first so it slides down gracefully
+    Keyboard.dismiss();
+
+    // 2. Wait just a split second for the layout to settle back down
+    // before we shrink the chat window. This prevents the "jumping" glitch.
+    setTimeout(() => {
+      Animated.timing(chatAnim, {
+        toValue: 0,
+        duration: 250,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }).start(() => {
+        setIsChatOpen(false);
+      });
+    }, 100);
+  };
+
+  // ─── FLOATING MASCOT DRAG LOGIC WITH BOUNDARIES ───
+
+  // Set starting coordinates: Right side (width - 80px for margin) and 80% down
+  const initialX = Dimensions.get('window').width - 80;
+  const initialY = Dimensions.get('window').height * 0.2;
+
+  const pan = useRef(new Animated.ValueXY({
+    x: initialX,
+    y: initialY
+  })).current;
+
+  // Helper function to safely get absolute coordinates regardless of drag offsets
+  const getMascotCenter = () => {
+    // @ts-ignore - Safely read internal Animated values
+    const currentX = pan.x._value + pan.x._offset;
+    // @ts-ignore
+    const currentY = pan.y._value + pan.y._offset;
+    return {
+      x: currentX + 32, // +32 for center of the 64px button
+      y: currentY + 32,
+    };
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5,
+      onPanResponderGrant: () => {
+        pan.extractOffset();
+      },
+      onPanResponderMove: Animated.event(
+        [null, { dx: pan.x, dy: pan.y }],
+        { useNativeDriver: false }
+      ),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      },
+    })
+  ).current;
 
   const [mode, setMode] = useState<Mode>('Menu');
   const [showModeInfo, setShowModeInfo] = useState(false);
@@ -123,6 +262,7 @@ export default function ScanScreen() {
   const [analyzing, setAnalyzing] = useState(false);
   const [aiFinished, setAiFinished] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [currentScanImage, setCurrentScanImage] = useState<string | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const [captionIndex, setCaptionIndex] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -179,6 +319,15 @@ export default function ScanScreen() {
     }, [hydrated])
   );
 
+  // Clear chatbot memory when navigating away from this tab
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setChatMessages([]);
+      };
+    }, [])
+  );
+
   const dismissWelcomeGuide = async () => {
     setShowWelcomeGuide(false);
     try {
@@ -223,6 +372,9 @@ export default function ScanScreen() {
       setResult(null);
       setIsCaptured(false);
       setPendingUploadPhoto(null);
+
+      // Add this line to wipe the chatbot's memory for the next scan
+      // setChatMessages([]);
 
       if (cameraRef.current) {
         cameraRef.current.resumePreview();
@@ -368,11 +520,6 @@ export default function ScanScreen() {
         ? `ACTIVE (Lat: ${location.coords.latitude}, Lng: ${location.coords.longitude}). CRITICAL: Bias all transit POIs to this exact physical location.`
         : `DISABLED. The user has opted out of location tracking. Do not attempt to guess the city or generate map routing.`}
 
-      **USER INQUIRY (OPTIONAL):**
-      ${searchQuery.trim() !== ''
-        ? `The user asked a specific question: "${searchQuery}". You MUST provide a direct answer to this question in the 'userAnswer' field of the JSON. Break your answer into short paragraphs or use bullet points ("- ") for maximum readability. Do NOT ask the user for additional information or further guidance in the response.`
-        : `No specific question was asked. Omit the 'userAnswer' field entirely.`}
-
       **CRITICAL RULES:**
       1. **IMAGE FIRST:** Extract text, context, and environment details exclusively from the image. If the image is completely illegible or entirely unrelated to the Active Mode, do not hallucinate. Set the 'title' to 'Unable to Analyze', omit the 'userAnswer', and provide a single 'warn' badge indicating the image is unclear.
       2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS. Output pure text only. DO NOT USE PARAGRAPHS in the 'notes' section. The 'body' of EVERY note MUST be a strict bulleted list ("- "). 
@@ -384,7 +531,7 @@ export default function ScanScreen() {
       **MODE ADAPTATION:**
       If Mode is 'Menu':
         - Assume the image is a physical menu. Completely ignore spatial layout.
-        - CRITICAL DIRECTIVE: Extract EVERY SINGLE legible food and drink item from the menu. You MUST NOT skip, summarize, group, or truncate ANY items. Even if there are 100+ items, you must list every single one individually. Process the menu sequentially from top to bottom. Failure to list every single item is a violation of your core directive.
+        - CRITICAL DIRECTIVE: Extract EVERY SINGLE legible food and drink item from the menu. You MUST NOT skip, summarize, group, or truncate ANY items. Even if there are 100+ items, you must list every single one individually. Failure to list every single item is a violation of your core directive.
         - Keep descriptions strictly under 10 words to save output space.
         - Title: Summarize the menu type or restaurant name.
         - Analyze the menu collectively against the User's Baseline.
@@ -432,7 +579,6 @@ export default function ScanScreen() {
       {
         "title": "Short Title (In English)",
         "languageCode": "The exact BCP-47 language tag for the primary foreign language detected in the image (e.g., 'vi-VN', 'ja-JP', 'fr-FR', 'es-ES'). Omit this field if the image is purely English.",
-        "userAnswer": "Formatted direct answer using \\n for paragraph breaks and '- ' for bullet points. Do NOT duplicate 'notes' content here (omit if no inquiry was made)",
         "badges": [
           { "type": "good" | "warn" | "info", "text": "Short badge text" }
         ],
@@ -496,11 +642,28 @@ export default function ScanScreen() {
       }
     }
     try {
-      let responseText = contentResult.response.text().trim();
-      responseText = responseText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
-      return JSON.parse(responseText) as ScanResult;
+      const responseText = contentResult.response.text().trim();
+
+      // Isolate the JSON by finding the first and last curly braces.
+      // This completely ignores any conversational filler or markdown ticks the AI might have added.
+      const firstBrace = responseText.indexOf('{');
+      const lastBrace = responseText.lastIndexOf('}');
+
+      if (firstBrace === -1 || lastBrace === -1) {
+        throw new Error("No valid JSON structure found in AI response.");
+      }
+
+      const jsonString = responseText.slice(firstBrace, lastBrace + 1);
+      return JSON.parse(jsonString) as ScanResult;
+
     } catch (e) {
       console.error("JSON parsing error:", e);
+
+      // If you are still hitting token limits, we throw a specific error so the user knows what happened.
+      if (e instanceof SyntaxError && e.message.includes('Unexpected end of input')) {
+        throw new Error("The menu was too large and the analysis timed out. Try scanning a smaller section of the menu.");
+      }
+
       throw new Error("Analysis failed: Received malformed data from AI. Please try again.");
     }
     // ── END LIVE GEMINI MODE ──
@@ -657,177 +820,90 @@ export default function ScanScreen() {
     save({ locationRoutingEnabled: newValue });
   };
 
-  // old code
-  // const handleShutter = async () => {
-  //   Keyboard.dismiss();
-  //   // Block if already analyzing or captured
-  //   if (analyzing || isCaptured || !cameraRef.current) return;
+  const handleSendChat = async () => {
+    if (!chatInput.trim() || isChatTyping) return;
 
-  //   if (Platform.OS !== 'web' && profile.hapticsEnabled) {
-  //     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  //   }
+    const userMsg = chatInput.trim();
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setIsChatTyping(true);
 
-  //   // Freeze camera, trigger loading screen, AND trigger the blur overlay
-  //   cameraRef.current.pausePreview();
-  //   setIsCaptured(true);
-  //   setAnalyzing(true);
+    try {
+      const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+      if (!apiKey) throw new Error("Missing API Key");
 
-  //   // --- NEW: Grab Location ---
-  //   let currentLocation: Location.LocationObject | null = null;
-  //   if (profile.locationRoutingEnabled) {
-  //     try {
-  //       const { status } = await Location.getForegroundPermissionsAsync();
-  //       if (status === 'granted') {
-  //         currentLocation = await Location.getLastKnownPositionAsync({})
-  //           || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-  //         setUserLocation(currentLocation);
-  //       }
-  //     } catch (e) {
-  //       console.warn("Could not fetch location for scan:", e);
-  //     }
-  //   }
-  //   // --------------------------
+      const genAI = new GoogleGenerativeAI(apiKey);
+      let model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
-  //   try {
-  //     // 3. takePictureAsync runs in the background. It naturally creates a 
-  //     // micro-freeze on the camera feed, enhancing the "captured" effect.
-  //     const photo = await cameraRef.current.takePictureAsync({ quality: 0.5 });
+      // Format the existing conversation history for the Gemini SDK
+      const history = chatMessages.map((msg, index) => {
+        const parts: any[] = [{ text: msg.text }];
+        // ✅ Inject the image into the first user message of the history
+        if (index === 0 && msg.role === 'user' && currentScanImage) {
+          parts.push({
+            inlineData: { data: currentScanImage, mimeType: "image/jpeg" }
+          });
+        }
+        return { role: msg.role, parts };
+      });
 
-  //     if (photo) {
-  //       // Calculate the exact percentage of the screen the Tab Bar covers
-  //       const tabBarHeightPixels = insets.bottom + 84;
-  //       const tabBarPercent = tabBarHeightPixels / Dimensions.get('window').height;
+      // ✅ Update the prompt so Finn knows he can see the image
+      const contextString = result
+        ? `The user just scanned an image and the system extracted this JSON data: ${JSON.stringify(result)}. The user has also provided the raw image itself in the chat. Use BOTH the JSON data and your visual analysis of the image to answer their questions accurately.`
+        : `The user has not scanned an image yet. Guide them briefly on how to use ${mode} mode, or cheerfully answer any general travel, culture, or language questions they have.`;
 
-  //       // Capture full width, starting from the very top (0,0)
-  //       const cropX = 0;
-  //       const cropY = 0;
-  //       const cropWidth = photo.width;
-  //       // The height is the full photo height MINUS the tab bar portion
-  //       const cropHeight = photo.height * (1 - tabBarPercent);
+      const systemInstruction = {
+        parts: [{
+          text: `You are Finn, the friendly ThinkTrip Dolphin Mascot, a clinical, highly intelligent travel AI. 
+            The user is currently in ${mode} mode.
+            ${contextString}
+            Be concise, helpful, and maintain a calm, premium tone.`
+        }],
+        role: "model"
+      };
 
-  //       const croppedImage = await ImageManipulator.manipulateAsync(
-  //         photo.uri,
-  //         [{ crop: { originX: cropX, originY: cropY, width: cropWidth, height: cropHeight } }],
-  //         { base64: true, compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-  //       );
+      let chat = model.startChat({ history, systemInstruction });
+      let chatResult;
 
-  //       if (croppedImage.base64) {
-  //         const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
+      try {
+        // ✅ If this is the VERY FIRST message of the chat, send the text AND the image
+        if (chatMessages.length === 0 && currentScanImage) {
+          chatResult = await chat.sendMessage([
+            userMsg,
+            { inlineData: { data: currentScanImage, mimeType: "image/jpeg" } }
+          ]);
+        } else {
+          chatResult = await chat.sendMessage(userMsg);
+        }
+      } catch (error) {
+        console.warn("Fallback to gemini-2.5-flash-lite for chat:", error);
+        try {
+          model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+          chat = model.startChat({ history, systemInstruction });
+          
+          // ✅ Repeat the injection logic for the fallback model
+          if (chatMessages.length === 0 && currentScanImage) {
+            chatResult = await chat.sendMessage([
+              userMsg,
+              { inlineData: { data: currentScanImage, mimeType: "image/jpeg" } }
+            ]);
+          } else {
+            chatResult = await chat.sendMessage(userMsg);
+          }
+        } catch (fallbackError) {
+          console.warn("Both models failed for chat:", fallbackError);
+          throw fallbackError; 
+        }
+      }
 
-  //         // Educational fallback if they scanned without GPS
-  //         if (!currentLocation) {
-  //           analysis.badges.unshift({
-  //             type: 'warn',
-  //             text: 'Routing disabled • No GPS'
-  //           });
-
-  //         }
-
-  //         setResult(analysis);
-  //         openSheet();
-
-  //         if (Platform.OS !== 'web' && profile.hapticsEnabled) {
-  //           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  //         }
-  //         setSearchQuery('');
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.error("Analysis Error:", error);
-  //     Alert.alert("Analysis Failed", "Could not analyze the image. Please try again.");
-
-  //     // Reset if it fails so the user can try again
-  //     setIsCaptured(false);
-  //     if (cameraRef.current) cameraRef.current.resumePreview();
-
-  //   } finally {
-  //     setAnalyzing(false);
-  //   }
-  // };
-
-  // new working code
-  // const handleShutter = async () => {
-  //   Keyboard.dismiss();
-  //   if (analyzing || isCaptured || !cameraRef.current) return;
-
-  //   if (Platform.OS !== 'web' && profile.hapticsEnabled) {
-  //     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  //   }
-
-  //   // 1. Immediately trigger the blur overlay so the UI feels instantly responsive
-  //   setIsCaptured(true);
-  //   setAnalyzing(true);
-
-  //   // --- Grab Location ---
-  //   let currentLocation: Location.LocationObject | null = null;
-  //   if (profile.locationRoutingEnabled) {
-  //     try {
-  //       const { status } = await Location.getForegroundPermissionsAsync();
-  //       if (status === 'granted') {
-  //         currentLocation = await Location.getLastKnownPositionAsync({})
-  //           || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-  //         setUserLocation(currentLocation);
-  //       }
-  //     } catch (e) {
-  //       console.warn("Could not fetch location for scan:", e);
-  //     }
-  //   }
-
-  //   try {
-  //     // 2. CRITICAL ANDROID FIX: Take the picture BEFORE pausing the preview
-  //     const photo = await cameraRef.current.takePictureAsync({ quality: 0.5 });
-
-  //     // 3. Now that the frame is safely captured into memory, pause the feed
-  //     // cameraRef.current.pausePreview();
-
-  //     if (photo) {
-  //       const tabBarHeightPixels = insets.bottom + 84;
-  //       const tabBarPercent = tabBarHeightPixels / Dimensions.get('window').height;
-
-  //       // 4. CRITICAL ANDROID FIX: ImageManipulator requires strict integers
-  //       const cropX = 0;
-  //       const cropY = 0;
-  //       const cropWidth = Math.round(photo.width);
-  //       const cropHeight = Math.round(photo.height * (1 - tabBarPercent));
-
-  //       const croppedImage = await ImageManipulator.manipulateAsync(
-  //         photo.uri,
-  //         [{ crop: { originX: cropX, originY: cropY, width: cropWidth, height: cropHeight } }],
-  //         { base64: true, compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-  //       );
-
-  //       if (croppedImage.base64) {
-  //         const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
-
-  //         if (!currentLocation) {
-  //           analysis.badges.unshift({
-  //             type: 'warn',
-  //             text: 'Routing disabled • No GPS'
-  //           });
-
-  //         }
-
-  //         setResult(analysis);
-  //         openSheet();
-
-  //         if (Platform.OS !== 'web' && profile.hapticsEnabled) {
-  //           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  //         }
-  //         setSearchQuery('');
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.error("Analysis Error:", error);
-  //     Alert.alert("Analysis Failed", "Could not analyze the image. Please try again.");
-
-  //     // Reset if it fails so the user can try again
-  //     setIsCaptured(false);
-  //     if (cameraRef.current) cameraRef.current.resumePreview();
-
-  //   } finally {
-  //     setAnalyzing(false);
-  //   }
-  // };
+      setChatMessages(prev => [...prev, { role: 'model', text: chatResult.response.text() }]);
+    } catch (error) {
+      console.error("Chat Error:", error);
+      setChatMessages(prev => [...prev, { role: 'model', text: "I'm having trouble connecting to the intelligence engine right now." }]);
+    } finally {
+      setIsChatTyping(false);
+    }
+  };
 
   const handleShutter = async () => {
     Keyboard.dismiss();
@@ -895,6 +971,9 @@ export default function ScanScreen() {
 
       // 6. AI Analysis
       if (croppedImage.base64) {
+        // ✅ Save the image to state so the chatbot can see it
+        setCurrentScanImage(croppedImage.base64); 
+        
         const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
 
         if (analysis.title === 'Unable to Analyze') {
@@ -906,7 +985,6 @@ export default function ScanScreen() {
 
           setIsCaptured(false);
           if (!pendingUploadPhoto && cameraRef.current) cameraRef.current.resumePreview();
-          setSearchQuery('');
           setAnalyzing(false);
           return;
         }
@@ -921,7 +999,6 @@ export default function ScanScreen() {
 
         setResult(analysis);
         setAiFinished(true); // Signal to OceanLoader that the analysis has completed
-        setSearchQuery('');
       }
     } catch (error) {
       console.error("Analysis Error:", error);
@@ -1065,10 +1142,6 @@ export default function ScanScreen() {
     });
   };
 
-  // Filter suggestions based on user input
-  const filteredSuggestions = PROMPT_SUGGESTIONS[mode].filter(sug =>
-    sug.toLowerCase().includes(searchQuery.toLowerCase().trim())
-  );
 
   if (!permission) {
     return (
@@ -1108,15 +1181,6 @@ export default function ScanScreen() {
     <View style={{ paddingBottom: 0 }}>
       <Text style={[styles.sheetEyebrow, { color: colors.mutedForeground }]}>{mode.toUpperCase()} INTELLIGENCE</Text>
       <Text style={[styles.sheetTitle, { color: colors.foreground }]}>{result?.title}</Text>
-
-      {result?.userAnswer && (
-        <View style={[styles.userAnswerBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-          <Text style={[styles.userAnswerLabel, { color: colors.primary }]}>DIRECT ANSWER</Text>
-          <View style={{ marginTop: 4 }}>
-            {renderFormattedText(result.userAnswer, colors.foreground, result?.languageCode)}
-          </View>
-        </View>
-      )}
 
       <View style={styles.badgeRow}>
         {result?.badges?.map((b, i) => {
@@ -1193,13 +1257,12 @@ export default function ScanScreen() {
 
       {/* ─── INVISIBLE DISMISS OVERLAY ─── */}
       {/* Covers the screen behind the UI to close popups or the keyboard when tapping empty space */}
-      {(showModeInfo || isSearchExpanded) && (
+      {showModeInfo && (
         <TouchableOpacity
           style={[StyleSheet.absoluteFillObject, { zIndex: 9 }]}
           activeOpacity={1}
           onPress={() => {
             if (showModeInfo) setShowModeInfo(false);
-            if (isSearchExpanded) Keyboard.dismiss();
           }}
         />
       )}
@@ -1247,99 +1310,8 @@ export default function ScanScreen() {
 
       {/* ─── TOP SEARCH BAR & PILL ─── */}
       <View style={[styles.topOverlay, { paddingTop: insets.top || 20 }]}>
-
-        {/* NEW WRAPPER: Keeps the search bar and the button in a row */}
-        <View style={styles.topRowWrapper}>
-          <View style={[styles.searchBar, isSearchExpanded && styles.searchBarExpanded]}>
-
-            {/* Top Row: Icon & Input */}
-            <View style={styles.searchInputWrapper}>
-              <View style={{ paddingTop: Platform.OS === 'android' ? 4 : 2 }}>
-                <Feather
-                  name="search"
-                  size={18}
-                  color="#fff"
-                  style={{ opacity: 0.8 }}
-                />
-              </View>
-
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Ask a specific question (optional)..."
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                value={searchQuery}
-                onChangeText={(text) => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setSearchQuery(text);
-                }}
-                returnKeyType="done"
-                blurOnSubmit={true}
-                multiline={true}
-                textAlignVertical="top"
-                onSubmitEditing={Keyboard.dismiss}
-                onFocus={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setIsSearchExpanded(true);
-                }}
-                onBlur={() => {
-                  // LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setIsSearchExpanded(false);
-                }}
-              />
-            </View>
-
-            {/* Bottom Area: Suggested Prompts */}
-            {isSearchExpanded && filteredSuggestions.length > 0 && (
-              <View style={styles.suggestionsWrapper}>
-                <Text style={styles.suggestionsTitle}>SUGGESTED</Text>
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.suggestionsScrollContent}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {filteredSuggestions.map((sug, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={styles.suggestionChip}
-                      onPress={() => {
-                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                        setSearchQuery(sug);
-                        setIsSearchExpanded(false);
-                        Keyboard.dismiss();
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.suggestionChipText}>{sug}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-
-          {/* Always-visible Submit Button — dimmed when idle, blue when active */}
-          {/* <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={Keyboard.dismiss}
-            style={[
-              styles.promptActionBtn,
-              {
-                backgroundColor: searchQuery.trim().length > 0
-                  ? colors.primary
-                  : 'rgba(255,255,255,0.15)'
-              }
-            ]}
-          >
-            <Feather
-              name="arrow-up"
-              size={20}
-              color={searchQuery.trim().length > 0 ? colors.primaryForeground : 'rgba(255,255,255,0.4)'}
-            />
-          </TouchableOpacity> */}
-        </View>
-
         {/* Hide the pill when expanded to keep the UI clean */}
-        {!isSearchExpanded && (
+        {true && (
           <View style={{ zIndex: 20, width: '100%', alignItems: 'center' }}>
 
             {/* The Row of Pills */}
@@ -1579,64 +1551,215 @@ export default function ScanScreen() {
         </View>
       </Modal>
 
-      {/* Result Modal */}
-      <Modal visible={showResultSheet} transparent animationType="none" onRequestClose={closeSheet}>
-        <Animated.View style={[styles.modalBackdrop, { opacity: fadeAnim }]}>
-          <TouchableOpacity style={styles.modalDismissArea} activeOpacity={1} onPress={closeSheet} />
-          <Animated.View style={[styles.sheet, { backgroundColor: colors.card, maxHeight: Dimensions.get('window').height * 0.82, transform: [{ translateY: slideAnim }] }]}>
-            <View style={styles.handle} />
-            {mode === 'Menu' && result?.menuData ? (
-              <SectionList
-                stickySectionHeadersEnabled={false}
-                sections={result.menuData.categories.map(c => {
-                  const isExpanded = expandedCategories.has(c.categoryName);
-                  const data = (c.items.length > 3 && !isExpanded) ? c.items.slice(0, 3) : c.items;
-                  return { title: c.categoryName, data, totalItems: c.items.length };
-                })}
-                keyExtractor={(item, index) => item.nativeName + index}
-                renderItem={({ item }) => (
-                  <MenuItemRow item={item as any} colors={colors} languageCode={result.languageCode} />
-                )}
-                renderSectionHeader={({ section: { title } }) => (
-                  <MenuCategoryHeader categoryName={title} colors={colors} />
-                )}
-                renderSectionFooter={({ section }) => {
-                  if (section.totalItems <= 3) return null;
-                  const isExpanded = expandedCategories.has(section.title);
-                  return (
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => toggleCategoryExpand(section.title)}
-                      style={{ paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
-                    >
-                      <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: colors.primary }}>
-                        {isExpanded ? "Show less" : `Show more`}
-                      </Text>
-                      <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.primary} />
-                    </TouchableOpacity>
-                  );
-                }}
-                ListHeaderComponent={renderListHeader}
-                ListFooterComponent={renderListFooter}
-                contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: insets.bottom + 24 }}
-                initialNumToRender={10}
-                windowSize={5}
-                maxToRenderPerBatch={5}
-                showsVerticalScrollIndicator
-                bounces
-              />
-            ) : (
-              <ScrollView showsVerticalScrollIndicator bounces contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: insets.bottom + 24 }}>
-                {renderListHeader()}
-                {mode === 'Bill/Receipt' && result?.receiptData && (
-                  <ReceiptRenderer receipt={result.receiptData} colors={colors} />
-                )}
-                {renderListFooter()}
-              </ScrollView>
-            )}
+      {/* ─── COMBINED OVERLAYS (Fixes iOS Multiple-Modal Touch Freeze) ─── */}
+      <Modal
+        visible={showResultSheet || isChatOpen}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => {
+          if (isChatOpen) closeChat();
+          else if (showResultSheet) closeSheet();
+        }}
+      >
+        {/* 1. Result Sheet Backdrop & Content */}
+        {showResultSheet && (
+          <Animated.View style={[styles.modalBackdrop, { opacity: fadeAnim }]}>
+            <TouchableOpacity style={styles.modalDismissArea} activeOpacity={1} onPress={closeSheet} />
+            <Animated.View style={[styles.sheet, { backgroundColor: colors.card, maxHeight: Dimensions.get('window').height * 0.82, transform: [{ translateY: slideAnim }] }]}>
+              <View style={styles.handle} />
+              {mode === 'Menu' && result?.menuData ? (
+                <SectionList
+                  stickySectionHeadersEnabled={false}
+                  sections={result.menuData.categories.map(c => {
+                    const isExpanded = expandedCategories.has(c.categoryName);
+                    const data = (c.items.length > 3 && !isExpanded) ? c.items.slice(0, 3) : c.items;
+                    return { title: c.categoryName, data, totalItems: c.items.length };
+                  })}
+                  keyExtractor={(item, index) => item.nativeName + index}
+                  renderItem={({ item }) => (
+                    <MenuItemRow item={item as any} colors={colors} languageCode={result.languageCode} />
+                  )}
+                  renderSectionHeader={({ section: { title } }) => (
+                    <MenuCategoryHeader categoryName={title} colors={colors} />
+                  )}
+                  renderSectionFooter={({ section }) => {
+                    if (section.totalItems <= 3) return null;
+                    const isExpanded = expandedCategories.has(section.title);
+                    return (
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => toggleCategoryExpand(section.title)}
+                        style={{ paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                      >
+                        <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: colors.primary }}>
+                          {isExpanded ? "Show less" : `Show more`}
+                        </Text>
+                        <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.primary} />
+                      </TouchableOpacity>
+                    );
+                  }}
+                  ListHeaderComponent={renderListHeader}
+                  ListFooterComponent={renderListFooter}
+                  contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: insets.bottom + 24 }}
+                  initialNumToRender={10}
+                  windowSize={5}
+                  maxToRenderPerBatch={5}
+                  showsVerticalScrollIndicator
+                  bounces
+                />
+              ) : (
+                <ScrollView showsVerticalScrollIndicator bounces contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: insets.bottom + 24 }}>
+                  {renderListHeader()}
+                  {mode === 'Bill/Receipt' && result?.receiptData && (
+                    <ReceiptRenderer receipt={result.receiptData} colors={colors} />
+                  )}
+                  {renderListFooter()}
+                </ScrollView>
+              )}
+            </Animated.View>
+          </Animated.View>
+        )}
+
+        {/* 2. Floating Mascot (Inside Modal) */}
+        {/* Rendered inside to stay above the Result Sheet. Fades out smoothly when chat opens. */}
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[
+            pan.getLayout(),
+            styles.floatingMascotContainer,
+          ]}
+          pointerEvents={isChatOpen ? 'none' : 'auto'}
+        >
+          <Animated.View style={{ opacity: chatAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
+            <TouchableOpacity activeOpacity={0.8} onPress={openChat} style={styles.mascotButton}>
+              <DolphinMascot size={44} />
+            </TouchableOpacity>
           </Animated.View>
         </Animated.View>
+
+        {/* 3. Chat UI Overlay */}
+        {isChatOpen && (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 100 }]} pointerEvents="box-none">
+            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)', opacity: chatAnim }]}>
+              <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={closeChat} />
+            </Animated.View>
+
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.chatModalContainer}
+              pointerEvents="box-none"
+            >
+              <Animated.View
+                style={[
+                  styles.chatSheet,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    opacity: chatAnim,
+                    transform: [
+                      { translateX: chatAnim.interpolate({ inputRange: [0, 1], outputRange: [chatOrigin.x, 0] }) },
+                      { translateY: chatAnim.interpolate({ inputRange: [0, 1], outputRange: [chatOrigin.y, 0] }) },
+                      { scale: chatAnim.interpolate({ inputRange: [0, 1], outputRange: [0.05, 1] }) }
+                    ]
+                  }
+                ]}
+              >
+                <View style={styles.chatHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={styles.chatHeaderAvatar}>
+                      <DolphinMascot size={24} />
+                    </View>
+                    <Text style={[styles.chatHeaderTitle, { color: colors.foreground }]}>Finn</Text>
+                  </View>
+                  <TouchableOpacity onPress={closeChat} style={styles.chatCloseBtn}>
+                    <Feather name="x" size={20} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+
+                <FlatList
+                  ref={chatListRef}
+                  data={chatMessages}
+                  keyExtractor={(item, index) => index.toString()}
+                  contentContainerStyle={{ padding: 20, gap: 16 }}
+                  showsVerticalScrollIndicator={false}
+                  onContentSizeChange={() => chatListRef.current?.scrollToEnd({ animated: true })}
+                  onLayout={() => chatListRef.current?.scrollToEnd({ animated: true })}
+                  renderItem={({ item }) => (
+                    <View style={[
+                      styles.chatBubble,
+                      item.role === 'user' ? styles.chatBubbleUser : [styles.chatBubbleModel, { backgroundColor: colors.muted }]
+                    ]}>
+                      <Text style={[
+                        styles.chatText,
+                        item.role === 'user' ? { color: '#fff' } : { color: colors.foreground }
+                      ]}>
+                        {renderChatText(item.text, item.role === 'user' ? '#fff' : (colors.foreground as string))}
+                      </Text>
+                    </View>
+                  )}
+                  ListFooterComponent={
+                    isChatTyping ? (
+                      <View style={[
+                        styles.chatBubble,
+                        styles.chatBubbleModel,
+                        {
+                          backgroundColor: colors.muted,
+                          paddingHorizontal: 18,
+                          paddingVertical: 12,
+                          alignSelf: 'flex-start',
+                          marginTop: chatMessages.length > 0 ? 0 : 16
+                        }
+                      ]}>
+                        <TypingIndicator color={colors.foreground} />
+                      </View>
+                    ) : null
+                  }
+                />
+
+                <View style={[styles.chatInputRow, { borderTopColor: colors.border }]}>
+                  <TextInput
+                    ref={chatInputRef}
+                    style={[styles.chatInput, { color: colors.foreground, backgroundColor: colors.muted }]}
+                    placeholder={`Ask about this ${mode.toLowerCase()}, or anything...`}
+                    placeholderTextColor={colors.mutedForeground}
+                    value={chatInput}
+                    onChangeText={setChatInput}
+                    onSubmitEditing={handleSendChat}
+                    returnKeyType="send"
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.chatSendBtn,
+                      { backgroundColor: chatInput.trim() ? colors.primary : colors.muted }
+                    ]}
+                    onPress={handleSendChat}
+                    disabled={isChatTyping || !chatInput.trim()}
+                  >
+                    {isChatTyping ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Feather name="arrow-up" size={20} color={chatInput.trim() ? '#fff' : colors.mutedForeground} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            </KeyboardAvoidingView>
+          </View>
+        )}
       </Modal>
+
+      {/* ─── FLOATING MASCOT (BASE CAMERA VIEW) ─── */}
+      {(!showResultSheet && !isChatOpen) && (
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[pan.getLayout(), styles.floatingMascotContainer]}
+        >
+          <TouchableOpacity activeOpacity={0.8} onPress={openChat} style={styles.mascotButton}>
+            <DolphinMascot size={44} />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -1915,4 +2038,126 @@ const styles = StyleSheet.create({
   welcomeGreetDot: { width: 6, height: 6, borderRadius: 3 },
   welcomeGreetText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.4 },
 
+  // ─── FLOATING MASCOT STYLES ───
+  floatingMascotContainer: {
+    position: 'absolute',
+    zIndex: 99,
+  },
+  mascotButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  mascotNotificationDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#5c7ce5', // colors.primary
+    borderWidth: 2,
+    borderColor: '#000',
+  },
+
+  // ─── CHAT MODAL STYLES ───
+  chatModalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  chatModalDismissArea: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  chatSheet: {
+    height: '80%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    overflow: 'hidden',
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  chatHeaderAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(92, 124, 229, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatHeaderTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+  },
+  chatCloseBtn: {
+    padding: 8,
+  },
+  chatBubble: {
+    maxWidth: '85%',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+  },
+  chatBubbleUser: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#5c7ce5',
+    borderBottomRightRadius: 4,
+  },
+  chatBubbleModel: {
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: 4,
+  },
+  chatText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  chatEmptyText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 40,
+    opacity: 0.7,
+  },
+  chatInputRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+    borderTopWidth: 1,
+    gap: 12,
+  },
+  chatInput: {
+    flex: 1,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+  },
+  chatSendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

@@ -56,7 +56,8 @@ export function DolphinMascot({ size = 160, accent = '#5c7ce5', accentDark = '#4
     };
   }, []);
 
-  const floatY = float.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
+  const floatDistance = - (size / 20); // Scale the float distance relative to the mascot size
+  const floatY = float.interpolate({ inputRange: [0, 1], outputRange: [0, floatDistance] });
   const waveDeg = wave.interpolate({ inputRange: [0, 1], outputRange: [-15, 20] });
 
   return (
