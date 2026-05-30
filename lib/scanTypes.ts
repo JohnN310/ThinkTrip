@@ -16,3 +16,29 @@ export interface MenuCategory {
 export interface MenuData {
   categories: MenuCategory[];
 }
+
+export interface ReceiptItem {
+  originalName: string;
+  translatedName: string;
+  price: string;
+}
+
+export interface ReceiptData {
+  currencySymbol: string;
+  subtotal: string;
+  tax: string;
+  serviceCharge: string;
+  total: string;
+  items: ReceiptItem[];
+}
+
+export interface ScanResult {
+  title: string;
+  userAnswer?: string;
+  mapLocationName?: string;
+  languageCode?: string;
+  badges: { type: 'warn' | 'good' | 'info'; text: string }[];
+  notes: { title: string; body: string }[];
+  menuData?: MenuData; 
+  receiptData?: ReceiptData;
+}

@@ -10,12 +10,14 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+// ─── CLASSIC CENTERED MENU HEADER ───
 export const MenuCategoryHeader = ({ categoryName, colors }: { categoryName: string; colors: any }) => (
   <View style={styles.headerContainer}>
-    <Text style={[styles.headerText, { color: colors.mutedForeground }]}>
+    <View style={[styles.headerLine, { backgroundColor: colors.border }]} />
+    <Text style={[styles.headerText, { color: colors.foreground }]}>
       {categoryName}
     </Text>
-    <View style={[styles.headerRule, { backgroundColor: colors.border }]} />
+    <View style={[styles.headerLine, { backgroundColor: colors.border }]} />
   </View>
 );
 
@@ -27,11 +29,6 @@ interface MenuItemRowProps {
 
 export const MenuItemRow: React.FC<MenuItemRowProps> = ({ item, colors, languageCode }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
-  const [tooltipPos, setTooltipPos] = useState({ bottom: 0, right: 0 });
-
-  const iconRef = useRef<View>(null);
-
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsExpanded(!isExpanded);
@@ -43,220 +40,157 @@ export const MenuItemRow: React.FC<MenuItemRowProps> = ({ item, colors, language
     Speech.speak(item.nativeName, { language: languageCode, rate: 0.65 });
   };
 
-  const handleBadgePress = (e: any) => {
-    e.stopPropagation();
-    if (iconRef.current) {
-      iconRef.current.measure((x, y, width, height, pageX, pageY) => {
-        setTooltipPos({
-          // Position the bubble exactly 12px above the icon, regardless of text length
-          bottom: WINDOW_HEIGHT - pageY + 12,
-          // Align relative to the right edge of the screen
-          right: WINDOW_WIDTH - pageX - width - 8,
-        });
-        setShowTooltip(true);
-      });
-    }
-  };
-
   const isAvoid = item.dietaryFlags === 'critical_avoid';
-  const isSafe = item.dietaryFlags === 'safe';
   const isHighlight = item.isHighlight === true;
 
   return (
     <>
       <TouchableOpacity
-        activeOpacity={0.8}
+        activeOpacity={1}
         onPress={toggleExpand}
-        style={[
-          styles.rowContainer,
-          {
-            backgroundColor: isHighlight ? colors.secondary : colors.card,
-            borderColor: isHighlight ? 'transparent' : colors.border,
-            borderWidth: isHighlight ? 0 : 1,
-          }
-        ]}
+        style={styles.menuItemContainer}
       >
-        {isHighlight && (
-          <Text style={[styles.highlightEyebrow, { color: colors.primary }]}>
-            ✨ Top Match
-          </Text>
-        )}
-        <View style={styles.topRow}>
-          <Text style={[styles.translatedName, { color: colors.foreground }]}>
-            {item.translatedName}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {/* ─── CLASSIC DISH LINE (Name ........ Price) ─── */}
+        <View style={styles.mainLine}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1, gap: 8 }}>
+            <Text style={[styles.translatedName, { color: colors.foreground }]}>
+              {/* The star highlight has been removed from here */}
+              {item.translatedName}
+            </Text>
+          </View>
 
-            {/* Added ref here to measure the icon's position */}
-            <View style={styles.badgeContainer} ref={iconRef}>
-              {isAvoid && (
-                <TouchableOpacity
-                  onPress={handleBadgePress}
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                >
-                  <Feather name="alert-octagon" size={16} color={colors.destructive || '#ef4444'} />
-                </TouchableOpacity>
-              )}
-            </View>
+          {/* Dotted leader line mimicking a physical menu */}
+          <View style={[styles.leaderLine, { borderBottomColor: colors.border }]} />
 
-            <Feather name={isExpanded ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} style={{ marginLeft: 8 }} />
+          <Text style={[styles.price, { color: colors.foreground }]}>
+            {item.price}
+          </Text>
+        </View>
+
+        {/* ─── SUBTITLE LINE (Native Name + Intelligence) ─── */}
+        <View style={styles.subLine}>
+          <TouchableOpacity onPress={handleTTS} style={styles.ttsContainer} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={[styles.nativeName, { color: colors.mutedForeground }]}>
+              {item.nativeName}
+            </Text>
+            <Feather name="volume-2" size={13} color={colors.primary} style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            {/* Biometric Warning (Next to Chevron) */}
+            {/* {isAvoid && (
+              <Feather name="alert-octagon" size={14} color={colors.destructive} />
+            )} */}
+            {/* Expand Indicator */}
+            <Feather
+              name={isExpanded ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={colors.mutedForeground}
+              style={{ opacity: 0.5 }}
+            />
           </View>
         </View>
 
-        <View style={styles.bottomRow}>
-          <Text style={[styles.nativeName, { color: colors.mutedForeground }]}>
-            {item.nativeName}
-          </Text>
-          <TouchableOpacity onPress={handleTTS} style={styles.ttsButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Feather name="volume-2" size={14} color={colors.primary} />
-          </TouchableOpacity>
-          <Text style={[styles.bullet, { color: colors.mutedForeground }]}>•</Text>
-          <Text style={[styles.price, { color: colors.mutedForeground }]}>{item.price}</Text>
-        </View>
-
+        {/* ─── INLINE DESCRIPTION (Traditional Menu Style) ─── */}
         {isExpanded && (
-          <View style={[styles.expandedSection, { borderTopColor: colors.border }]}>
-            <Text style={[styles.description, { color: colors.mutedForeground }]}>
+          <View style={{ marginTop: 8 }}>
+            {isAvoid && (
+              <View style={styles.expandedWarningContainer}>
+                <Feather name="alert-octagon" size={14} color={colors.destructive} style={{ marginTop: 2 }} />
+                <Text style={[styles.expandedWarningText, { color: colors.destructive }]}>
+                  {item.conflictReason || "Contains ingredients that conflict with your profile."}
+                </Text>
+              </View>
+            )}
+            <Text style={[styles.description, { color: colors.mutedForeground, marginTop: isAvoid ? 4 : 0 }]}>
               {item.description}
             </Text>
           </View>
         )}
       </TouchableOpacity>
-
-      {/* ─── FLOATING TOOLTIP BUBBLE ─── */}
-      <Modal visible={showTooltip} transparent animationType="fade">
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          activeOpacity={1}
-          onPress={(e) => {
-            e.stopPropagation();
-            setShowTooltip(false);
-          }}
-        >
-          <View style={[styles.tooltipBubble, { bottom: tooltipPos.bottom, right: tooltipPos.right }]}>
-            <Text style={styles.tooltipText}>
-              {item.conflictReason || "Contains ingredients that conflict with your profile."}
-            </Text>
-            {/* The little triangle pointing down */}
-            <View style={styles.tooltipPointer} />
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </>
   );
 };
 
 const styles = StyleSheet.create({
+  // ─── HEADER STYLES ───
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 6,
-    marginTop: 12
+    justifyContent: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+    gap: 16,
+  },
+  headerLine: {
+    flex: 1,
+    height: 1,
+    opacity: 0.6,
   },
   headerText: {
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 12, // Kept the smaller Eyebrow size
+    fontSize: 14,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
+    letterSpacing: 2,
   },
-  headerRule: {
-    flex: 1,
-    height: 1,
+
+  // ─── MENU ITEM STYLES ───
+  menuItemContainer: {
+    marginBottom: 22, // Generous spacing like a real menu
+    paddingHorizontal: 4,
   },
-  rowContainer: {
-    borderRadius: 18,
-    padding: 16,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  highlightEyebrow: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  topRow: {
+  mainLine: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 6,
+    alignItems: 'flex-end', // Aligns the text baseline with the dots
+    marginBottom: 4,
   },
   translatedName: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 16,
+    letterSpacing: -0.2,
+    flexShrink: 1,
+  },
+  leaderLine: {
+    flex: 1,
+    borderBottomWidth: 1,
+    borderStyle: 'dashed',
+    marginHorizontal: 10,
+    marginBottom: 5, // Lifts the dots slightly off the bottom
+    opacity: 0.4,
+  },
+  price: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 15,
-    flex: 1,
-    paddingRight: 10,
   },
-  badgeContainer: {
-    justifyContent: 'center',
+  subLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    height: 20, // Gives the measure function a stable bounding box
   },
-  bottomRow: {
+  ttsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
   },
   nativeName: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-  },
-  ttsButton: {
-    marginLeft: 6,
-    padding: 2,
-  },
-  bullet: {
-    marginHorizontal: 6,
-    fontSize: 13,
-  },
-  price: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-  },
-  expandedSection: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
+    fontSize: 14,
   },
   description: {
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
+    fontStyle: 'italic', // Mimics traditional menu descriptions
   },
-
-  // ─── TOOLTIP STYLES ───
-  tooltipBubble: {
-    position: 'absolute',
-    maxWidth: 240,
-    backgroundColor: 'rgba(10, 15, 25, 0.95)', // Matches the dark slate of the Mode Info bubble
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
+  expandedWarningContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginBottom: 4,
   },
-  tooltipText: {
-    fontFamily: 'Inter_500Medium',
+  expandedWarningText: {
+    fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
-    color: '#f8fafc',
+    flex: 1,
     lineHeight: 18,
-  },
-  tooltipPointer: {
-    position: 'absolute',
-    bottom: -7, // Pulls the triangle slightly outside the bottom of the bubble
-    right: 14,  // Aligns perfectly with the alert-octagon icon below it
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 7,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: 'rgba(10, 15, 25, 0.95)', // Matches the bubble background
   }
 });

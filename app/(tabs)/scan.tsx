@@ -18,8 +18,9 @@ import DolphinLoaderScreen from '../../components/DolphinLoaderScreen';
 import { DolphinMascot } from '../../components/DolphinMascot';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MenuData } from '../../lib/scanTypes';
+import { MenuData, ScanResult, ReceiptData, ReceiptItem } from '../../lib/scanTypes';
 import { MenuItemRow, MenuCategoryHeader } from '../../components/MenuRenderer';
+import { ReceiptRenderer } from '../../components/ReceiptRenderer';
 const { width, height } = Dimensions.get('window');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -27,7 +28,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 
-type Mode = 'Menu' | 'Payment' | 'Transit';
+type Mode = 'Menu' | 'Bill/Receipt' | 'Transit';
 
 const PROMPT_SUGGESTIONS: Record<Mode, string[]> = {
   Menu: [
@@ -36,7 +37,7 @@ const PROMPT_SUGGESTIONS: Record<Mode, string[]> = {
     "Are any of these dishes meant to be shared?",
     "What is a standard drink pairing for the top item?"
   ],
-  Payment: [
+  "Bill/Receipt": [
     "Do they accept international Visa/Mastercard?",
     "Are there any hidden service charges or seating fees on this bill?",
     "Is it polite to split the bill (go Dutch) here?",
@@ -50,15 +51,6 @@ const PROMPT_SUGGESTIONS: Record<Mode, string[]> = {
   ]
 };
 
-interface ScanResult {
-  title: string;
-  userAnswer?: string;
-  mapLocationName?: string;
-  languageCode?: string;
-  badges: { type: 'warn' | 'good' | 'info'; text: string }[];
-  notes: { title: string; body: string }[];
-  menuData?: MenuData;
-}
 
 
 
@@ -117,8 +109,8 @@ export default function ScanScreen() {
   };
 
   const MODE_DESCRIPTIONS: Record<Mode, string> = {
-    Menu: "Scan restaurant or cafe menus to decode dishes, identify allergens, and get ordering tips.",
-    Payment: "Scan payment terminals, signage, or receipts to understand tipping culture and hidden fees.",
+    Menu: "Scan restaurant or cafe menus to extract all dishes, decode ingredients, and check dietary safety.",
+    "Bill/Receipt": "Scan restaurant bills or store receipts to itemize costs, detect hidden fees, and understand tipping culture.",
     Transit: "Scan train schedules, station signs, or turnstiles for navigation and boarding etiquette."
   };
 
@@ -339,7 +331,7 @@ export default function ScanScreen() {
     //       { title: 'Nutrition note', body: 'Typical serving: ~650 kcal, 2,400mg sodium, 25g protein. Noodles are wheat-based — not suitable for gluten-free diets.' },
     //     ],
     //   };
-    // } else if (currentMode === 'Payment') {
+    // } else if (currentMode === 'Bill/Receipt') {
     //   return {
     //     title: 'Izakaya — Cash preferred',
     //     badges: [
@@ -427,7 +419,7 @@ export default function ScanScreen() {
       4. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
       5. **CULTURAL CONFIDENCE & NATIVE SCRIPT:** Single quotes are STRICTLY RESERVED for the native text-to-speech engine. You MUST use single quotes EXCLUSIVELY to wrap the actual native characters/script (e.g., '请问') INSIDE your double-quoted JSON string values. CRITICAL: Output STRICTLY VALID JSON. ALL JSON keys and string values MUST be wrapped in double quotes (e.g., "nativeName": "'请问'"). NEVER use single quotes to wrap JSON properties or values. NEVER use Romanization (like Pinyin or Romaji) inside the single quotes, as native text-to-speech engines cannot read it. Place the official Romanization and the English-approximated phonetic pronunciation OUTSIDE the quotes in parentheses (e.g., '请问' (Qǐng wèn - ching wen)). DO NOT provide literal, word-by-word English translations of dish names. 
       6. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question. 
-      7. **GEOGRAPHIC SPECIFICITY:** The 'mapLocationName' field is STRICTLY RESERVED for 'Transit' mode. If the Active Mode is 'Menu' or 'Payment', you MUST omit the 'mapLocationName' field entirely, and use the GPS coordinates solely to inform your localized cultural notes and etiquette. If the Active Mode is 'Transit', your 'mapLocationName' MUST be the official, external name of the building, station, or terminal. CRITICAL: DO NOT include indoor qualifiers like "Gate B12" or "Platform 4". Place all indoor navigation details strictly in the 'notes' section.
+      7. **GEOGRAPHIC SPECIFICITY:** The 'mapLocationName' field is STRICTLY RESERVED for 'Transit' mode. If the Active Mode is 'Menu' or 'Bill/Receipt', you MUST omit the 'mapLocationName' field entirely, and use the GPS coordinates solely to inform your localized cultural notes and etiquette. If the Active Mode is 'Transit', your 'mapLocationName' MUST be the official, external name of the building, station, or terminal. CRITICAL: DO NOT include indoor qualifiers like "Gate B12" or "Platform 4". Place all indoor navigation details strictly in the 'notes' section.
 
       **MODE ADAPTATION:**
       If Mode is 'Menu':
@@ -450,22 +442,20 @@ export default function ScanScreen() {
           6. 'isHighlight': For EACH category, flag exactly 1 or 2 items as a top recommendation by setting a boolean field "isHighlight": true. Prioritize items that are highly recommended and strictly 'safe' for the user's health baseline.
           7. 'conflictReason': If 'dietaryFlags' is 'warning' or 'critical_avoid', you MUST provide a short explanation of the specific conflicting ingredient (max 5 words, e.g., 'Contains peanuts and soy'). Omit this field if the item is 'safe'.
 
-      If Mode is 'Payment':
-        - FIRST, classify the primary subject of the image into one of two sub-categories: 'Signage/Terminal' OR 'Receipt/Bill'.
-        - If Sub-Category is 'Signage/Terminal':
-           - Detect accepted payment methods from signage or context.
-           - Badges: Flag "warn" for cash-only, "info" for IC cards, "good" for no-tipping.
-           - Notes (Provide exactly three):
-              1. "Behavioral Norms": Physical etiquette (e.g., "Place cash in the provided tray...").
-              2. "Cashier Interactions": What the staff is likely to ask and how to reply. Provide 5 short, practical phrases with properly accented native spellings in single quotes and English phonetics (e.g., "- If they ask if you need a bag, decline by saying 'Irimasen' (ee-ree-mah-sen)").
-              3. "Receipts & Hidden Charges": Explain unwritten costs like seating charges ('otoshi').
-        - If Sub-Category is 'Receipt/Bill':
-           - Analyze the line items, taxes, totals, and currency.
-           - Badges: Flag "warn" for high mandatory service charges, "info" for included gratuity, "good" for transparent pricing.
-           - Notes (Provide exactly three):
-              1. "Bill Breakdown": Summarize the total, taxes, and hidden fees.
-              2. "Tipping Culture": Specific advice on whether to add a tip for this region.
-              3. "Settlement Protocol": Practical advice on paying. Include 5 phrases with native spellings in single quotes for asking to split the bill or pay by card.
+      If Mode is 'Bill/Receipt':
+        - Assume the image is a restaurant bill, store receipt, or invoice. Completely ignore spatial layout.
+        - Title: Summarize the establishment or type of bill (e.g., "Izakaya Dinner Bill", "Convenience Store Receipt").
+        - Badges: Flag "warn" for high or unexpected mandatory service charges, "info" for included gratuity, "good" for transparent pricing or no tipping required.
+        - Notes: Provide exactly three notes:
+           1. "Tipping Culture": Strict advice on whether to add a tip for this specific region and context.
+           2. "Settlement Protocol": Practical advice on how to physically pay (e.g., 'Take this slip to the front register' vs 'Pay at the table'). Include 2 practical phrases with native spellings in single quotes for asking to split the bill or pay by card.
+        - Additionally, provide a 'receiptData' object.
+        - Extract EVERY legible line item from the bill into the 'items' array. For each item, provide:
+           1. 'originalName': The item name exactly as printed in the native script.
+           2. 'translatedName': A concise English translation.
+           3. 'price': The cost of the item.
+        - Extract the 'subtotal', 'tax', 'serviceCharge', and 'total'. If a value is not present on the receipt, return "0" or "N/A".
+        - Identify the 'currencySymbol' (e.g., "¥", "€", "$", "₫").
 
       If Mode is 'Transit':
         - Identify the line, direction, signage, and next steps.
@@ -502,6 +492,20 @@ export default function ScanScreen() {
                   "conflictReason": "String (omit if safe)"
                 }
               ]
+            }
+          ]
+        }` : ''}${currentMode === 'Bill/Receipt' ? `,
+        "receiptData": {
+          "currencySymbol": "String",
+          "subtotal": "String",
+          "tax": "String",
+          "serviceCharge": "String",
+          "total": "String",
+          "items": [
+            {
+              "originalName": "'String'",
+              "translatedName": "String",
+              "price": "String"
             }
           ]
         }` : ''}
@@ -570,7 +574,7 @@ export default function ScanScreen() {
     //        2. "Strict Avoids": Hidden ingredients or specific dishes that violate their Baseline.
     //        3. "Ordering & Interactions": Practical advice on how to order. If suggesting a phrase, provide ONE short, culturally accurate phrase (like requesting a modification) with a clear English-approximated phonetic spelling (e.g., "To request no cilantro, say 'Không ngò' (kohng ngo)"). Focus on behavior over complex language.
 
-    //   If Mode is 'Payment':
+    //   If Mode is 'Bill/Receipt':
     //     - Detect accepted payment methods from signage or context.
     //     - Badges: Flag "warn" for cash-only, "info" for IC cards, "good" for no-tipping.
     //     - Notes: Provide exactly three notes:
@@ -1452,10 +1456,10 @@ export default function ScanScreen() {
       <View style={[styles.bottomBar, { bottom: bottomUIOffset }]}>
         {!analyzing && (
           <View style={styles.modeSelector}>
-            {(['Menu', 'Payment', 'Transit'] as Mode[]).map((m) => {
+            {(['Menu', 'Bill/Receipt', 'Transit'] as Mode[]).map((m) => {
               const isActive = m === mode;
               let icon: any = 'book-open';
-              if (m === 'Payment') icon = 'credit-card';
+              if (m === 'Bill/Receipt') icon = 'credit-card';
               else if (m === 'Transit') icon = 'navigation';
 
               return (
@@ -1546,9 +1550,9 @@ export default function ScanScreen() {
               </Text>
 
               <View style={styles.welcomeModesList}>
-                {(['Menu', 'Payment', 'Transit'] as Mode[]).map((m) => {
+                {(['Menu', 'Bill/Receipt', 'Transit'] as Mode[]).map((m) => {
                   let icon: any = 'book-open';
-                  if (m === 'Payment') icon = 'credit-card';
+                  if (m === 'Bill/Receipt') icon = 'credit-card';
                   else if (m === 'Transit') icon = 'navigation';
 
                   return (
@@ -1678,6 +1682,9 @@ export default function ScanScreen() {
             ) : (
               <ScrollView showsVerticalScrollIndicator bounces contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: insets.bottom + 24 }}>
                 {renderListHeader()}
+                {mode === 'Bill/Receipt' && result?.receiptData && (
+                  <ReceiptRenderer receipt={result.receiptData} colors={colors} />
+                )}
                 {renderListFooter()}
               </ScrollView>
             )}
