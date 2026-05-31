@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform, ScrollView, Modal, Animated } from 'react-native';
-import Voice, { SpeechResultsEvent } from '@react-native-voice/voice';
-
-// --- ML KIT IMPORT (Commented out for testing Gemini translation) ---
-// import Translate from '@react-native-ml-kit/translate-text';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+// import Translate from '@react-native-ml-kit/translate-text'; // --- ML KIT IMPORT (Commented out for testing Gemini translation) ---
 
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
@@ -154,25 +152,22 @@ export default function LiveInteractionScreen() {
   }, [messages.length, myLang.name, localLang.name]);
 
 
-  useEffect(() => {
-    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
-      if (e.value && e.value.length > 0) setLiveTranscript(e.value[0]);
-    };
-
-    Voice.onSpeechEnd = async () => {
-      if (activeSpeaker && liveTranscript) {
-        await processConversation(liveTranscript, activeSpeaker);
+  useSpeechRecognitionEvent('result', (event) => {
+    const transcript = event.results[0]?.transcript || '';
+    if (!event.isFinal) {
+      if (transcript) setLiveTranscript(transcript);
+    } else {
+      if (activeSpeaker && transcript) {
+        processConversation(transcript, activeSpeaker);
       }
       resetRecordingState();
-    };
+    }
+  });
 
-    Voice.onSpeechError = (e) => {
-      console.error(e);
-      resetRecordingState();
-    };
-
-    return () => { Voice.destroy().then(Voice.removeAllListeners); };
-  }, [activeSpeaker, liveTranscript, myLang, localLang]);
+  useSpeechRecognitionEvent('error', (event) => {
+    console.error('Speech recognition error:', event.error, event.message);
+    resetRecordingState();
+  });
 
   const resetRecordingState = () => {
     setIsRecording(false);
@@ -183,7 +178,7 @@ export default function LiveInteractionScreen() {
   const startRecording = async (speaker: 'me' | 'local') => {
     // Add this guard
     if (isRecording) {
-      await Voice.stop();
+      ExpoSpeechRecognitionModule.abort();
     }
 
     if (profile.hapticsEnabled && Platform.OS !== 'web') {
@@ -199,15 +194,28 @@ export default function LiveInteractionScreen() {
 
     try {
       const langCode = speaker === 'me' ? myLang.bcp47 : localLang.bcp47;
-      await Voice.start(langCode);
+
+      const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (permissions.status !== 'granted') {
+        console.warn('Speech recognition permissions not granted');
+        resetRecordingState();
+        return;
+      }
+
+      ExpoSpeechRecognitionModule.start({
+        lang: langCode,
+        interimResults: true,
+        // Continuous mode is optional, but stopping it properly will trigger the 'result' with isFinal=true
+        continuous: false
+      });
     } catch (e) {
       console.error("Voice start failed:", e);
       resetRecordingState();
     }
   };
 
-  const stopRecording = async () => {
-    try { await Voice.stop(); } catch (e) { console.error(e); }
+  const stopRecording = () => {
+    try { ExpoSpeechRecognitionModule.stop(); } catch (e) { console.error(e); }
   };
 
   const getTimestamp = () => {
