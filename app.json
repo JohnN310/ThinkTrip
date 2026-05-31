@@ -18,17 +18,22 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
+          "location",
+          "fetch",
           "location"
         ],
-        "NSCameraUsageDescription": "ThinkTrip uses your camera to decode menu ingredients, explain payment etiquette, and read transit signage."
-      }
+        "NSCameraUsageDescription": "ThinkTrip uses your camera to decode menu ingredients, explain payment etiquette, and read transit signage.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.cadaohk.thinktrip"
     },
     "android": {
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "package": "com.cadaohk.thinktrip"
     },
@@ -36,6 +41,16 @@
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
+      "./withAndroidNamespaceFix.js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableJetifier": true,
+            "jvmArgs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
+          }
+        }
+      ],
       "expo-router",
       "expo-font",
       "expo-web-browser",

@@ -49,11 +49,12 @@ export default function TabLayout() {
           ) : undefined,
       }}
     >
+      {/* 1. Plan Tab */}
       <Tabs.Screen
         name="index"
         options={{
           title: 'Plan',
-          tabBarIcon: ({ color }) => 
+          tabBarIcon: ({ color }) =>
             Platform.OS === 'ios' ? (
               <SymbolView name="map" tintColor={color} fallback={<Feather name="map" size={24} color={color} />} style={{ width: 24, height: 24 }} />
             ) : (
@@ -61,11 +62,32 @@ export default function TabLayout() {
             ),
         }}
       />
+
+      {/* 2. Live Tab (Moved here!) */}
+      <Tabs.Screen
+        name="live"
+        options={{
+          title: 'Live',
+          tabBarIcon: ({ color }) =>
+            Platform.OS === 'ios' ? (
+              <SymbolView
+                name="bubble.left.and.bubble.right.fill"
+                tintColor={color}
+                fallback={<Feather name="message-square" size={24} color={color} />}
+                style={{ width: 24, height: 24 }}
+              />
+            ) : (
+              <Feather name="message-square" size={24} color={color} />
+            ),
+        }}
+      />
+
+      {/* 3. Scan Tab */}
       <Tabs.Screen
         name="scan"
         options={{
           title: 'Scan',
-          tabBarIcon: ({ color }) => 
+          tabBarIcon: ({ color }) =>
             Platform.OS === 'ios' ? (
               <SymbolView name="viewfinder.circle" tintColor={color} fallback={<Feather name="camera" size={24} color={color} />} style={{ width: 24, height: 24 }} />
             ) : (
@@ -73,32 +95,17 @@ export default function TabLayout() {
             ),
         }}
       />
+
+      {/* 4. Profile Tab */}
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => 
+          tabBarIcon: ({ color }) =>
             Platform.OS === 'ios' ? (
               <SymbolView name="person.crop.circle" tintColor={color} fallback={<Feather name="user" size={24} color={color} />} style={{ width: 24, height: 24 }} />
             ) : (
               <Feather name="user" size={24} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="live"
-        options={{
-          title: 'Live',
-          tabBarIcon: ({ color }) => 
-            Platform.OS === 'ios' ? (
-              <SymbolView 
-                name="bubble.left.and.bubble.right.fill" 
-                tintColor={color} 
-                fallback={<Feather name="message-square" size={24} color={color} />} 
-                style={{ width: 24, height: 24 }} 
-              />
-            ) : (
-              <Feather name="message-square" size={24} color={color} />
             ),
         }}
       />
