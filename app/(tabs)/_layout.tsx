@@ -85,6 +85,23 @@ export default function TabLayout() {
             ),
         }}
       />
+      <Tabs.Screen
+        name="live"
+        options={{
+          title: 'Live',
+          tabBarIcon: ({ color }) => 
+            Platform.OS === 'ios' ? (
+              <SymbolView 
+                name="bubble.left.and.bubble.right.fill" 
+                tintColor={color} 
+                fallback={<Feather name="message-square" size={24} color={color} />} 
+                style={{ width: 24, height: 24 }} 
+              />
+            ) : (
+              <Feather name="message-square" size={24} color={color} />
+            ),
+        }}
+      />
     </Tabs>
   );
 }

@@ -44,6 +44,19 @@
         {
           "cameraPermission": "ThinkTrip uses your camera to decode menu ingredients, explain payment etiquette, and read transit signage."
         }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "ThinkTrip needs microphone access to translate live conversations."
+        }
+      ],
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "ThinkTrip needs microphone access to hear spoken phrases.",
+          "speechRecognitionPermission": "ThinkTrip needs speech recognition to transcribe live dialogue."
+        }
       ]
     ],
     "experiments": {
