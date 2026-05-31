@@ -349,10 +349,10 @@ export default function ProfileScreen() {
     }
     if (activeSheet === 'Skin') {
       const SKIN_TYPES = [
-        { id: 'dry', label: 'dry', emoji: '🏜️' },
-        { id: 'combination', label: 'combination', emoji: '🌗' },
-        { id: 'oily', label: 'oily', emoji: '💧' },
-        { id: 'reactive', label: 'reactive', emoji: '⚡' },
+        { id: 'Dry', label: 'Dry', emoji: '🏜️' },
+        { id: 'Combination', label: 'Combination', emoji: '🌗' },
+        { id: 'Oily', label: 'Oily', emoji: '💧' },
+        { id: 'Sensitive', label: 'Sensitive', emoji: '⚡' },
       ];
 
       return (
@@ -545,16 +545,16 @@ export default function ProfileScreen() {
     }
     if (activeSheet === 'Travel') {
       const ACTIVITY_LEVELS = [
-        { id: 'low', label: 'low', emoji: '🧘‍♂️' },
-        { id: 'moderate', label: 'moderate', emoji: '🚶' },
-        { id: 'high', label: 'high', emoji: '⛰️' },
+        { id: 'Low', label: 'Low', emoji: '🧘‍♂️' },
+        { id: 'Moderate', label: 'Moderate', emoji: '🚶' },
+        { id: 'High', label: 'High', emoji: '⛰️' },
       ];
 
       const TRAVEL_TYPES = [
-        { id: 'business', label: 'business', emoji: '💼' },
-        { id: 'vacation', label: 'vacation', emoji: '🌴' },
-        { id: 'adventure', label: 'adventure', emoji: '🧭' },
-        { id: 'wellness', label: 'wellness', emoji: '🌿' },
+        { id: 'Business', label: 'Business', emoji: '💼' },
+        { id: 'Vacation', label: 'Vacation', emoji: '🌴' },
+        { id: 'Adventure', label: 'Adventure', emoji: '🧭' },
+        { id: 'Wellness', label: 'Wellness', emoji: '🌿' },
       ];
 
       return (
