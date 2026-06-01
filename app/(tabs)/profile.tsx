@@ -55,7 +55,7 @@ const ALLERGY_METADATA: Record<string, { emoji: string; lightBg: string; darkBg:
   'Dust Mites': { emoji: '🦠', lightBg: '#e0f2fe', darkBg: '#082f49', lightText: '#0369a1', darkText: '#bae6fd' },
 };
 
-type SheetType = 'Account' | 'Skin' | 'Diet' | 'Travel' | 'Units' | 'About' | 'Theme' | null;
+type SheetType = 'Account' | 'Skin' | 'Diet' | 'Travel' | 'Units' | 'Languages' | 'About' | 'Theme' | null;
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -685,6 +685,112 @@ export default function ProfileScreen() {
         </View>
       );
     }
+    if (activeSheet === 'Languages') {
+      const LANGUAGE_OPTIONS = [
+        { id: 'en', label: 'English', emoji: '🇬🇧' },
+        { id: 'ja', label: 'Japanese', emoji: '🇯🇵' },
+        { id: 'es', label: 'Spanish', emoji: '🇪🇸' },
+        { id: 'fr', label: 'French', emoji: '🇫🇷' },
+        { id: 'it', label: 'Italian', emoji: '🇮🇹' },
+        { id: 'de', label: 'German', emoji: '🇩🇪' },
+        { id: 'ko', label: 'Korean', emoji: '🇰🇷' },
+        { id: 'zh', label: 'Chinese', emoji: '🇨🇳' },
+        { id: 'vi', label: 'Vietnamese', emoji: '🇻🇳' },
+        { id: 'ru', label: 'Russian', emoji: '🇷🇺' },
+        { id: 'pt', label: 'Portuguese', emoji: '🇵🇹' },
+      ];
+
+      const languageColumns = [];
+      for (let i = 0; i < LANGUAGE_OPTIONS.length; i += 2) {
+        languageColumns.push(LANGUAGE_OPTIONS.slice(i, i + 2));
+      }
+
+      return (
+        <View style={{ gap: 24 }}>
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+              <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 0 }]}>TRANSLATE FROM</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 4 }}>
+              {languageColumns.map((column, colIndex) => (
+                <View key={`source-col-${colIndex}`} style={{ gap: 10, width: 105 }}>
+                  {column.map(lang => {
+                    const isSelected = draft.scanSourceLanguage === lang.id;
+                    return (
+                      <TouchableOpacity
+                        key={`source-${lang.id}`}
+                        activeOpacity={0.7}
+                        onPress={() => setDraft({ scanSourceLanguage: lang.id })}
+                        style={{
+                          flexGrow: 1,
+                          backgroundColor: isSelected ? (colors.isDark ? '#374151' : '#e2e8f0') : colors.card,
+                          borderWidth: 1,
+                          borderColor: isSelected ? colors.foreground : colors.border,
+                          borderRadius: 12,
+                          paddingVertical: 12,
+                          alignItems: 'center',
+                          position: 'relative'
+                        }}
+                      >
+                        <Text style={{ fontSize: 20, marginBottom: 4 }}>{lang.emoji}</Text>
+                        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 11, color: colors.foreground }}>{lang.label}</Text>
+                        {isSelected && (
+                          <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: colors.foreground, borderRadius: 10, padding: 2 }}>
+                            <Feather name="check" size={10} color={colors.background} />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.foreground }} />
+              <Text style={[styles.inputHint, { color: colors.mutedForeground, marginBottom: 0 }]}>TRANSLATE TO</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 4 }}>
+              {languageColumns.map((column, colIndex) => (
+                <View key={`target-col-${colIndex}`} style={{ gap: 10, width: 105 }}>
+                  {column.map(lang => {
+                    const isSelected = draft.scanTargetLanguage === lang.id;
+                    return (
+                      <TouchableOpacity
+                        key={`target-${lang.id}`}
+                        activeOpacity={0.7}
+                        onPress={() => setDraft({ scanTargetLanguage: lang.id })}
+                        style={{
+                          flexGrow: 1,
+                          backgroundColor: isSelected ? (colors.isDark ? '#374151' : '#e2e8f0') : colors.card,
+                          borderWidth: 1,
+                          borderColor: isSelected ? colors.foreground : colors.border,
+                          borderRadius: 12,
+                          paddingVertical: 12,
+                          alignItems: 'center',
+                          position: 'relative'
+                        }}
+                      >
+                        <Text style={{ fontSize: 20, marginBottom: 4 }}>{lang.emoji}</Text>
+                        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 11, color: colors.foreground }}>{lang.label}</Text>
+                        {isSelected && (
+                          <View style={{ position: 'absolute', top: 6, right: 6, backgroundColor: colors.foreground, borderRadius: 10, padding: 2 }}>
+                            <Feather name="check" size={10} color={colors.background} />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      );
+    }
     if (activeSheet === 'About') {
       return (
         <View style={{ gap: 18 }}>
@@ -866,6 +972,21 @@ export default function ProfileScreen() {
               <View style={styles.healthTextCol}>
                 <Text style={[styles.healthLabel, { color: colors.foreground }]}>Units</Text>
                 <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{capitalize(profile.units)}</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setActiveSheet('Languages')}
+              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
+                <Feather name="type" size={20} color={colors.foreground} />
+              </View>
+              <View style={styles.healthTextCol}>
+                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Scan Languages</Text>
+                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{profile.scanSourceLanguage?.toUpperCase()} → {profile.scanTargetLanguage?.toUpperCase()}</Text>
               </View>
               <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
             </TouchableOpacity>

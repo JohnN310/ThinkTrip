@@ -27,6 +27,8 @@ export interface ProfileContextState {
   avatarEmoji?: string;
   avatarColor?: string;
   themePreference?: "system" | "light" | "dark";
+  scanSourceLanguage?: string;
+  scanTargetLanguage?: string;
 }
 
 export type Priority = 'essential' | 'recommended' | 'optional';

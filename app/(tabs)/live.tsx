@@ -43,12 +43,28 @@ const SUPPORTED_LANGUAGES: Language[] = [
 export default function LiveInteractionScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { profile } = useProfile();
+  const { profile, save } = useProfile();
   const flatListRef = useRef<FlatList>(null);
 
   // Dynamic Language State
-  const [myLang, setMyLang] = useState<Language>(SUPPORTED_LANGUAGES[0]);
-  const [localLang, setLocalLang] = useState<Language>(SUPPORTED_LANGUAGES[1]);
+  const [myLang, setMyLang] = useState<Language>(() =>
+    SUPPORTED_LANGUAGES.find(l => l.code === profile.scanTargetLanguage) || SUPPORTED_LANGUAGES[0]
+  );
+  const [localLang, setLocalLang] = useState<Language>(() =>
+    SUPPORTED_LANGUAGES.find(l => l.code === profile.scanSourceLanguage) || SUPPORTED_LANGUAGES[1]
+  );
+
+  // Sync state if user changes languages in Profile tab
+  useEffect(() => {
+    if (profile.scanTargetLanguage) {
+      const match = SUPPORTED_LANGUAGES.find(l => l.code === profile.scanTargetLanguage);
+      if (match) setMyLang(match);
+    }
+    if (profile.scanSourceLanguage) {
+      const match = SUPPORTED_LANGUAGES.find(l => l.code === profile.scanSourceLanguage);
+      if (match) setLocalLang(match);
+    }
+  }, [profile.scanTargetLanguage, profile.scanSourceLanguage]);
 
   // Modal State
   const [isLangModalOpen, setIsLangModalOpen] = useState(false);
@@ -224,7 +240,7 @@ export default function LiveInteractionScreen() {
       // Capture state before resetting
       const currentSpeaker = activeSpeaker;
       const textToProcess = liveTranscript.trim();
-      
+
       // Force abort to prevent the library from sending a duplicate final result
       try { ExpoSpeechRecognitionModule.abort(); } catch (e) { console.error(e); }
       resetRecordingState();
@@ -393,6 +409,11 @@ export default function LiveInteractionScreen() {
     const temp = myLang;
     setMyLang(localLang);
     setLocalLang(temp);
+
+    save({
+      scanTargetLanguage: localLang.code,
+      scanSourceLanguage: myLang.code
+    });
   };
 
   const openLangSelector = (side: 'me' | 'local') => {
@@ -414,8 +435,13 @@ export default function LiveInteractionScreen() {
   };
 
   const selectLanguage = (lang: Language) => {
-    if (selectingFor === 'me') setMyLang(lang);
-    else setLocalLang(lang);
+    if (selectingFor === 'me') {
+      setMyLang(lang);
+      save({ scanTargetLanguage: lang.code });
+    } else {
+      setLocalLang(lang);
+      save({ scanSourceLanguage: lang.code });
+    }
     closeLangSelector();
   };
 
@@ -507,10 +533,25 @@ export default function LiveInteractionScreen() {
             return (
               <View style={styles.myMessageWrapper}>
                 <View style={[styles.myBubble, { backgroundColor: colors.isDark ? '#312e81' : '#e0e7ff' }]}>
-                  <Text style={[styles.myText, { color: colors.foreground }]}>{item.originalText}</Text>
-                  <View style={styles.metaRowRight}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <Text style={[styles.myText, { color: colors.foreground, flexShrink: 1 }]}>{item.originalText}</Text>
+                    <TouchableOpacity style={styles.iconBtn} onPress={() => playAudio(item.originalText, myLang.bcp47)}>
+                      <Feather name="volume-2" size={18} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                  <Text style={[styles.translatedText, { color: colors.foreground }]}>{item.translatedText}</Text>
+
+                  <View style={[styles.metaRowRight, { justifyContent: 'space-between', width: '100%', marginTop: 12 }]}>
                     <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>{item.timestamp}</Text>
-                    <Feather name="check" size={14} color={colors.primary} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <TouchableOpacity style={styles.iconBtn} onPress={() => playAudio(item.translatedText, localLang.bcp47)}>
+                        <Feather name="play" size={16} color={colors.primary} />
+                      </TouchableOpacity>
+                      <Feather name="check" size={14} color={colors.primary} />
+                    </View>
                   </View>
                 </View>
               </View>
@@ -552,12 +593,12 @@ export default function LiveInteractionScreen() {
                   </View>
                 )}
 
-                {item.suggestedResponse && !item.isAnalyzing && (
+                {/* {item.suggestedResponse && !item.isAnalyzing && (
                   <View style={[styles.suggestionBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                     <Text style={[styles.suggestionLabel, { color: colors.primary }]}>AI SUGGESTION</Text>
                     <Text style={[styles.suggestionText, { color: colors.foreground }]}>{item.suggestedResponse}</Text>
                   </View>
-                )}
+                )} */}
               </View>
             </View>
           );
@@ -579,7 +620,7 @@ export default function LiveInteractionScreen() {
       />
 
       {/* 3. Dynamic Contextual Suggestion Tray */}
-      {messages.length > 0 && (
+      {/* {messages.length > 0 && (
         <View style={styles.suggestionTray}>
           <View style={styles.suggestionHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -607,7 +648,7 @@ export default function LiveInteractionScreen() {
             ))}
           </ScrollView>
         </View>
-      )}
+      )} */}
 
       {/* 4. Action Area */}
       <View

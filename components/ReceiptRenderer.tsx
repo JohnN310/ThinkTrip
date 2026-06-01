@@ -5,9 +5,10 @@ import { ReceiptData } from '../lib/scanTypes';
 interface ReceiptRendererProps {
     receipt: ReceiptData;
     colors: any;
+    languageCode?: string;
 }
 
-export const ReceiptRenderer: React.FC<ReceiptRendererProps> = ({ receipt, colors }) => {
+export const ReceiptRenderer: React.FC<ReceiptRendererProps> = ({ receipt, colors, languageCode }) => {
     if (!receipt || !receipt.items) return null;
 
     return (

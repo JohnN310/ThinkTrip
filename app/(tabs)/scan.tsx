@@ -23,6 +23,8 @@ import { MenuData, ScanResult, ReceiptData, ReceiptItem } from '../../lib/scanTy
 import { MenuItemRow, MenuCategoryHeader } from '../../components/MenuRenderer';
 import { ReceiptRenderer } from '../../components/ReceiptRenderer';
 import { SignRenderer } from '../../components/SignRenderer';
+import TextRecognition from '@react-native-ml-kit/text-recognition';
+import Translate from '@react-native-ml-kit/translate-text';
 const { width, height } = Dimensions.get('window');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -158,7 +160,7 @@ const getMarkdownStyles = (textColor: string, colors: any) => ({
     color: textColor,
     fontFamily: 'Inter_700Bold',
     fontSize: 18,
-    marginTop: Platform.OS === 'ios' ? 0 : 2, 
+    marginTop: Platform.OS === 'ios' ? 0 : 2,
   }
 });
 
@@ -487,7 +489,7 @@ export default function ScanScreen() {
     };
   }, [analyzing]);
 
-  const analyzeImage = async (base64Image: string, currentMode: Mode, location?: Location.LocationObject | null): Promise<ScanResult> => {
+  const analyzeImage = async (base64Image: string, imageUri: string, currentMode: Mode, location?: Location.LocationObject | null): Promise<ScanResult> => {
     // ── MOCK MODE (comment this block out and uncomment the block below to go live) ──
     // await new Promise(res => setTimeout(res, 15000)); // simulate network delay
     // if (currentMode === 'Menu') {
@@ -558,7 +560,10 @@ export default function ScanScreen() {
       }
     };
 
-    // ── LIVE GEMINI MODE (uncomment to enable, comment out mock block above) ──
+    /* ==============================================================
+       --- LIVE GEMINI MODE (COMMENTED OUT FOR ML KIT TESTING) ---
+       ==============================================================
+       */
     const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
     if (!apiKey) throw new Error("Missing Gemini API Key");
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -568,6 +573,9 @@ export default function ScanScreen() {
     };
     let model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite", generationConfig });
 
+    const targetLangCode = profile.scanTargetLanguage || 'en';
+    const sourceLangCode = profile.scanSourceLanguage || 'ja';
+
     const prompt = `
       You are the intelligence engine for "ThinkTrip", a premium, clinical, biometrically-aware travel OS. 
       Your primary directive is to decode cultural nuances, eliminate language barriers, and protect the user's biometric baseline, granting them absolute confidence in unfamiliar environments.
@@ -576,6 +584,8 @@ export default function ScanScreen() {
 
       **CURRENT CONTEXT:**
       - Active Mode: ${currentMode}
+      - Target Translation Language: ${targetLangCode} (ISO 639-1 code)
+      - Foreign Source Language: ${sourceLangCode} (ISO 639-1 code)
       - User's Health Baseline: ${JSON.stringify(healthBaseline)}
       - GPS Status: ${location
         ? `ACTIVE (Lat: ${location.coords.latitude}, Lng: ${location.coords.longitude}). CRITICAL: Bias all transit POIs to this exact physical location.`
@@ -586,8 +596,7 @@ export default function ScanScreen() {
       2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS. Output pure text only. DO NOT USE PARAGRAPHS in the 'notes' section. The 'body' of EVERY note MUST be a strict bulleted list ("- "). 
       3. **BE RUTHLESSLY CONCISE:** Keep every bullet point to a maximum of 15 words. Prioritize quick scannability over complete sentences. (Note: The native phrase and phonetic spelling do not count towards this limit).
       4. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
-      5. **CULTURAL CONFIDENCE & NATIVE SCRIPT:** Single quotes are STRICTLY RESERVED for the native text-to-speech engine. You MUST use single quotes EXCLUSIVELY to wrap the actual native characters/script (e.g., '请问') INSIDE your double-quoted JSON string values. CRITICAL: Output STRICTLY VALID JSON. ALL JSON keys and string values MUST be wrapped in double quotes (e.g., "nativeName": "'请问'"). NEVER use single quotes to wrap JSON properties or values. NEVER use Romanization (like Pinyin or Romaji) inside the single quotes, as native text-to-speech engines cannot read it. Place the official Romanization and the English-approximated phonetic pronunciation OUTSIDE the quotes in parentheses (e.g., '请问' (Qǐng wèn - ching wen)). DO NOT provide literal, word-by-word English translations of dish names. 
-      6. **NO DUPLICATION:** The 'userAnswer' field must strictly and exclusively address the user's specific question.
+      5. **CULTURAL CONFIDENCE & NATIVE SCRIPT:** Single quotes are STRICTLY RESERVED for the native text-to-speech engine. You MUST use single quotes EXCLUSIVELY to wrap the actual native characters/script (e.g., '请问') INSIDE your double-quoted JSON string values. CRITICAL: Output STRICTLY VALID JSON. ALL JSON keys and string values MUST be wrapped in double quotes (e.g., "nativeName": "'请问'"). NEVER use single quotes to wrap JSON properties or values. NEVER use Romanization (like Pinyin or Romaji) inside the single quotes, as native text-to-speech engines cannot read it. Place the official Romanization and the phonetic pronunciation OUTSIDE the quotes in parentheses (e.g., '请问' (Qǐng wèn - ching wen)). DO NOT provide literal, word-by-word translations of dish names. CRITICAL: Translate all generated content (Titles, Notes, Badges, Descriptions, phonetic approximations) into the Target Translation Language (${targetLangCode}).
 
       **MODE ADAPTATION:**
       If Mode is 'Menu':
@@ -598,12 +607,12 @@ export default function ScanScreen() {
         - Analyze the menu collectively against the User's Baseline.
         - Badges: Flag high-level context (e.g., "warn" for "Heavy Dairy Use", "good" for "Diet-Friendly Options").
         - Notes: Provide ONLY ONE note:
-           1. "Ordering & Interactions": Provide EXACTLY 5 of the most popular requests, ordering tips, or practical phrases for this setting. For each phrase, provide the properly accented native spelling strictly inside single quotes, followed by an English-approximated phonetic spelling in parentheses (e.g., "- To request no cilantro, say 'Không ngò' (kohng ngo)").
+           1. "Ordering & Interactions": Provide EXACTLY 5 of the most popular requests, ordering tips, or practical phrases for this setting. For each phrase, provide the properly accented native spelling strictly inside single quotes, followed by a phonetic spelling in parentheses tailored for a speaker of the Target Translation Language.
         - IN ADDITION, provide a 'menuData' object containing an array of 'categories'.
         - Group the extracted dishes into logical 'categories' (e.g., "Mains", "Sides", "Drinks").
         - For each item, provide:
           1. 'nativeName': The name in the original language using proper native script.
-          2. 'translatedName': A concise English translation.
+          2. 'translatedName': A concise translation into the Target Translation Language.
           3. 'description': A short explanation of the dish ingredients (max 12 words).
           4. 'price': The price exactly as written.
           5. 'dietaryFlags': Cross-reference the item's ingredients with the User's Health Baseline. Set to "critical_avoid" if it violates their baseline, "safe" if it aligns, or "warning" if it is ambiguous.
@@ -620,7 +629,7 @@ export default function ScanScreen() {
         - Additionally, provide a 'receiptData' object.
         - Extract EVERY legible line item from the bill into the 'items' array. For each item, provide:
            1. 'originalName': The item name exactly as printed in the native script.
-           2. 'translatedName': A concise English translation.
+           2. 'translatedName': A concise translation into the Target Translation Language.
            3. 'price': The cost of the item.
         - Extract the 'subtotal', 'tax', 'serviceCharge', and 'total'. If a value is not present on the receipt, return "0" or "N/A".
         - Identify the 'currencySymbol' (e.g., "¥", "€", "$", "₫").
@@ -638,8 +647,7 @@ export default function ScanScreen() {
 
       **REQUIRED JSON STRUCTURE:**
       {
-        "title": "Short Title (In English)",
-        "languageCode": "The exact BCP-47 language tag for the primary foreign language detected in the image (e.g., 'vi-VN', 'ja-JP', 'fr-FR', 'es-ES'). Omit this field if the image is purely English.",
+        "title": "Short Title (Translated into Target Language)",
         "badges": [
           { "type": "good" | "warn" | "info", "text": "Short badge text" }
         ],
@@ -727,7 +735,236 @@ export default function ScanScreen() {
 
       throw new Error("Analysis failed: Received malformed data from AI. Please try again.");
     }
-    // ── END LIVE GEMINI MODE ──
+
+
+    // ==============================================================
+    // --- ML KIT TEXT RECOGNITION & TRANSLATION MODE ---
+    // ==============================================================
+    // try {
+    //   // 1. Extract raw text from the image URI
+    //   const recognizedResult = await TextRecognition.recognize(imageUri);
+    //   const extractedText = recognizedResult.text;
+
+    //   if (!extractedText || extractedText.trim() === '') {
+    //     return {
+    //       title: 'Unable to Analyze',
+    //       badges: [{ type: 'warn', text: 'No legible text found' }],
+    //       notes: []
+    //     };
+    //   }
+
+    //   // 3. AI Analysis using ML Kit translation
+    //   const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    //   if (!apiKey) throw new Error("Missing Gemini API Key");
+    //   const genAI = new GoogleGenerativeAI(apiKey);
+    //   const generationConfig = {
+    //     responseMimeType: "application/json",
+    //     maxOutputTokens: 8192,
+    //   };
+    //   let model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite", generationConfig });
+
+    //   const prompt = `
+    //     You are the intelligence engine for "ThinkTrip", a premium, clinical, biometrically-aware travel OS. 
+    //     Your primary directive is to decode cultural nuances, eliminate language barriers, and protect the user's biometric baseline, granting them absolute confidence in unfamiliar environments.
+
+    //     Analyze the provided image alongside the text, and generate a response formatted strictly as valid JSON.
+
+    //     **ORIGINAL TEXT:**
+    //     ${extractedText}
+
+    //     **CURRENT CONTEXT:**
+    //     - Active Mode: ${currentMode}
+    //     - User's Health Baseline: ${JSON.stringify(healthBaseline)}
+    //     - GPS Status: ${location
+    //       ? `ACTIVE (Lat: ${location.coords.latitude}, Lng: ${location.coords.longitude}). CRITICAL: Bias all transit POIs to this exact physical location.`
+    //       : `DISABLED. The user has opted out of location tracking. Do not attempt to guess the city or generate map routing.`}
+
+    //     **CRITICAL RULES:**
+    //     1. **IMAGE FIRST:** Extract text, context, and environment details exclusively from the image. If the image is completely illegible or entirely unrelated to the Active Mode, do not hallucinate. Set the 'title' to 'Unable to Analyze', omit the 'userAnswer', and provide a single 'warn' badge indicating the image is unclear.
+    //     2. **TONE & FORMATTING:** Calm, premium, clinical, objective. STRICTLY NO EMOJIS, NO UNICODE ICONS. Output pure text only. DO NOT USE PARAGRAPHS in the 'notes' section. The 'body' of EVERY note MUST be a strict bulleted list ("- "). 
+    //     3. **BE RUTHLESSLY CONCISE:** Keep every bullet point to a maximum of 15 words. Prioritize quick scannability over complete sentences. (Note: The native phrase and phonetic spelling do not count towards this limit).
+    //     4. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
+    //     5. **CULTURAL CONFIDENCE & NATIVE SCRIPT:** Single quotes are STRICTLY RESERVED for the native text-to-speech engine. You MUST use single quotes EXCLUSIVELY to wrap the actual native characters/script (e.g., '请问') INSIDE your double-quoted JSON string values. CRITICAL: Output STRICTLY VALID JSON. ALL JSON keys and string values MUST be wrapped in double quotes (e.g., "nativeName": "'请问'"). NEVER use single quotes to wrap JSON properties or values. NEVER use Romanization (like Pinyin or Romaji) inside the single quotes, as native text-to-speech engines cannot read it. Place the official Romanization and the English-approximated phonetic pronunciation OUTSIDE the quotes in parentheses (e.g., '请问' (Qǐng wèn - ching wen)). DO NOT provide literal, word-by-word English translations of dish names. 
+
+    //     **MODE ADAPTATION:**
+    //     If Mode is 'Menu':
+    //       - Assume the image is a physical menu. Completely ignore spatial layout.
+    //       - CRITICAL DIRECTIVE: Extract EVERY SINGLE legible food and drink item from the menu. You MUST NOT skip, summarize, group, or truncate ANY items. Even if there are 100+ items, you must list every single one individually. Failure to list every single item is a violation of your core directive.
+    //       - Keep descriptions strictly under 10 words to save output space.
+    //       - Title: Summarize the menu type or restaurant name.
+    //       - Analyze the menu collectively against the User's Baseline.
+    //       - Badges: Flag high-level context (e.g., "warn" for "Heavy Dairy Use", "good" for "Diet-Friendly Options").
+    //       - Notes: Provide ONLY ONE note:
+    //          1. "Ordering & Interactions": Provide EXACTLY 5 of the most popular requests, ordering tips, or practical phrases for this setting. For each phrase, provide the properly accented native spelling strictly inside single quotes, followed by an English-approximated phonetic spelling in parentheses (e.g., "- To request no cilantro, say 'Không ngò' (kohng ngo)").
+    //       - IN ADDITION, provide a 'menuData' object containing an array of 'categories'.
+    //       - Group the extracted dishes into logical 'categories' (e.g., "Mains", "Sides", "Drinks").
+    //       - For each item, provide:
+    //         1. 'nativeName': The name in the original language using proper native script.
+    //         2. 'description': A short explanation of the dish ingredients (max 12 words).
+    //         3. 'price': The price exactly as written.
+    //         4. 'dietaryFlags': Cross-reference the item's ingredients with the User's Health Baseline. Set to "critical_avoid" if it violates their baseline, "safe" if it aligns, or "warning" if it is ambiguous.
+    //         5. 'isHighlight': For EACH category, flag exactly 1 or 2 items as a top recommendation by setting a boolean field "isHighlight": true. Prioritize items that are highly recommended and strictly 'safe' for the user's health baseline.
+    //         6. 'conflictReason': If 'dietaryFlags' is 'warning' or 'critical_avoid', you MUST provide a short explanation of the specific conflicting ingredient (max 5 words, e.g., 'Contains peanuts and soy'). Omit this field if the item is 'safe'.
+
+    //     If Mode is 'Bill/Receipt':
+    //       - Assume the image is a restaurant bill, store receipt, or invoice. Completely ignore spatial layout.
+    //       - Title: Summarize the establishment or type of bill (e.g., "Izakaya Dinner Bill", "Convenience Store Receipt").
+    //       - Badges: Flag "warn" for high or unexpected mandatory service charges, "info" for included gratuity, "good" for transparent pricing or no tipping required.
+    //       - Notes: Provide exactly three notes:
+    //          1. "Tipping Culture": Strict advice on whether to add a tip for this specific region and context.
+    //          2. "Settlement Protocol": Practical advice on how to physically pay (e.g., 'Take this slip to the front register' vs 'Pay at the table'). Include 2 practical phrases with native spellings in single quotes for asking to split the bill or pay by card.
+    //       - Additionally, provide a 'receiptData' object.
+    //       - Extract EVERY legible line item from the bill into the 'items' array. For each item, provide:
+    //          1. 'originalName': The item name exactly as printed in the native script.
+    //          2. 'price': The cost of the item.
+    //       - Extract the 'subtotal', 'tax', 'serviceCharge', and 'total'. If a value is not present on the receipt, return "0" or "N/A".
+    //       - Identify the 'currencySymbol' (e.g., "¥", "€", "$", "₫").
+
+    //     If Mode is 'Sign':
+    //       - Assume the image is a street sign, warning, notice, or directional board. Completely ignore spatial layout.
+    //       - Title: Summarize the type of sign (e.g., "Parking Restriction", "Transit Notice").
+    //       - Badges: "info" for general context, "warn" for restrictions or penalties, "good" for allowed actions.
+    //       - Notes: Provide exactly ONE note:
+    //          1. "Context & Norms": Explain any unspoken local rules or cultural context surrounding this type of sign.
+    //       - IN ADDITION, provide a 'signData' object.
+    //          1. 'originalText': EXACTLY transcribe ALL legible text from the sign in the native script. Do not summarize, truncate, or skip any text.
+    //          2. 'instruction': Clinical, actionable advice on what the user MUST do (e.g., 'Do not park here between 8 AM and 6 PM', 'Enter through the left turnstile').
+
+    //     **REQUIRED JSON STRUCTURE:**
+    //     {
+    //       "title": "Short Title (In English)",
+    //       "languageCode": "The exact BCP-47 language tag for the primary foreign language detected in the image (e.g., 'vi-VN', 'ja-JP', 'fr-FR', 'es-ES'). Omit this field if the image is purely English.",
+    //       "badges": [
+    //         { "type": "good" | "warn" | "info", "text": "Short badge text" }
+    //       ],
+    //       "notes": [
+    //         { "title": "Category (e.g., Behavioral Norms)", "body": "Clinical, concise explanation with phonetic phrasing if needed. CRITICAL: Use \\n for paragraph breaks and '- ' for bullet points." }
+    //       ]${currentMode === 'Menu' ? `,
+    //       "menuData": {
+    //         "categories": [
+    //           {
+    //             "categoryName": "String",
+    //             "items": [
+    //               {
+    //                 "nativeName": "'String'",
+    //                 "description": "String",
+    //                 "price": "String",
+    //                 "dietaryFlags": "safe | warning | critical_avoid",
+    //                 "isHighlight": false,
+    //                 "conflictReason": "String (omit if safe)"
+    //               }
+    //             ]
+    //           }
+    //         ]
+    //       }` : ''}${currentMode === 'Bill/Receipt' ? `,
+    //       "receiptData": {
+    //         "currencySymbol": "String",
+    //         "subtotal": "String",
+    //         "tax": "String",
+    //         "serviceCharge": "String",
+    //         "total": "String",
+    //         "items": [
+    //           {
+    //             "originalName": "'String'",
+    //             "price": "String"
+    //           }
+    //         ]
+    //       }` : ''}${currentMode === 'Sign' ? `,
+    //       "signData": {
+    //         "originalText": "'String'",
+    //         "instruction": "String"
+    //       }` : ''}
+    //     }
+    //   `;
+
+    //   console.log("Prompt: ", prompt);
+
+    //   let contentResult: any;
+    //   try {
+    //     contentResult = await model.generateContent([prompt, { inlineData: { data: base64Image, mimeType: "image/jpeg" } }]);
+    //   } catch (e) {
+    //     console.warn("Fallback to gemini-2.5-flash-lite:", e);
+
+    //     try {
+    //       model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite", generationConfig });
+    //       contentResult = await model.generateContent([prompt, { inlineData: { data: base64Image, mimeType: "image/jpeg" } }]);
+    //     } catch (e) {
+    //       console.warn("Both models failed :( ", e);
+    //       throw new Error("AI analysis failed after multiple attempts.");
+    //     }
+    //   }
+    //   try {
+    //     const responseText = contentResult.response.text().trim();
+
+    //     const firstBrace = responseText.indexOf('{');
+    //     const lastBrace = responseText.lastIndexOf('}');
+
+    //     if (firstBrace === -1 || lastBrace === -1) {
+    //       throw new Error("No valid JSON structure found in AI response.");
+    //     }
+
+    //     const jsonString = responseText.slice(firstBrace, lastBrace + 1);
+    //     const scanResult = JSON.parse(jsonString) as ScanResult;
+
+    //     // Perform local ML Kit translation for the names
+    //     const translationPromises: Promise<void>[] = [];
+
+    //     const translateAndAssign = (obj: any, sourceKey: string, targetKey: string) => {
+    //       if (!obj[sourceKey]) return;
+
+    //       // The native string might be wrapped in single quotes per the AI prompt rules
+    //       let cleanText = obj[sourceKey];
+    //       if (cleanText.startsWith("'") && cleanText.endsWith("'")) {
+    //         cleanText = cleanText.slice(1, -1);
+    //       }
+
+    //       const p = Translate.translate({
+    //         text: cleanText,
+    //         sourceLanguage: (profile.scanSourceLanguage || 'ja') as any,
+    //         targetLanguage: (profile.scanTargetLanguage || 'en') as any,
+    //         downloadModelIfNeeded: true,
+    //       }).then((res) => {
+    //         obj[targetKey] = res as unknown as string;
+    //       }).catch((e) => {
+    //         console.warn("Translation failed for", cleanText, e);
+    //         obj[targetKey] = cleanText; // Fallback to native text if ML Kit fails
+    //       });
+    //       translationPromises.push(p);
+    //     };
+
+    //     if (scanResult.menuData?.categories) {
+    //       scanResult.menuData.categories.forEach(cat => {
+    //         cat.items.forEach(item => translateAndAssign(item, 'nativeName', 'translatedName'));
+    //       });
+    //     }
+
+    //     if (scanResult.receiptData?.items) {
+    //       scanResult.receiptData.items.forEach(item => translateAndAssign(item, 'originalName', 'translatedName'));
+    //     }
+
+    //     if (scanResult.signData) {
+    //       translateAndAssign(scanResult.signData, 'originalText', 'translatedText');
+    //     }
+
+    //     // Await all local translation tasks in parallel
+    //     await Promise.all(translationPromises);
+
+    //     return scanResult;
+
+    //   } catch (e) {
+    //     console.error("JSON parsing error:", e);
+
+    //     if (e instanceof SyntaxError && e.message.includes('Unexpected end of input')) {
+    //       throw new Error("The menu was too large and the analysis timed out. Try scanning a smaller section of the menu.");
+    //     }
+
+    //     throw new Error("Analysis failed: Received malformed data from AI. Please try again.");
+    //   }
+
+    // } catch (error) {
+    //   console.error("ML Kit processing error:", error);
+    //   throw new Error("Analysis failed: Could not process text locally.");
+    // }
 
     // -- Openrouter API Mode --
     // const orKey = process.env.EXPO_PUBLIC_OPENROUTER_API_KEY;
@@ -941,7 +1178,7 @@ export default function ScanScreen() {
         try {
           model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
           chat = model.startChat({ history, systemInstruction });
-          
+
           // ✅ Repeat the injection logic for the fallback model
           if (chatMessages.length === 0 && currentScanImage) {
             chatResult = await chat.sendMessage([
@@ -953,7 +1190,7 @@ export default function ScanScreen() {
           }
         } catch (fallbackError) {
           console.warn("Both models failed for chat:", fallbackError);
-          throw fallbackError; 
+          throw fallbackError;
         }
       }
 
@@ -1003,7 +1240,7 @@ export default function ScanScreen() {
 
       let imagePromise;
       if (pendingUploadPhoto) {
-        imagePromise = Promise.resolve({ base64: pendingUploadPhoto.base64 });
+        imagePromise = Promise.resolve({ uri: pendingUploadPhoto.uri, base64: pendingUploadPhoto.base64 });
       } else {
         const photo = await cameraRef.current!.takePictureAsync({ quality: 0.5 });
         if (!photo) throw new Error("Photo capture failed");
@@ -1033,9 +1270,9 @@ export default function ScanScreen() {
       // 6. AI Analysis
       if (croppedImage.base64) {
         // ✅ Save the image to state so the chatbot can see it
-        setCurrentScanImage(croppedImage.base64); 
-        
-        const analysis = await analyzeImage(croppedImage.base64, mode, currentLocation);
+        setCurrentScanImage(croppedImage.base64);
+
+        const analysis = await analyzeImage(croppedImage.base64, croppedImage.uri, mode, currentLocation);
 
         if (analysis.title === 'Unable to Analyze') {
           Alert.alert(
@@ -1091,7 +1328,7 @@ export default function ScanScreen() {
     }
 
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       base64: true,
       quality: 0.5,
     });
@@ -1265,10 +1502,6 @@ export default function ScanScreen() {
           );
         })}
       </View>
-
-      {mode === 'Sign' && result?.signData && (
-        <SignRenderer sign={result.signData} colors={colors} languageCode={result.languageCode} />
-      )}
     </View>
   );
 
@@ -1639,7 +1872,7 @@ export default function ScanScreen() {
                   })}
                   keyExtractor={(item, index) => item.nativeName + index}
                   renderItem={({ item }) => (
-                    <MenuItemRow item={item as any} colors={colors} languageCode={result.languageCode} />
+                    <MenuItemRow item={item as any} colors={colors} languageCode={profile.scanSourceLanguage} />
                   )}
                   renderSectionHeader={({ section: { title } }) => (
                     <MenuCategoryHeader categoryName={title} colors={colors} />
@@ -1673,7 +1906,10 @@ export default function ScanScreen() {
                 <ScrollView showsVerticalScrollIndicator bounces contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: insets.bottom + 24 }}>
                   {renderListHeader()}
                   {mode === 'Bill/Receipt' && result?.receiptData && (
-                    <ReceiptRenderer receipt={result.receiptData} colors={colors} />
+                    <ReceiptRenderer receipt={result.receiptData} colors={colors} languageCode={profile.scanSourceLanguage} />
+                  )}
+                  {mode === 'Sign' && result?.signData && (
+                    <SignRenderer sign={result.signData} colors={colors} languageCode={profile.scanSourceLanguage} />
                   )}
                   {renderListFooter()}
                 </ScrollView>
@@ -1749,7 +1985,7 @@ export default function ScanScreen() {
                   renderItem={({ item }) => {
                     const isUser = item.role === 'user';
                     const textColor = isUser ? '#fff' : (colors.foreground as string);
-                    
+
                     return (
                       <View style={[
                         styles.chatBubble,

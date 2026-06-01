@@ -31,6 +31,8 @@ const DEFAULT_PROFILE: ProfileContextState = {
   avatarEmoji: '',
   avatarColor: '#5c7ce5',
   themePreference: 'system',
+  scanSourceLanguage: 'ja',
+  scanTargetLanguage: 'en',
 };
 
 interface ProfileContextValue {
