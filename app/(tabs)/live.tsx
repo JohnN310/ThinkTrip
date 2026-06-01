@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform, ScrollView, Modal, Animated } from 'react-native';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-// import Translate from '@react-native-ml-kit/translate-text'; // --- ML KIT IMPORT (Commented out for testing Gemini translation) ---
+import Translate from '@react-native-ml-kit/translate-text'; // --- ML KIT IMPORT (Commented out for testing Gemini translation) ---
 
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
@@ -98,57 +98,58 @@ export default function LiveInteractionScreen() {
       return;
     }
 
-    const generateContextualSuggestions = async () => {
-      setIsGeneratingSuggestions(true);
-      try {
-        const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-        if (!apiKey) throw new Error("Missing API Key");
+    // const generateContextualSuggestions = async () => {
+    //   setIsGeneratingSuggestions(true);
+    //   try {
+    //     const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    //     if (!apiKey) throw new Error("Missing API Key");
 
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-          model: "gemini-3.1-flash-lite",
-          generationConfig: { responseMimeType: "application/json" }
-        });
+    //     const genAI = new GoogleGenerativeAI(apiKey);
+    //     const model = genAI.getGenerativeModel({
+    //       model: "gemini-3.1-flash-lite",
+    //       generationConfig: { responseMimeType: "application/json" }
+    //     });
 
-        const historyText = messages.map(m =>
-          `${m.speaker === 'me' ? myLang.name : localLang.name}: ${m.originalText}`
-        ).join('\n');
+    //     const historyText = messages.map(m =>
+    //       `${m.speaker === 'me' ? myLang.name : localLang.name}: ${m.originalText}`
+    //     ).join('\n');
 
-        const prompt = `
-          Analyze this conversation transcript between a user speaking ${myLang.name} and a local speaking ${localLang.name}:
-          ${historyText}
+    //     const prompt = `
+    //       Analyze this conversation transcript between a user speaking ${myLang.name} and a local speaking ${localLang.name}:
+    //       ${historyText}
 
-          Predict 3 highly practical, short follow-up phrases the user (${myLang.name}) might want to say next to continue or conclude the interaction.
-          Format strictly as a JSON array of objects:
-          [
-            {
-              "icon": "Valid Feather icon name representing the phrase (e.g., 'credit-card', 'map-pin', 'coffee', 'message-square', 'help-circle')",
-              "myPhrase": "The phrase in ${myLang.name}",
-              "localPhrase": "The exact translated phrase in ${localLang.name}"
-            }
-          ]
-        `;
+    //       Predict 3 highly practical, short follow-up phrases the user (${myLang.name}) might want to say next to continue or conclude the interaction.
+    //       Format strictly as a JSON array of objects:
+    //       [
+    //         {
+    //           "icon": "Valid Feather icon name representing the phrase (e.g., 'credit-card', 'map-pin', 'coffee', 'message-square', 'help-circle')",
+    //           "myPhrase": "The phrase in ${myLang.name}",
+    //           "localPhrase": "The exact translated phrase in ${localLang.name}"
+    //         }
+    //       ]
+    //     `;
 
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text().trim();
+    //     const result = await model.generateContent(prompt);
+    //     const responseText = result.response.text().trim();
 
-        let jsonString = responseText.trim();
-        jsonString = jsonString
-          .replace(/^```(?:json)?\s*/i, '')
-          .replace(/\s*```$/i, '')
-          .trim();
+    //     let jsonString = responseText.trim();
+    //     jsonString = jsonString
+    //       .replace(/^```(?:json)?\s*/i, '')
+    //       .replace(/\s*```$/i, '')
+    //       .trim();
 
-        const data = JSON.parse(jsonString);
+    //     const data = JSON.parse(jsonString);
 
-        setDynamicSuggestions(data);
-      } catch (error) {
-        console.error("Contextual Suggestions Error:", error);
-      } finally {
-        setIsGeneratingSuggestions(false);
-      }
-    };
+    //     setDynamicSuggestions(data);
+    //   } catch (error) {
+    //     console.error("Contextual Suggestions Error:", error);
+    //   } finally {
+    //     setIsGeneratingSuggestions(false);
+    //   }
 
-    generateContextualSuggestions();
+    // };
+
+    // generateContextualSuggestions();
   }, [messages.length, myLang.name, localLang.name]);
 
 
@@ -165,7 +166,11 @@ export default function LiveInteractionScreen() {
   });
 
   useSpeechRecognitionEvent('error', (event) => {
-    console.error('Speech recognition error:', event.error, event.message);
+    if (event.error === 'no-speech' || event.error === 'aborted') {
+      console.log('Speech recognition stopped:', event.error, event.message);
+    } else {
+      console.error('Speech recognition error:', event.error, event.message);
+    }
     resetRecordingState();
   });
 
@@ -214,8 +219,28 @@ export default function LiveInteractionScreen() {
     }
   };
 
-  const stopRecording = () => {
-    try { ExpoSpeechRecognitionModule.stop(); } catch (e) { console.error(e); }
+  const toggleRecording = (speaker: 'me' | 'local') => {
+    if (isRecording) {
+      // Capture state before resetting
+      const currentSpeaker = activeSpeaker;
+      const textToProcess = liveTranscript.trim();
+      
+      // Force abort to prevent the library from sending a duplicate final result
+      try { ExpoSpeechRecognitionModule.abort(); } catch (e) { console.error(e); }
+      resetRecordingState();
+
+      // Process whatever was heard so far
+      if (textToProcess && currentSpeaker) {
+        processConversation(textToProcess, currentSpeaker);
+      }
+
+      // If they tapped the other button, start listening for the other person
+      if (currentSpeaker !== speaker) {
+        setTimeout(() => startRecording(speaker), 300);
+      }
+    } else {
+      startRecording(speaker);
+    }
   };
 
   const getTimestamp = () => {
@@ -241,28 +266,28 @@ export default function LiveInteractionScreen() {
         // ==============================================================
         // --- GEMINI AI TRANSLATION ---
         // ==============================================================
-        const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-        if (!apiKey) throw new Error("Missing API Key");
+        // const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+        // if (!apiKey) throw new Error("Missing API Key");
 
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+        // const genAI = new GoogleGenerativeAI(apiKey);
+        // const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
-        const prompt = `Translate the following text from ${sourceLangName} to ${targetLangName}. Return ONLY the pure translated text, nothing else.\n\nText: "${text}"`;
+        // const prompt = `Translate the following text from ${sourceLangName} to ${targetLangName}. Return ONLY the pure translated text, nothing else.\n\nText: "${text}"`;
 
-        const result = await model.generateContent(prompt);
-        translated = result.response.text().trim().replace(/^["']|["']$/g, '');
+        // const result = await model.generateContent(prompt);
+        // translated = result.response.text().trim().replace(/^["']|["']$/g, '');
 
         // ==============================================================
         // --- ML KIT APPROACH (Commented out) ---
         // ==============================================================
-        /*
+
         translated = (await Translate.translate({
           text,
           sourceLanguage: sourceLang as any,
           targetLanguage: targetLang as any,
           downloadModelIfNeeded: true,
         })) as unknown as string;
-        */
+
       }
     } catch (e) {
       console.error("Translation Error:", e);
@@ -289,6 +314,9 @@ export default function LiveInteractionScreen() {
   };
 
   const fetchGeminiInsights = async (msg: Message, source: string, target: string) => {
+    // --- AI Insights Commented Out For Testing ---
+    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isAnalyzing: false } : m));
+    /*
     try {
       const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
       if (!apiKey) throw new Error("Missing API Key");
@@ -321,6 +349,7 @@ export default function LiveInteractionScreen() {
       console.error("Gemini Error:", error);
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isAnalyzing: false, confidence: 'Low' } : m));
     }
+    */
   };
 
   const playAudio = (text: string, lang: string) => {
@@ -592,8 +621,7 @@ export default function LiveInteractionScreen() {
       >
         <TouchableOpacity
           style={[styles.micBtn, { backgroundColor: isRecording && activeSpeaker === 'local' ? 'rgba(16, 185, 129, 0.1)' : colors.card, borderColor: isRecording && activeSpeaker === 'local' ? '#10b981' : colors.border }]}
-          onPressIn={() => startRecording('local')}
-          onPressOut={stopRecording}
+          onPress={() => toggleRecording('local')}
           activeOpacity={0.8}
         >
           <Feather name="users" size={20} color={isRecording && activeSpeaker === 'local' ? '#10b981' : '#10b981'} />
@@ -605,8 +633,7 @@ export default function LiveInteractionScreen() {
 
         <TouchableOpacity
           style={[styles.micBtn, { backgroundColor: isRecording && activeSpeaker === 'me' ? 'rgba(92, 124, 229, 0.1)' : colors.card, borderColor: isRecording && activeSpeaker === 'me' ? colors.primary : colors.border }]}
-          onPressIn={() => startRecording('me')}
-          onPressOut={stopRecording}
+          onPress={() => toggleRecording('me')}
           activeOpacity={0.8}
         >
           <Feather name="user" size={20} color={isRecording && activeSpeaker === 'me' ? colors.primary : colors.primary} />
