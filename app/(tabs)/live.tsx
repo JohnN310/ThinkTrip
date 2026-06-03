@@ -109,64 +109,73 @@ export default function LiveInteractionScreen() {
 
   // Trigger contextual suggestions whenever the conversation updates
   useEffect(() => {
-    if (messages.length === 0) {
-      setDynamicSuggestions([]);
+    if (messages.length === 0 || isRecording) {
+      if (messages.length === 0) setDynamicSuggestions([]);
       return;
     }
 
-    // const generateContextualSuggestions = async () => {
-    //   setIsGeneratingSuggestions(true);
-    //   try {
-    //     const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-    //     if (!apiKey) throw new Error("Missing API Key");
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.speaker !== 'local') {
+      return; // Only suggest things for ME to say after the LOCAL person speaks
+    }
 
-    //     const genAI = new GoogleGenerativeAI(apiKey);
-    //     const model = genAI.getGenerativeModel({
-    //       model: "gemini-3.1-flash-lite",
-    //       generationConfig: { responseMimeType: "application/json" }
-    //     });
+    const timerId = setTimeout(() => {
+      const generateContextualSuggestions = async () => {
+        setIsGeneratingSuggestions(true);
+        try {
+          const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+          if (!apiKey) throw new Error("Missing API Key");
 
-    //     const historyText = messages.map(m =>
-    //       `${m.speaker === 'me' ? myLang.name : localLang.name}: ${m.originalText}`
-    //     ).join('\n');
+          const genAI = new GoogleGenerativeAI(apiKey);
+          const model = genAI.getGenerativeModel({
+            model: "gemini-3.1-flash-lite",
+            generationConfig: { responseMimeType: "application/json" }
+          });
 
-    //     const prompt = `
-    //       Analyze this conversation transcript between a user speaking ${myLang.name} and a local speaking ${localLang.name}:
-    //       ${historyText}
+          const recentMessages = messages.slice(-5);
+          const historyText = recentMessages.map(m =>
+            `${m.speaker === 'me' ? myLang.name : localLang.name}: ${m.originalText}`
+          ).join('\n');
 
-    //       Predict 3 highly practical, short follow-up phrases the user (${myLang.name}) might want to say next to continue or conclude the interaction.
-    //       Format strictly as a JSON array of objects:
-    //       [
-    //         {
-    //           "icon": "Valid Feather icon name representing the phrase (e.g., 'credit-card', 'map-pin', 'coffee', 'message-square', 'help-circle')",
-    //           "myPhrase": "The phrase in ${myLang.name}",
-    //           "localPhrase": "The exact translated phrase in ${localLang.name}"
-    //         }
-    //       ]
-    //     `;
+          const prompt = `
+            Analyze this conversation transcript between a user speaking ${myLang.name} and a local speaking ${localLang.name}:
+            ${historyText}
 
-    //     const result = await model.generateContent(prompt);
-    //     const responseText = result.response.text().trim();
+            Predict 3 highly practical, short follow-up phrases the user (${myLang.name}) might want to say next to continue or conclude the interaction.
+            Format strictly as a JSON array of objects:
+            [
+              {
+                "icon": "Valid Feather icon name representing the phrase (e.g., 'credit-card', 'map-pin', 'coffee', 'message-square', 'help-circle')",
+                "myPhrase": "The phrase in ${myLang.name}",
+                "localPhrase": "The exact translated phrase in ${localLang.name}"
+              }
+            ]
+          `;
 
-    //     let jsonString = responseText.trim();
-    //     jsonString = jsonString
-    //       .replace(/^```(?:json)?\s*/i, '')
-    //       .replace(/\s*```$/i, '')
-    //       .trim();
+          const result = await model.generateContent(prompt);
+          const responseText = result.response.text().trim();
 
-    //     const data = JSON.parse(jsonString);
+          let jsonString = responseText.trim();
+          jsonString = jsonString
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
 
-    //     setDynamicSuggestions(data);
-    //   } catch (error) {
-    //     console.error("Contextual Suggestions Error:", error);
-    //   } finally {
-    //     setIsGeneratingSuggestions(false);
-    //   }
+          const data = JSON.parse(jsonString);
 
-    // };
+          setDynamicSuggestions(data);
+        } catch (error) {
+          console.error("Contextual Suggestions Error:", error);
+        } finally {
+          setIsGeneratingSuggestions(false);
+        }
+      };
 
-    // generateContextualSuggestions();
-  }, [messages.length, myLang.name, localLang.name]);
+      generateContextualSuggestions();
+    }, 4000);
+
+    return () => clearTimeout(timerId);
+  }, [messages.length, myLang.name, localLang.name, isRecording]);
 
 
   useSpeechRecognitionEvent('result', (event) => {
@@ -620,7 +629,7 @@ export default function LiveInteractionScreen() {
       />
 
       {/* 3. Dynamic Contextual Suggestion Tray */}
-      {/* {messages.length > 0 && (
+      {messages.length > 0 && (
         <View style={styles.suggestionTray}>
           <View style={styles.suggestionHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -648,7 +657,7 @@ export default function LiveInteractionScreen() {
             ))}
           </ScrollView>
         </View>
-      )} */}
+      )}
 
       {/* 4. Action Area */}
       <View
