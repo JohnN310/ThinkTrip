@@ -26,49 +26,83 @@ export const ReceiptRenderer: React.FC<ReceiptRendererProps> = ({ receipt, color
                                 {item.originalName}
                             </Text>
                         </View>
-                        <Text style={[styles.price, { color: colors.foreground }]}>
-                            {item.price}
-                        </Text>
+                        <View style={styles.priceContainer}>
+                            <Text style={[styles.price, { color: colors.foreground }]}>
+                                {item.price}
+                            </Text>
+                            {/* Render the converted price if the AI provided it */}
+                            {item.convertedPrice && item.convertedPrice !== "0" && item.convertedPrice !== "N/A" && (
+                                <Text style={[styles.convertedPrice, { color: colors.primary }]}>
+                                    ~{item.convertedPrice}
+                                </Text>
+                            )}
+                        </View>
                     </View>
                 ))}
             </View>
 
             {/* ─── DASHED DIVIDER ─── */}
             <View style={styles.dividerContainer}>
-                {/* We use a dashed border bottom to mimic a receipt tear line */}
                 <View style={[styles.dashedLine, { borderColor: colors.border }]} />
             </View>
 
             {/* ─── TOTALS SECTION ─── */}
             <View style={styles.totalsContainer}>
-                {/* Only render subtotal/fees if the AI successfully extracted them */}
                 {receipt.subtotal && receipt.subtotal !== "0" && receipt.subtotal !== "N/A" && (
                     <View style={styles.totalRow}>
                         <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Subtotal</Text>
-                        <Text style={[styles.totalValue, { color: colors.foreground }]}>{receipt.subtotal}</Text>
+                        <View style={styles.priceContainer}>
+                            <Text style={[styles.totalValue, { color: colors.foreground }]}>{receipt.subtotal}</Text>
+                            {receipt.convertedSubtotal && receipt.convertedSubtotal !== "0" && receipt.convertedSubtotal !== "N/A" && (
+                                <Text style={[styles.convertedPrice, { color: colors.primary }]}>
+                                    ~{receipt.convertedSubtotal}
+                                </Text>
+                            )}
+                        </View>
                     </View>
                 )}
 
                 {receipt.tax && receipt.tax !== "0" && receipt.tax !== "N/A" && (
                     <View style={styles.totalRow}>
                         <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Tax</Text>
-                        <Text style={[styles.totalValue, { color: colors.foreground }]}>{receipt.tax}</Text>
+                        <View style={styles.priceContainer}>
+                            <Text style={[styles.totalValue, { color: colors.foreground }]}>{receipt.tax}</Text>
+                            {receipt.convertedTax && receipt.convertedTax !== "0" && receipt.convertedTax !== "N/A" && (
+                                <Text style={[styles.convertedPrice, { color: colors.primary }]}>
+                                    ~{receipt.convertedTax}
+                                </Text>
+                            )}
+                        </View>
                     </View>
                 )}
 
                 {receipt.serviceCharge && receipt.serviceCharge !== "0" && receipt.serviceCharge !== "N/A" && (
                     <View style={styles.totalRow}>
                         <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Service Charge</Text>
-                        <Text style={[styles.totalValue, { color: colors.foreground }]}>{receipt.serviceCharge}</Text>
+                        <View style={styles.priceContainer}>
+                            <Text style={[styles.totalValue, { color: colors.foreground }]}>{receipt.serviceCharge}</Text>
+                            {receipt.convertedServiceCharge && receipt.convertedServiceCharge !== "0" && receipt.convertedServiceCharge !== "N/A" && (
+                                <Text style={[styles.convertedPrice, { color: colors.primary }]}>
+                                    ~{receipt.convertedServiceCharge}
+                                </Text>
+                            )}
+                        </View>
                     </View>
                 )}
 
                 {/* Grand Total */}
                 <View style={[styles.grandTotalRow, { borderTopColor: colors.border }]}>
                     <Text style={[styles.grandTotalLabel, { color: colors.foreground }]}>Total</Text>
-                    <Text style={[styles.grandTotalValue, { color: colors.foreground }]}>
-                        {receipt.currencySymbol} {receipt.total}
-                    </Text>
+                    <View style={styles.priceContainer}>
+                        <Text style={[styles.grandTotalValue, { color: colors.foreground }]}>
+                            {receipt.currencySymbol} {receipt.total}
+                        </Text>
+                        {receipt.convertedTotal && receipt.convertedTotal !== "0" && receipt.convertedTotal !== "N/A" && (
+                            <Text style={[styles.convertedPrice, { color: colors.primary }]}>
+                                ~{receipt.convertedTotal}
+                            </Text>
+                        )}
+                    </View>
                 </View>
             </View>
 
@@ -105,9 +139,18 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_400Regular',
         fontSize: 13,
     },
+    priceContainer: {
+        alignItems: 'flex-end', // Aligns both prices to the right edge
+        gap: 2,
+    },
     price: {
         fontFamily: 'Inter_500Medium',
         fontSize: 15,
+    },
+    convertedPrice: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: 12,
+        opacity: 0.9,
     },
     dividerContainer: {
         marginVertical: 20,
@@ -116,7 +159,6 @@ const styles = StyleSheet.create({
     dashedLine: {
         borderBottomWidth: 1,
         borderStyle: 'dashed',
-        // Negative margin lets the dashed line bleed slightly closer to the card edges
         marginHorizontal: -4,
     },
     totalsContainer: {

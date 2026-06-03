@@ -21,14 +21,19 @@ export interface ReceiptItem {
   originalName: string;
   translatedName: string;
   price: string;
+  convertedPrice?: string;
 }
 
 export interface ReceiptData {
   currencySymbol: string;
   subtotal: string;
+  convertedSubtotal?: string;
   tax: string;
+  convertedTax?: string;
   serviceCharge: string;
+  convertedServiceCharge?: string;
   total: string;
+  convertedTotal?: string;
   items: ReceiptItem[];
 }
 

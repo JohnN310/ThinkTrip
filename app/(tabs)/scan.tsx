@@ -630,8 +630,9 @@ export default function ScanScreen() {
         - Extract EVERY legible line item from the bill into the 'items' array. For each item, provide:
            1. 'originalName': The item name exactly as printed in the native script.
            2. 'translatedName': A concise translation into the Target Translation Language.
-           3. 'price': The cost of the item.
-        - Extract the 'subtotal', 'tax', 'serviceCharge', and 'total'. If a value is not present on the receipt, return "0" or "N/A".
+           3. 'price': The cost of the item in the native currency.
+           4. 'convertedPrice': Calculate the estimated cost converted into the primary currency of the Target Translation Language (${targetLangCode}). Include the currency symbol (e.g., "$4.50", "€4.10").
+        - Extract the 'subtotal', 'tax', 'serviceCharge', and 'total'. If a value is not present on the receipt, return "0" or "N/A". Also calculate and provide 'convertedSubtotal', 'convertedTax', 'convertedServiceCharge', and 'convertedTotal' using the same currency conversion logic.
         - Identify the 'currencySymbol' (e.g., "¥", "€", "$", "₫").
 
       If Mode is 'Sign':
@@ -675,14 +676,19 @@ export default function ScanScreen() {
         "receiptData": {
           "currencySymbol": "String",
           "subtotal": "String",
+          "convertedSubtotal": "String",
           "tax": "String",
+          "convertedTax": "String",
           "serviceCharge": "String",
+          "convertedServiceCharge": "String",
           "total": "String",
+          "convertedTotal": "String",
           "items": [
             {
               "originalName": "'String'",
               "translatedName": "String",
-              "price": "String"
+              "price": "String",
+              "convertedPrice": "String"
             }
           ]
         }` : ''}${currentMode === 'Sign' ? `,
@@ -1513,7 +1519,7 @@ export default function ScanScreen() {
             <View key={i} style={[styles.noteCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
               <Text style={[styles.noteTitle, { color: colors.primary }]}>{n.title}</Text>
               <View style={{ marginTop: 8 }}>
-                {renderFormattedText(n?.body || "Analysis details unavailable.", colors.foreground, result?.languageCode)}
+                {renderFormattedText(n?.body || "Analysis details unavailable.", colors.foreground, profile.scanSourceLanguage)}
               </View>
             </View>
           );
