@@ -621,7 +621,15 @@ export default function LiveInteractionScreen() {
                 </View>
               )}
               <View style={[activeSpeaker === 'me' ? styles.myBubble : styles.localBubble, { backgroundColor: colors.card, borderColor: colors.primary, opacity: 0.7 }]}>
-                <Text style={[styles.nativeText, { color: colors.foreground }]}>{liveTranscript || 'Listening...'}</Text>
+                {activeSpeaker === 'me' ? (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <Text style={[styles.myText, { color: colors.foreground, flexShrink: 1 }]}>{liveTranscript || 'Listening...'}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.localHeaderRow}>
+                    <Text style={[styles.nativeText, { color: colors.foreground }]}>{liveTranscript || 'Listening...'}</Text>
+                  </View>
+                )}
               </View>
             </View>
           ) : null
@@ -629,7 +637,7 @@ export default function LiveInteractionScreen() {
       />
 
       {/* 3. Dynamic Contextual Suggestion Tray */}
-      {messages.length > 0 && (
+      {dynamicSuggestions.length > 0 && (
         <View style={styles.suggestionTray}>
           <View style={styles.suggestionHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -723,7 +731,7 @@ const styles = StyleSheet.create({
   chatContainer: { padding: 16, gap: 20 },
   myMessageWrapper: { alignItems: 'flex-end', marginBottom: 4 },
   myBubble: { maxWidth: '80%', padding: 14, borderRadius: 20, borderBottomRightRadius: 4 },
-  myText: { fontFamily: 'Inter_500Medium', fontSize: 15, lineHeight: 22 },
+  myText: { fontFamily: 'Inter_700Bold', fontSize: 16, lineHeight: 24 },
   metaRowRight: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 6 },
   localMessageWrapper: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 4 },
   avatarCol: { paddingTop: 4 },
