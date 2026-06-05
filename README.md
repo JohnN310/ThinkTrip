@@ -14,6 +14,12 @@ Get a live look at your destination. We don't just show you the temperature; we 
 - **5-Day Outlook:** Deep-dive into morning, afternoon, and evening conditions.
 - **Heads-up Alerts:** Real-time warnings for extreme weather or pollution.
 
+### 🗣️ Live Interaction
+Engage freely with locals without language barriers. ThinkTrip listens and translates conversations in real-time.
+- **Voice Translation:** Seamlessly convert spoken words between your language and the local language.
+- **Smart Responses:** Gemini AI suggests practical, context-aware follow-up phrases based on your conversation.
+- **Pronunciation Guide:** Play translated phrases out loud or use phonetic guides to speak confidently.
+
 ### 📸 Scan Your Surroundings
 Use your camera to decode the world around you. Powered by Gemini AI, the Scan tool understands context.
 - **Menu Intelligence:** Checks ingredients against your allergies and dietary goals.
@@ -29,7 +35,8 @@ ThinkTrip stays personal. Your profile stores your skin type, dietary restrictio
 
 ThinkTrip is built with a modern, high-performance stack:
 - **Frontend:** React Native & Expo (using the latest Expo Router).
-- **Intelligence:** Google Gemini AI for vision and scene analysis.
+- **Intelligence:** Google Gemini AI for vision, scene analysis, and conversation suggestions.
+- **Speech & Translation:** `expo-speech-recognition`, `expo-speech`, and Google ML Kit.
 - **Backend:** Firebase (Auth & Firestore) for secure, cross-device syncing.
 - **Data:** Live integration with OpenWeather API.
 
