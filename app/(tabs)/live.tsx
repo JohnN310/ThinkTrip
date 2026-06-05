@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform, ScrollView, Modal, Animated } from 'react-native';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import Translate from '@react-native-ml-kit/translate-text'; // --- ML KIT IMPORT (Commented out for testing Gemini translation) ---
@@ -10,6 +10,9 @@ import { Feather } from '@expo/vector-icons';
 import { useColors } from '../../hooks/useColors';
 import { useProfile } from '../../contexts/ProfileContext';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DolphinMascot } from '../../components/DolphinMascot';
 
 // Types and Language Config
 type Message = {
@@ -43,7 +46,7 @@ const SUPPORTED_LANGUAGES: Language[] = [
 export default function LiveInteractionScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { profile, save } = useProfile();
+  const { profile, save, hydrated } = useProfile();
   const flatListRef = useRef<FlatList>(null);
 
   // Dynamic Language State
@@ -69,6 +72,62 @@ export default function LiveInteractionScreen() {
   // Modal State
   const [isLangModalOpen, setIsLangModalOpen] = useState(false);
   const [selectingFor, setSelectingFor] = useState<'me' | 'local'>('local');
+
+  // NEW: One-Time Welcome Guide State
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
+
+  // --- Welcome Guide Scroll State ---
+  const welcomeScrollRef = useRef<ScrollView>(null);
+  const [welcomeScrollHeight, setWelcomeScrollHeight] = useState(0);
+  const [welcomeContentHeight, setWelcomeContentHeight] = useState(0);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const isWelcomeScrollable = welcomeContentHeight > welcomeScrollHeight;
+
+  const handleWelcomeScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 20) {
+      setIsAtBottom(true);
+    } else {
+      setIsAtBottom(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isWelcomeScrollable) {
+      setIsAtBottom(false);
+    } else {
+      setIsAtBottom(true);
+    }
+  }, [isWelcomeScrollable]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hydrated) return;
+
+      const checkWelcomeGuide = async () => {
+        try {
+          const hasSeen = await AsyncStorage.getItem('@thinktrip_live_guide_seen');
+          if (!hasSeen) {
+            setShowWelcomeGuide(true);
+          }
+        } catch (e) {
+          console.error("Error reading live guide status:", e);
+        }
+      };
+
+      checkWelcomeGuide();
+    }, [hydrated])
+  );
+
+  const dismissWelcomeGuide = async () => {
+    setShowWelcomeGuide(false);
+    try {
+      await AsyncStorage.setItem('@thinktrip_live_guide_seen', 'true');
+    } catch (e) {
+      console.error("Error saving live guide status:", e);
+    }
+  };
 
   // --- MOCK DATA FOR TESTING UI ---
 
@@ -500,6 +559,103 @@ export default function LiveInteractionScreen() {
         </Animated.View>
       </Modal>
 
+      {/* ─── FIRST-TIME WELCOME GUIDE (with mascot) ─── */}
+      <Modal visible={showWelcomeGuide} transparent animationType="fade">
+        <View style={[styles.modalBackdrop, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+          <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+
+            <ScrollView
+              ref={welcomeScrollRef}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 80 }} // Room for the floating button
+              onLayout={(e) => setWelcomeScrollHeight(e.nativeEvent.layout.height)}
+              onContentSizeChange={(w, h) => setWelcomeContentHeight(h)}
+              onScroll={handleWelcomeScroll}
+              scrollEventThrottle={16}
+            >
+
+              {/* Mascot hero band */}
+              <View style={[styles.welcomeHero, { backgroundColor: colors.muted }]}>
+                <View style={styles.welcomeHeroOrb} />
+                <View style={styles.welcomeHeroOrb2} />
+                <DolphinMascot size={150} />
+              </View>
+
+              {/* Greeting */}
+              <View style={styles.welcomeGreetRow}>
+                <View style={[styles.welcomeGreetDot, { backgroundColor: colors.primary }]} />
+                <Text style={[styles.welcomeGreetText, { color: colors.mutedForeground }]}>YOUR TRANSLATOR</Text>
+              </View>
+
+              <Text style={[styles.welcomeTitle, { color: colors.foreground }]}>
+                Hi, let's talk freely.
+              </Text>
+              <Text style={[styles.welcomeBody, { color: colors.mutedForeground }]}>
+                I'll translate your conversations in real-time, bridging the language gap instantly.
+              </Text>
+
+              {/* Quick Tips Section for Feature Discovery */}
+              <View style={{ marginTop: 8, marginBottom: 28, paddingTop: 24, borderTopWidth: 1, borderColor: colors.border }}>
+                <Text style={[styles.welcomeModeTitle, { color: colors.foreground, marginBottom: 16 }]}>QUICK TIPS</Text>
+
+                <View style={{ gap: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <Feather name="mic" size={16} color={colors.primary} style={{ width: 20, textAlign: 'center' }} />
+                    <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground, flex: 1, lineHeight: 20 }]}>
+                      Tap the <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>'ME'</Text> or <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>'LOCAL'</Text> button to start listening.
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <Feather name="globe" size={16} color={colors.primary} style={{ width: 20, textAlign: 'center' }} />
+                    <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground, flex: 1, lineHeight: 20 }]}>
+                      Use the <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>top bar</Text> to switch languages.
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <Feather name="zap" size={16} color={colors.primary} style={{ width: 20, textAlign: 'center' }} />
+                    <Text style={[styles.welcomeModeDesc, { color: colors.mutedForeground, flex: 1, lineHeight: 20 }]}>
+                      Check the <Text style={{ color: colors.foreground, fontFamily: 'Inter_600SemiBold' }}>suggestion tray</Text> for AI-predicted responses!
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Fixed Bottom Right Action Button */}
+            <TouchableOpacity
+              style={[
+                styles.welcomeBtnFixed,
+                { backgroundColor: (!isWelcomeScrollable || isAtBottom) ? colors.primary : colors.muted }
+              ]}
+              onPress={() => {
+                if (!isWelcomeScrollable || isAtBottom) {
+                  dismissWelcomeGuide();
+                } else {
+                  welcomeScrollRef.current?.scrollToEnd({ animated: true });
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={[
+                styles.welcomeBtnText,
+                { color: (!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground }
+              ]}>
+                {(!isWelcomeScrollable || isAtBottom) ? "Let's talk" : "Scroll down"}
+              </Text>
+              <Feather
+                name={(!isWelcomeScrollable || isAtBottom) ? "arrow-right" : "arrow-down"}
+                size={18}
+                color={(!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground}
+                style={{ marginLeft: 8 }}
+              />
+            </TouchableOpacity>
+
+          </View>
+        </View>
+      </Modal>
+
       {/* 1. Language Swap Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={[styles.langPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -642,7 +798,7 @@ export default function LiveInteractionScreen() {
           <View style={styles.suggestionHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Feather name="zap" size={14} color={colors.primary} />
-              <Text style={[styles.suggestionTitle, { color: colors.foreground }]}>Suggested Responses</Text>
+              <Text style={[styles.suggestionTitle, { color: colors.foreground }]}>Suggestion</Text>
               {isGeneratingSuggestions && (
                 <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
               )}
@@ -764,4 +920,76 @@ const styles = StyleSheet.create({
   micBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 16, borderWidth: 1, gap: 12 },
   btnTitle: { fontFamily: 'Inter_700Bold', fontSize: 14 },
   btnSub: { fontFamily: 'Inter_500Medium', fontSize: 12 },
+
+  // ─── Welcome Guide Styles ───
+  welcomeCard: {
+    width: '100%',
+    height: '85%',
+    maxHeight: 700,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+    overflow: 'hidden'
+  },
+  welcomeIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  welcomeTitle: { fontFamily: 'Inter_700Bold', fontSize: 22, letterSpacing: -0.4, marginBottom: 8 },
+  welcomeBody: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22, marginBottom: 24 },
+  welcomeModesList: { gap: 18, marginBottom: 32 },
+  welcomeModeRow: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  welcomeModeIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  welcomeModeTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, letterSpacing: 1, marginBottom: 2 },
+  welcomeModeDesc: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 18 },
+  welcomeBtnFixed: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 999, // Pill shape
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6
+  },
+  welcomeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
+  welcomeHero: {
+    height: 170,
+    borderRadius: 20,
+    marginBottom: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  welcomeHeroOrb: {
+    position: 'absolute',
+    width: 220, height: 220, borderRadius: 110,
+    backgroundColor: 'rgba(92,124,229,0.10)',
+    top: -90, left: -60,
+  },
+  welcomeHeroOrb2: {
+    position: 'absolute',
+    width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(245,185,98,0.10)',
+    bottom: -60, right: -40,
+  },
+  welcomeGreetRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  welcomeGreetDot: { width: 6, height: 6, borderRadius: 3 },
+  welcomeGreetText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.4 },
 });

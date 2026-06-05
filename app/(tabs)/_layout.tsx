@@ -67,7 +67,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="live"
         options={{
-          title: 'Live',
+          title: 'Interaction',
           tabBarIcon: ({ color }) =>
             Platform.OS === 'ios' ? (
               <SymbolView
