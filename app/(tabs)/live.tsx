@@ -660,24 +660,27 @@ export default function LiveInteractionScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={[styles.langPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
 
-          <TouchableOpacity style={[styles.langSide, { justifyContent: 'flex-start' }]} onPress={() => openLangSelector('me')}>
-            <Text style={styles.langEmoji}>{myLang.emoji}</Text>
+          {/* LEFT SIDE: Local Language */}
+          <TouchableOpacity style={[styles.langSide, { justifyContent: 'flex-start' }]} onPress={() => openLangSelector('local')}>
+            <Text style={styles.langEmoji}>{localLang.emoji}</Text>
             <View>
-              <Text style={[styles.langName, { color: colors.foreground }]}>{myLang.name}</Text>
-              <Text style={[styles.langSub, { color: colors.mutedForeground }]}>You speak</Text>
+              <Text style={[styles.langName, { color: colors.foreground }]}>{localLang.name}</Text>
+              <Text style={[styles.langSub, { color: colors.mutedForeground }]}>Local language</Text>
             </View>
           </TouchableOpacity>
 
+          {/* SWAP BUTTON */}
           <TouchableOpacity style={styles.swapBtn} onPress={swapLanguages}>
             <Feather name="repeat" size={18} color={colors.primary} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.langSide, { justifyContent: 'flex-end' }]} onPress={() => openLangSelector('local')}>
+          {/* RIGHT SIDE: You Speak */}
+          <TouchableOpacity style={[styles.langSide, { justifyContent: 'flex-end' }]} onPress={() => openLangSelector('me')}>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={[styles.langName, { color: colors.foreground }]}>{localLang.name}</Text>
-              <Text style={[styles.langSub, { color: colors.mutedForeground }]}>Local language</Text>
+              <Text style={[styles.langName, { color: colors.foreground }]}>{myLang.name}</Text>
+              <Text style={[styles.langSub, { color: colors.mutedForeground }]}>You speak</Text>
             </View>
-            <Text style={styles.langEmoji}>{localLang.emoji}</Text>
+            <Text style={styles.langEmoji}>{myLang.emoji}</Text>
           </TouchableOpacity>
 
         </View>
