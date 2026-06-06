@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Modal, Animated, Keyboard, Dimensions, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Modal, Animated, Keyboard, Dimensions, TextInput, TouchableWithoutFeedback } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -449,6 +449,13 @@ export default function PlanScreen() {
         <GlobeView ref={globeRef} onCountrySelect={handleGlobeCountrySelect} />
       </View>
 
+      {/* Dismiss keyboard when tapping outside */}
+      {isSearchActive && (
+        <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); toggleSearch(); }}>
+          <View style={[StyleSheet.absoluteFillObject, { zIndex: 5 }]} />
+        </TouchableWithoutFeedback>
+      )}
+
       {/* ─── Floating Header Area ─── */}
       <View
         pointerEvents="box-none"
@@ -468,8 +475,8 @@ export default function PlanScreen() {
           <View style={styles.headerActions} pointerEvents="auto">
             <Animated.View style={[styles.searchWrapper, { width: searchBarWidth }]}>
               <BlurView
-                intensity={colors.isDark ? 40 : 60}
-                tint={colors.isDark ? "dark" : "light"}
+                intensity={40}
+                tint="dark"
                 style={styles.searchGlass}
               >
                 {/* 1. The Input Field (Rendered first, positioned absolutely so it expands smoothly) */}
@@ -478,9 +485,9 @@ export default function PlanScreen() {
                   pointerEvents={isSearchActive ? 'auto' : 'none'}
                 >
                   <TextInput
-                    style={[styles.searchInput, { color: colors.foreground }]}
+                    style={[styles.searchInput, { color: '#ffffff' }]}
                     placeholder="Search destinations..."
-                    placeholderTextColor={colors.mutedForeground}
+                    placeholderTextColor="rgba(255, 255, 255, 0.6)"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     onSubmitEditing={() => {
@@ -502,7 +509,7 @@ export default function PlanScreen() {
                   <Feather 
                     name={isSearchActive ? "x" : "search"} 
                     size={20} 
-                    color={colors.foreground} 
+                    color="#ffffff" 
                   />
                 </TouchableOpacity>
               </BlurView>
@@ -516,7 +523,7 @@ export default function PlanScreen() {
           pointerEvents={isSearchActive ? 'auto' : 'none'}
           style={[
             styles.dropdownContainer,
-            { top: (insets.top || 20) + 16 + 48 + 8 },
+            { top: (insets.top || 20) + 16 + 48 + 8, width: searchBarWidth },
             {
               opacity: searchAnim,
               transform: [{
@@ -530,8 +537,8 @@ export default function PlanScreen() {
         >
           {isSearchActive && (
             <BlurView
-              intensity={colors.isDark ? 40 : 60}
-              tint={colors.isDark ? "dark" : "light"}
+              intensity={40}
+              tint="dark"
               style={styles.dropdownGlass}
             >
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -539,7 +546,7 @@ export default function PlanScreen() {
                 {/* STATE 1: Empty Query -> Show Recent Searches */}
                 {searchQuery.trim().length === 0 && recentSearches.length > 0 && (
                   <View style={styles.listSection}>
-                    <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>RECENT SEARCHES</Text>
+                    <Text style={[styles.sectionLabel, { color: 'rgba(255, 255, 255, 0.6)' }]}>RECENT SEARCHES</Text>
                     {recentSearches.map((recentCity, idx) => (
                       <TouchableOpacity 
                         key={`recent-${idx}`} 
@@ -550,9 +557,9 @@ export default function PlanScreen() {
                         }}
                       >
                         <View style={styles.iconCircle}>
-                          <Feather name="clock" size={14} color={colors.mutedForeground} />
+                          <Feather name="clock" size={14} color="rgba(255, 255, 255, 0.6)" />
                         </View>
-                        <Text style={[styles.suggestionText, { color: colors.foreground }]}>{recentCity}</Text>
+                        <Text style={[styles.suggestionText, { color: '#ffffff' }]}>{recentCity}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -561,14 +568,14 @@ export default function PlanScreen() {
                 {/* STATE 2: Fetching Suggestions */}
                 {isFetchingSuggestions && searchQuery.trim().length > 0 && (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={colors.foreground} />
+                    <ActivityIndicator size="small" color="#ffffff" />
                   </View>
                 )}
 
                 {/* STATE 3: Display Suggestions */}
                 {!isFetchingSuggestions && suggestions.length > 0 && (
                   <View style={styles.listSection}>
-                    <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>SUGGESTIONS</Text>
+                    <Text style={[styles.sectionLabel, { color: 'rgba(255, 255, 255, 0.6)' }]}>SUGGESTIONS</Text>
                     {suggestions.map((item, idx) => {
                       const locationName = `${item.name}${item.state && item.state !== item.name ? `, ${item.state}` : ''}, ${item.country}`;
                       return (
@@ -581,11 +588,11 @@ export default function PlanScreen() {
                           }}
                         >
                           <View style={styles.iconCircle}>
-                            <Feather name="map-pin" size={14} color={colors.mutedForeground} />
+                            <Feather name="map-pin" size={14} color="rgba(255, 255, 255, 0.6)" />
                           </View>
                           <View style={styles.suggestionTextData}>
-                            <Text style={[styles.suggestionText, { color: colors.foreground }]}>{item.name}</Text>
-                            <Text style={[styles.suggestionSubtext, { color: colors.mutedForeground }]}>
+                            <Text style={[styles.suggestionText, { color: '#ffffff' }]}>{item.name}</Text>
+                            <Text style={[styles.suggestionSubtext, { color: 'rgba(255, 255, 255, 0.6)' }]}>
                               {item.state && item.state !== item.name ? `${item.state}, ` : ''}{item.country}
                             </Text>
                           </View>
@@ -598,7 +605,7 @@ export default function PlanScreen() {
                 {/* STATE 4: No Results */}
                 {!isFetchingSuggestions && searchQuery.trim().length > 0 && suggestions.length === 0 && (
                   <View style={styles.loadingContainer}>
-                    <Text style={[styles.suggestionSubtext, { color: colors.mutedForeground }]}>No destinations found.</Text>
+                    <Text style={[styles.suggestionSubtext, { color: 'rgba(255, 255, 255, 0.6)' }]}>No destinations found.</Text>
                   </View>
                 )}
 
@@ -763,8 +770,7 @@ const styles = StyleSheet.create({
   // Dropdown Styles
   dropdownContainer: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    right: 20,
     zIndex: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
