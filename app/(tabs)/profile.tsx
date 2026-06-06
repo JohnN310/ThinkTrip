@@ -868,7 +868,7 @@ export default function ProfileScreen() {
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingTop: insets.top || 16,
-          paddingBottom: insets.bottom + 84 + 16,
+          paddingBottom: (Platform.OS === 'ios' ? 88 : 74) + 16,
           gap: 6
         }}
         showsVerticalScrollIndicator={false}

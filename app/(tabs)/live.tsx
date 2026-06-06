@@ -832,7 +832,7 @@ export default function LiveInteractionScreen() {
           styles.actionArea,
           {
             backgroundColor: colors.background,
-            paddingBottom: Platform.OS === 'ios' ? insets.bottom + 64 : 16
+            paddingBottom: (Platform.OS === 'ios' ? 88 : 74) + 16
           }
         ]}
       >

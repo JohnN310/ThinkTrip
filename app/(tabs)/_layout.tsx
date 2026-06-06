@@ -20,33 +20,25 @@ export default function TabLayout() {
           fontFamily: 'Inter_600SemiBold',
           fontSize: 11,
         },
-        tabBarStyle: Platform.select({
-          ios: {
-            position: 'absolute',
-            borderTopWidth: 0,
-            elevation: 0,
-            backgroundColor: 'transparent',
-          },
-          default: {
-            backgroundColor: colors.background,
-            borderTopColor: colors.border,
-            borderTopWidth: 1,
-            height: 84,
-            paddingBottom: 24,
-          },
-        }),
-        tabBarBackground: () =>
-          Platform.OS === 'ios' ? (
-            <BlurView
-              tint={colors.isDark ? 'dark' : 'light'}
-              intensity={100}
-              style={{
-                ...StyleSheet.absoluteFillObject,
-                borderTopColor: colors.border,
-                borderTopWidth: StyleSheet.hairlineWidth,
-              }}
-            />
-          ) : undefined,
+        tabBarStyle: {
+          position: 'absolute',
+          borderTopWidth: 0,
+          elevation: 0,
+          backgroundColor: 'transparent',
+          height: Platform.OS === 'ios' ? 88 : 74,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 14,
+        },
+        tabBarBackground: () => (
+          <BlurView
+            tint={colors.isDark ? 'dark' : 'light'}
+            intensity={colors.isDark ? 40 : 60}
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              borderTopColor: 'rgba(255, 255, 255, 0.15)',
+              borderTopWidth: 1,
+            }}
+          />
+        ),
       }}
     >
       {/* 1. Plan Tab */}

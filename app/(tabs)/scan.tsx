@@ -172,11 +172,7 @@ export default function ScanScreen() {
   const { profile, save, setDraft, hydrated } = useProfile();
 
   // Define a platform-specific offset for the bottom controls
-  const bottomUIOffset = Platform.select({
-    ios: insets.bottom + 70, // Accounts for the dynamic iOS home indicator
-    android: 20,              // Fixed value to sit perfectly above Android's 60px tab bar
-    default: 20,
-  }) ?? 20;
+  const bottomUIOffset = (Platform.OS === 'ios' ? 88 : 74) + 16;
 
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
 

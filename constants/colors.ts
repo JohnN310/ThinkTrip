@@ -9,7 +9,7 @@ export const lightTheme = {
   secondary: '#eff6ff',
   secondaryForeground: '#1e293b',
   muted: '#f1f5f9',
-  mutedForeground: '#64748b',
+  mutedForeground: '#475569',
   accent: '#f5b962',
   accentForeground: '#1e293b',
   destructive: '#e11d48',
