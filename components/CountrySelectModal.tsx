@@ -77,7 +77,7 @@ export default function CountrySelectModal({ visible, country, onClose, onSelect
       if (data && data[0]) {
         const c = data[0];
         const currencyKey = c.currencies ? Object.keys(c.currencies)[0] : null;
-        
+
         setInfo({
           cca3: c.cca3 || 'N/A',
           subregion: c.subregion || 'Unknown Region',
@@ -88,7 +88,7 @@ export default function CountrySelectModal({ visible, country, onClose, onSelect
           timezone: c.timezones ? c.timezones[0] : 'GMT',
           flagUrl: c.flags?.png || '',
           description: `${c.name.common} is renowned for its art, fashion, cuisine, and rich history. From romantic streets to sunny coastlines, it offers a blend of culture and charm.`,
-          imageUrl: `https://picsum.photos/seed/${c.name.common}/400/400`, 
+          imageUrl: `https://picsum.photos/seed/${c.name.common}/400/400`,
         });
       }
     } catch (e) {
@@ -116,10 +116,10 @@ export default function CountrySelectModal({ visible, country, onClose, onSelect
           <Backdrop {...backdropProps as any} style={StyleSheet.absoluteFillObject} />
         </TouchableOpacity>
 
-        <Animated.View 
+        <Animated.View
           style={[
-            styles.sheet, 
-            { 
+            styles.sheet,
+            {
               backgroundColor: theme.background,
               transform: [{ translateY: slideAnim }],
               paddingBottom: Math.max(insets.bottom, 24)
@@ -154,7 +154,7 @@ export default function CountrySelectModal({ visible, country, onClose, onSelect
             </View>
           ) : info ? (
             <View style={styles.content}>
-              
+
               {/* 2x2 Stats Grid Architecture */}
               <View style={[styles.statsGrid, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 <View style={[styles.statsRow, { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
@@ -191,18 +191,18 @@ export default function CountrySelectModal({ visible, country, onClose, onSelect
               </View>
 
               {/* Action Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.button, { backgroundColor: theme.primary }]}
-                onPress={() => onSelect(info.capital !== 'Unknown' ? info.capital : country?.name || '')}
+                onPress={() => onSelect(country?.name || '')}
               >
                 <Feather name="map-pin" size={18} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.buttonText}>Select {country?.name}</Text>
+                <Text style={styles.buttonText}>Add {country?.name} to album</Text>
               </TouchableOpacity>
             </View>
           ) : (
-             <View style={styles.loaderArea}>
-               <Text style={{ color: theme.textSecondary }}>Unable to load data.</Text>
-             </View>
+            <View style={styles.loaderArea}>
+              <Text style={{ color: theme.textSecondary }}>Unable to load data.</Text>
+            </View>
           )}
         </Animated.View>
       </View>

@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import { useColors } from '../../hooks/useColors';
 import { useProfile } from '../../contexts/ProfileContext';
+import { useAlbum } from '../../context/AlbumContext';
 import { Destination } from '../../lib/destinations';
 import { buildPackingList, Category } from '../../lib/packingList';
 import { Card } from '../../components/Card';
@@ -44,6 +45,7 @@ export default function PlanScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, toggleSavedLocation, hydrated } = useProfile();
+  const { addCountry } = useAlbum();
 
   const [liveWeather, setLiveWeather] = useState<any>(null);
   const [trueLiveWeather, setTrueLiveWeather] = useState<any>(null);
@@ -111,27 +113,17 @@ export default function PlanScreen() {
     setShowGlobeModal(true);
   };
 
-  const handleGlobeDestinationSet = (cityName: string) => {
+  const handleGlobeDestinationSet = (countryName: string) => {
     setShowGlobeModal(false);
-    
-    // 1. Update the destination state directly with the selected name
-    // This avoids the network request currently required by loadDestinationData
-    setDestination(prev => ({
-      ...prev,
-      key: cityName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      name: cityName,
-      // You can preserve or reset climate data here depending on your preference
-      climate: { tempLow: 0, tempHigh: 0, humidity: 0 }, 
-    }));
 
-    // 2. Perform navigation/UI updates
-    addRecentSearch(cityName);
-    setSelectedChip(cityName);
-    setSelectedDayIndex(-1);
-    setSelectedPointIndex(0);
-    
-    // Optional: If you want to fetch weather later, you could trigger 
-    // a non-blocking fetch here, but the navigation is now instant.
+    // Add to album
+    addCountry(countryName);
+
+    // Switch to the Home tab and pass the selected destination
+    // router.push({
+    //   pathname: '/(tabs)/home', 
+    //   params: { country: countryName }
+    // });
   };
 
   const openPackingSheet = (item: any) => {
@@ -205,94 +197,8 @@ export default function PlanScreen() {
   };
 
   const loadDestinationData = async (locationQuery: string | GeocodeSuggestion) => {
-    try {
-      const unitQuery = profile.units === 'imperial' ? 'imperial' : 'metric';
-      let weatherUrl = '';
-      let targetName = '';
-      let foundGeoData: any = null;
-
-      if (typeof locationQuery === 'string') {
-        let lookupLat: number | null = null;
-        let lookupLon: number | null = null;
-
-        try {
-          const geoRes = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(locationQuery)}&limit=5&appid=${OPENWEATHER_API_KEY}`);
-          if (geoRes.ok) {
-            const geoData = await geoRes.json();
-            if (geoData && geoData.length > 0) {
-              lookupLat = geoData[0].lat;
-              lookupLon = geoData[0].lon;
-              foundGeoData = geoData[0];
-            }
-          }
-        } catch (e) {
-          console.warn("Geocode pre-lookup failed");
-        }
-
-        if (lookupLat !== null && lookupLon !== null) {
-          weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lookupLat}&lon=${lookupLon}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`;
-        } else {
-          weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(locationQuery)}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`;
-        }
-        targetName = locationQuery;
-      } else {
-        weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${locationQuery.lat}&lon=${locationQuery.lon}&units=${unitQuery}&appid=${OPENWEATHER_API_KEY}`;
-        const statePart = locationQuery.state && locationQuery.state !== locationQuery.name ? `, ${locationQuery.state}` : '';
-        targetName = `${locationQuery.name}${statePart}, ${locationQuery.country}`;
-      }
-
-      const weatherRes = await fetch(weatherUrl);
-      const weatherData = await weatherRes.json();
-      if (!weatherRes.ok || !weatherData.coord) throw new Error('City not found');
-
-      setInitialLoadFailed(false);
-      let finalName = targetName;
-      if (typeof locationQuery === 'string') {
-        if (foundGeoData) {
-          const statePart = foundGeoData.state && foundGeoData.state !== foundGeoData.name ? `, ${foundGeoData.state}` : '';
-          finalName = `${foundGeoData.name}${statePart}, ${foundGeoData.country}`;
-        } else {
-          finalName = `${weatherData.name}, ${weatherData.sys.country}`;
-        }
-      }
-
-      const formatDescription = (desc: string) => desc.replace(/\b\w/g, c => c.toUpperCase());
-      let currentIcon = '01d';
-      let currentDesc = 'Clear Sky';
-
-      if (weatherData.weather && weatherData.weather.length > 0) {
-        currentIcon = weatherData.weather[0].icon;
-        currentDesc = formatDescription(weatherData.weather[0].description);
-      }
-
-      const liveWeatherData = {
-        temp: Math.round(weatherData.main.temp),
-        tempLow: Math.round(weatherData.main.temp_min),
-        tempHigh: Math.round(weatherData.main.temp_max),
-        humidity: weatherData.main.humidity,
-        aqiLabel: 'Good',
-        iconCode: currentIcon,
-        displayCondition: currentDesc,
-      };
-
-      setLiveWeather(liveWeatherData);
-      setTrueLiveWeather(liveWeatherData);
-      setDestination({
-        key: finalName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        name: finalName,
-        region: weatherData.sys.country,
-        climate: {
-          tempLow: liveWeatherData.tempLow,
-          tempHigh: liveWeatherData.tempHigh,
-          humidity: liveWeatherData.humidity,
-        },
-        alerts: [],
-      });
-      return finalName;
-    } catch (err) {
-      console.warn('Load destination data failed:', err);
-      throw err;
-    }
+    // We no longer fetch weather data, just set initial loading state to complete
+    setInitialLoadFailed(false);
   };
 
   useEffect(() => {
@@ -366,7 +272,7 @@ export default function PlanScreen() {
       setIsFetchingSuggestions(true);
       try {
         const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(searchQuery)}`);
-        
+
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
@@ -404,7 +310,7 @@ export default function PlanScreen() {
 
   // Delay the text fade-in slightly so it doesn't clip outside the pill while expanding
   const searchInputOpacity = searchAnim.interpolate({
-    inputRange: [0.5, 1], 
+    inputRange: [0.5, 1],
     outputRange: [0, 1],
   });
 
@@ -480,8 +386,8 @@ export default function PlanScreen() {
                 style={styles.searchGlass}
               >
                 {/* 1. The Input Field (Rendered first, positioned absolutely so it expands smoothly) */}
-                <Animated.View 
-                  style={[styles.inputContainer, { opacity: searchInputOpacity }]} 
+                <Animated.View
+                  style={[styles.inputContainer, { opacity: searchInputOpacity }]}
                   pointerEvents={isSearchActive ? 'auto' : 'none'}
                 >
                   <TextInput
@@ -492,7 +398,7 @@ export default function PlanScreen() {
                     onChangeText={setSearchQuery}
                     onSubmitEditing={() => {
                       searchCity(searchQuery);
-                      toggleSearch(); 
+                      toggleSearch();
                     }}
                     returnKeyType="search"
                     autoFocus={isSearchActive}
@@ -506,10 +412,10 @@ export default function PlanScreen() {
                   style={styles.searchIconBox}
                   onPress={toggleSearch}
                 >
-                  <Feather 
-                    name={isSearchActive ? "x" : "search"} 
-                    size={20} 
-                    color="#ffffff" 
+                  <Feather
+                    name={isSearchActive ? "x" : "search"}
+                    size={20}
+                    color="#ffffff"
                   />
                 </TouchableOpacity>
               </BlurView>
@@ -542,14 +448,14 @@ export default function PlanScreen() {
               style={styles.dropdownGlass}
             >
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                
+
                 {/* STATE 1: Empty Query -> Show Recent Searches */}
                 {searchQuery.trim().length === 0 && recentSearches.length > 0 && (
                   <View style={styles.listSection}>
                     <Text style={[styles.sectionLabel, { color: 'rgba(255, 255, 255, 0.6)' }]}>RECENT SEARCHES</Text>
                     {recentSearches.map((recentCity, idx) => (
-                      <TouchableOpacity 
-                        key={`recent-${idx}`} 
+                      <TouchableOpacity
+                        key={`recent-${idx}`}
                         style={styles.suggestionRow}
                         onPress={() => {
                           searchCity(recentCity);
@@ -579,8 +485,8 @@ export default function PlanScreen() {
                     {suggestions.map((item, idx) => {
                       const locationName = `${item.name}${item.state && item.state !== item.name ? `, ${item.state}` : ''}, ${item.country}`;
                       return (
-                        <TouchableOpacity 
-                          key={`sugg-${idx}`} 
+                        <TouchableOpacity
+                          key={`sugg-${idx}`}
                           style={styles.suggestionRow}
                           onPress={() => {
                             searchCity(item);

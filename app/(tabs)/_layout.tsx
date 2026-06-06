@@ -5,13 +5,15 @@ import { BlurView } from 'expo-blur';
 import { useColors } from '../../hooks/useColors';
 import { Feather } from '@expo/vector-icons';
 import { SymbolView } from 'expo-symbols';
+import { AlbumProvider } from '../../context/AlbumContext';
 
 export default function TabLayout() {
   const colors = useColors();
   const colorScheme = useColorScheme();
 
   return (
-    <Tabs
+    <AlbumProvider>
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
@@ -41,7 +43,21 @@ export default function TabLayout() {
         ),
       }}
     >
-      {/* 1. Plan Tab */}
+      {/* 1. Home Tab */}
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color }) =>
+            Platform.OS === 'ios' ? (
+              <SymbolView name="house.fill" tintColor={color} fallback={<Feather name="home" size={24} color={color} />} style={{ width: 24, height: 24 }} />
+            ) : (
+              <Feather name="home" size={24} color={color} />
+            ),
+        }}
+      />
+
+      {/* 2. Plan Tab */}
       <Tabs.Screen
         name="index"
         options={{
@@ -51,25 +67,6 @@ export default function TabLayout() {
               <SymbolView name="map" tintColor={color} fallback={<Feather name="map" size={24} color={color} />} style={{ width: 24, height: 24 }} />
             ) : (
               <Feather name="map" size={24} color={color} />
-            ),
-        }}
-      />
-
-      {/* 2. Live Tab (Moved here!) */}
-      <Tabs.Screen
-        name="live"
-        options={{
-          title: 'Interaction',
-          tabBarIcon: ({ color }) =>
-            Platform.OS === 'ios' ? (
-              <SymbolView
-                name="bubble.left.and.bubble.right.fill"
-                tintColor={color}
-                fallback={<Feather name="message-square" size={24} color={color} />}
-                style={{ width: 24, height: 24 }}
-              />
-            ) : (
-              <Feather name="message-square" size={24} color={color} />
             ),
         }}
       />
@@ -88,7 +85,26 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 4. Profile Tab */}
+      {/* 4. Interaction Tab */}
+      <Tabs.Screen
+        name="live"
+        options={{
+          title: 'Interaction',
+          tabBarIcon: ({ color }) =>
+            Platform.OS === 'ios' ? (
+              <SymbolView
+                name="bubble.left.and.bubble.right.fill"
+                tintColor={color}
+                fallback={<Feather name="message-square" size={24} color={color} />}
+                style={{ width: 24, height: 24 }}
+              />
+            ) : (
+              <Feather name="message-square" size={24} color={color} />
+            ),
+        }}
+      />
+
+      {/* 5. Profile Tab */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -101,6 +117,7 @@ export default function TabLayout() {
             ),
         }}
       />
-    </Tabs>
+      </Tabs>
+    </AlbumProvider>
   );
 }
