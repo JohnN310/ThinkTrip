@@ -572,7 +572,7 @@ export default function ScanScreen() {
     const targetLangCode = profile.scanTargetLanguage || 'en';
     const sourceLangCode = profile.scanSourceLanguage || 'ja';
 
-    const prompt = `
+    const basePrompt = `
       You are the intelligence engine for "ThinkTrip", a premium, clinical, biometrically-aware travel OS. 
       Your primary directive is to decode cultural nuances, eliminate language barriers, and protect the user's biometric baseline, granting them absolute confidence in unfamiliar environments.
 
@@ -593,64 +593,34 @@ export default function ScanScreen() {
       3. **BE RUTHLESSLY CONCISE:** Keep every bullet point to a maximum of 15 words. Prioritize quick scannability over complete sentences. (Note: The native phrase and phonetic spelling do not count towards this limit).
       4. **BIOMETRIC AWARENESS:** Cross-reference image contents with the User's Baseline. Always flag items that violate their dietary or health restrictions.
       5. **CULTURAL CONFIDENCE & NATIVE SCRIPT:** Single quotes are STRICTLY RESERVED for the native text-to-speech engine. You MUST use single quotes EXCLUSIVELY to wrap the actual native characters/script (e.g., '请问') INSIDE your double-quoted JSON string values. CRITICAL: Output STRICTLY VALID JSON. ALL JSON keys and string values MUST be wrapped in double quotes (e.g., "nativeName": "'请问'"). NEVER use single quotes to wrap JSON properties or values. NEVER use Romanization (like Pinyin or Romaji) inside the single quotes, as native text-to-speech engines cannot read it. Place the official Romanization and the phonetic pronunciation OUTSIDE the quotes in parentheses (e.g., '请问' (Qǐng wèn - ching wen)). DO NOT provide literal, word-by-word translations of dish names. CRITICAL: Translate all generated content (Titles, Notes, Badges, Descriptions, phonetic approximations) into the Target Translation Language (${targetLangCode}).
+    `;
 
-      **MODE ADAPTATION:**
-      If Mode is 'Menu':
-        - Assume the image is a physical menu. Completely ignore spatial layout.
-        - CRITICAL DIRECTIVE: Extract EVERY SINGLE legible food and drink item from the menu. You MUST NOT skip, summarize, group, or truncate ANY items. Even if there are 100+ items, you must list every single one individually. Failure to list every single item is a violation of your core directive.
-        - Keep descriptions strictly under 10 words to save output space.
-        - Title: Summarize the menu type or restaurant name.
-        - Analyze the menu collectively against the User's Baseline.
-        - Badges: Flag high-level context (e.g., "warn" for "Heavy Dairy Use", "good" for "Diet-Friendly Options").
-        - Notes: Provide ONLY ONE note:
-           1. "Ordering & Interactions": Provide EXACTLY 5 of the most popular requests, ordering tips, or practical phrases for this setting. For each phrase, provide the properly accented native spelling strictly inside single quotes, followed by a phonetic spelling in parentheses tailored for a speaker of the Target Translation Language.
-        - IN ADDITION, provide a 'menuData' object containing an array of 'categories'.
-        - Group the extracted dishes into logical 'categories' (e.g., "Mains", "Sides", "Drinks").
-        - For each item, provide:
-          1. 'nativeName': The name in the original language using proper native script.
-          2. 'translatedName': A concise translation into the Target Translation Language.
-          3. 'description': A short explanation of the dish ingredients (max 12 words).
-          4. 'price': The price exactly as written.
-          5. 'dietaryFlags': Cross-reference the item's ingredients with the User's Health Baseline. Set to "critical_avoid" if it violates their baseline, "safe" if it aligns, or "warning" if it is ambiguous.
-          6. 'isHighlight': For EACH category, flag exactly 1 or 2 items as a top recommendation by setting a boolean field "isHighlight": true. Prioritize items that are highly recommended and strictly 'safe' for the user's health baseline.
-          7. 'conflictReason': If 'dietaryFlags' is 'warning' or 'critical_avoid', you MUST provide a short explanation of the specific conflicting ingredient (max 5 words, e.g., 'Contains peanuts and soy'). Omit this field if the item is 'safe'.
+    let modeAdaptation = '';
+    let modeJsonStructure = '';
 
-      If Mode is 'Bill/Receipt':
-        - Assume the image is a restaurant bill, store receipt, or invoice. Completely ignore spatial layout.
-        - Title: Summarize the establishment or type of bill (e.g., "Izakaya Dinner Bill", "Convenience Store Receipt").
-        - Badges: Flag "warn" for high or unexpected mandatory service charges, "info" for included gratuity, "good" for transparent pricing or no tipping required.
-        - Notes: Provide exactly three notes:
-           1. "Tipping Culture": Strict advice on whether to add a tip for this specific region and context.
-           2. "Settlement Protocol": Practical advice on how to physically pay (e.g., 'Take this slip to the front register' vs 'Pay at the table'). Include 2 practical phrases with native spellings in single quotes for asking to split the bill or pay by card.
-        - Additionally, provide a 'receiptData' object.
-        - Extract EVERY legible line item from the bill into the 'items' array. For each item, provide:
-           1. 'originalName': The item name exactly as printed in the native script.
-           2. 'translatedName': A concise translation into the Target Translation Language.
-           3. 'price': The cost of the item in the native currency.
-           4. 'convertedPrice': Calculate the estimated cost converted into the primary currency of the Target Translation Language (${targetLangCode}). Include the currency symbol (e.g., "$4.50", "€4.10").
-        - Extract the 'subtotal', 'tax', 'serviceCharge', and 'total'. If a value is not present on the receipt, return "0" or "N/A". Also calculate and provide 'convertedSubtotal', 'convertedTax', 'convertedServiceCharge', and 'convertedTotal' using the same currency conversion logic.
-        - Identify the 'currencySymbol' (e.g., "¥", "€", "$", "₫").
+    if (currentMode === 'Menu') {
+      modeAdaptation = `
+      **MODE ADAPTATION: Menu**
+      - Assume the image is a physical menu. Completely ignore spatial layout.
+      - CRITICAL DIRECTIVE: Extract EVERY SINGLE legible food and drink item from the menu. You MUST NOT skip, summarize, group, or truncate ANY items. Even if there are 100+ items, you must list every single one individually. Failure to list every single item is a violation of your core directive.
+      - Keep descriptions strictly under 10 words to save output space.
+      - Title: Summarize the menu type or restaurant name.
+      - Analyze the menu collectively against the User's Baseline.
+      - Badges: Flag high-level context (e.g., "warn" for "Heavy Dairy Use", "good" for "Diet-Friendly Options").
+      - Notes: Provide ONLY ONE note:
+         1. "Ordering & Interactions": Provide EXACTLY 5 of the most popular requests, ordering tips, or practical phrases for this setting. For each phrase, provide the properly accented native spelling strictly inside single quotes, followed by a phonetic spelling in parentheses tailored for a speaker of the Target Translation Language.
+      - IN ADDITION, provide a 'menuData' object containing an array of 'categories'.
+      - Group the extracted dishes into logical 'categories' (e.g., "Mains", "Sides", "Drinks").
+      - For each item, provide:
+        1. 'nativeName': The name in the original language using proper native script.
+        2. 'translatedName': A concise translation into the Target Translation Language.
+        3. 'description': A short explanation of the dish ingredients (max 12 words).
+        4. 'price': The price exactly as written.
+        5. 'dietaryFlags': Cross-reference the item's ingredients with the User's Health Baseline. Set to "critical_avoid" if it violates their baseline, "safe" if it aligns, or "warning" if it is ambiguous.
+        6. 'isHighlight': For EACH category, flag exactly 1 or 2 items as a top recommendation by setting a boolean field "isHighlight": true. Prioritize items that are highly recommended and strictly 'safe' for the user's health baseline.
+        7. 'conflictReason': If 'dietaryFlags' is 'warning' or 'critical_avoid', you MUST provide a short explanation of the specific conflicting ingredient (max 5 words, e.g., 'Contains peanuts and soy'). Omit this field if the item is 'safe'.`;
 
-      If Mode is 'Sign':
-        - Assume the image is a street sign, warning, notice, or directional board. Completely ignore spatial layout.
-        - Title: Summarize the type of sign (e.g., "Parking Restriction", "Transit Notice").
-        - Badges: "info" for general context, "warn" for restrictions or penalties, "good" for allowed actions.
-        - Notes: Provide exactly ONE note:
-           1. "Context & Norms": Explain any unspoken local rules or cultural context surrounding this type of sign.
-        - IN ADDITION, provide a 'signData' object.
-           1. 'originalText': EXACTLY transcribe ALL legible text from the sign in the native script. Do not summarize, truncate, or skip any text.
-           2. 'translatedText': A complete, direct English translation of ALL the transcribed text.
-           3. 'instruction': Clinical, actionable advice on what the user MUST do (e.g., 'Do not park here between 8 AM and 6 PM', 'Enter through the left turnstile').
-
-      **REQUIRED JSON STRUCTURE:**
-      {
-        "title": "Short Title (Translated into Target Language)",
-        "badges": [
-          { "type": "good" | "warn" | "info", "text": "Short badge text" }
-        ],
-        "notes": [
-          { "title": "Category (e.g., Behavioral Norms)", "body": "Clinical, concise explanation with phonetic phrasing if needed. CRITICAL: Use \\n for paragraph breaks and '- ' for bullet points." }
-        ]${currentMode === 'Menu' ? `,
+      modeJsonStructure = `,
         "menuData": {
           "categories": [
             {
@@ -668,7 +638,26 @@ export default function ScanScreen() {
               ]
             }
           ]
-        }` : ''}${currentMode === 'Bill/Receipt' ? `,
+        }`;
+    } else if (currentMode === 'Bill/Receipt') {
+      modeAdaptation = `
+      **MODE ADAPTATION: Bill/Receipt**
+      - Assume the image is a restaurant bill, store receipt, or invoice. Completely ignore spatial layout.
+      - Title: Summarize the establishment or type of bill (e.g., "Izakaya Dinner Bill", "Convenience Store Receipt").
+      - Badges: Flag "warn" for high or unexpected mandatory service charges, "info" for included gratuity, "good" for transparent pricing or no tipping required.
+      - Notes: Provide exactly three notes:
+         1. "Tipping Culture": Strict advice on whether to add a tip for this specific region and context.
+         2. "Settlement Protocol": Practical advice on how to physically pay (e.g., 'Take this slip to the front register' vs 'Pay at the table'). Include 2 practical phrases with native spellings in single quotes for asking to split the bill or pay by card.
+      - Additionally, provide a 'receiptData' object.
+      - Extract EVERY legible line item from the bill into the 'items' array. For each item, provide:
+         1. 'originalName': The item name exactly as printed in the native script.
+         2. 'translatedName': A concise translation into the Target Translation Language.
+         3. 'price': The cost of the item in the native currency.
+         4. 'convertedPrice': Calculate the estimated cost converted into the primary currency of the Target Translation Language (${targetLangCode}). Include the currency symbol (e.g., "$4.50", "€4.10").
+      - Extract the 'subtotal', 'tax', 'serviceCharge', and 'total'. If a value is not present on the receipt, return "0" or "N/A". Also calculate and provide 'convertedSubtotal', 'convertedTax', 'convertedServiceCharge', and 'convertedTotal' using the same currency conversion logic.
+      - Identify the 'currencySymbol' (e.g., "¥", "€", "$", "₫").`;
+
+      modeJsonStructure = `,
         "receiptData": {
           "currencySymbol": "String",
           "subtotal": "String",
@@ -687,14 +676,41 @@ export default function ScanScreen() {
               "convertedPrice": "String"
             }
           ]
-        }` : ''}${currentMode === 'Sign' ? `,
+        }`;
+    } else if (currentMode === 'Sign') {
+      modeAdaptation = `
+      **MODE ADAPTATION: Sign**
+      - Assume the image is a street sign, warning, notice, or directional board. Completely ignore spatial layout.
+      - Title: Summarize the type of sign (e.g., "Parking Restriction", "Transit Notice").
+      - Badges: "info" for general context, "warn" for restrictions or penalties, "good" for allowed actions.
+      - Notes: Provide exactly ONE note:
+         1. "Context & Norms": Explain any unspoken local rules or cultural context surrounding this type of sign.
+      - IN ADDITION, provide a 'signData' object.
+         1. 'originalText': EXACTLY transcribe ALL legible text from the sign in the native script. Do not summarize, truncate, or skip any text.
+         2. 'translatedText': A complete, direct English translation of ALL the transcribed text.
+         3. 'instruction': Clinical, actionable advice on what the user MUST do (e.g., 'Do not park here between 8 AM and 6 PM', 'Enter through the left turnstile').`;
+
+      modeJsonStructure = `,
         "signData": {
           "originalText": "'String'",
           "translatedText": "String",
           "instruction": "String"
-        }` : ''}
-      }
-    `;
+        }`;
+    }
+
+    const prompt = `${basePrompt}
+${modeAdaptation}
+
+      **REQUIRED JSON STRUCTURE:**
+      {
+        "title": "Short Title (Translated into Target Language)",
+        "badges": [
+          { "type": "good" | "warn" | "info", "text": "Short badge text" }
+        ],
+        "notes": [
+          { "title": "Category (e.g., Behavioral Norms)", "body": "Clinical, concise explanation with phonetic phrasing if needed. CRITICAL: Use \\n for paragraph breaks and '- ' for bullet points." }
+        ]${modeJsonStructure}
+      }`;
 
     console.log("Prompt: ", prompt);
 

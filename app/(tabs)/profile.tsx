@@ -1155,7 +1155,7 @@ export default function ProfileScreen() {
           styles.toast,
           {
             backgroundColor: colors.primary,
-            bottom: Platform.OS === 'ios' ? insets.bottom + 100 : insets.bottom
+            bottom: Platform.OS === 'ios' ? insets.bottom + 100 : insets.bottom + 80
           }
         ]}>
           <Feather name="check" size={14} color={colors.primaryForeground} />
