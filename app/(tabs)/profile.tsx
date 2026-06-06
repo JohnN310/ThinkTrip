@@ -14,6 +14,7 @@ import { Card } from '../../components/Card';
 import { SettingsGroup, SettingsRow } from '../../components/SettingsRow';
 import { ToggleRow } from '../../components/ToggleRow';
 import { SegmentedControl } from '../../components/SegmentedControl';
+import { SUPPORTED_LANGUAGES } from '../../lib/languages';
 // import { registerBackgroundWeatherTask, unregisterBackgroundWeatherTask } from '../../lib/backgroundWeather';
 
 const AVATAR_COLORS = [
@@ -686,23 +687,9 @@ export default function ProfileScreen() {
       );
     }
     if (activeSheet === 'Languages') {
-      const LANGUAGE_OPTIONS = [
-        { id: 'en', label: 'English', emoji: '🇬🇧' },
-        { id: 'ja', label: 'Japanese', emoji: '🇯🇵' },
-        { id: 'es', label: 'Spanish', emoji: '🇪🇸' },
-        { id: 'fr', label: 'French', emoji: '🇫🇷' },
-        { id: 'it', label: 'Italian', emoji: '🇮🇹' },
-        { id: 'de', label: 'German', emoji: '🇩🇪' },
-        { id: 'ko', label: 'Korean', emoji: '🇰🇷' },
-        { id: 'zh', label: 'Chinese', emoji: '🇨🇳' },
-        { id: 'vi', label: 'Vietnamese', emoji: '🇻🇳' },
-        { id: 'ru', label: 'Russian', emoji: '🇷🇺' },
-        { id: 'pt', label: 'Portuguese', emoji: '🇵🇹' },
-      ];
-
       const languageColumns = [];
-      for (let i = 0; i < LANGUAGE_OPTIONS.length; i += 2) {
-        languageColumns.push(LANGUAGE_OPTIONS.slice(i, i + 2));
+      for (let i = 0; i < SUPPORTED_LANGUAGES.length; i += 2) {
+        languageColumns.push(SUPPORTED_LANGUAGES.slice(i, i + 2));
       }
 
       return (

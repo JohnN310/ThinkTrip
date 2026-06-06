@@ -27,21 +27,7 @@ type Message = {
   suggestedResponse?: string;
 };
 
-type Language = { code: string; bcp47: string; name: string; emoji: string; };
-
-const SUPPORTED_LANGUAGES: Language[] = [
-  { code: 'en', bcp47: 'en-US', name: 'English', emoji: '🇺🇸' },
-  { code: 'de', bcp47: 'de-DE', name: 'German', emoji: '🇩🇪' },
-  { code: 'ja', bcp47: 'ja-JP', name: 'Japanese', emoji: '🇯🇵' },
-  { code: 'ko', bcp47: 'ko-KR', name: 'Korean', emoji: '🇰🇷' },
-  { code: 'fr', bcp47: 'fr-FR', name: 'French', emoji: '🇫🇷' },
-  { code: 'es', bcp47: 'es-ES', name: 'Spanish', emoji: '🇪🇸' },
-  { code: 'vi', bcp47: 'vi-VN', name: 'Vietnamese', emoji: '🇻🇳' },
-  { code: 'zh', bcp47: 'zh-CN', name: 'Chinese', emoji: '🇨🇳' },
-  { code: 'ru', bcp47: 'ru-RU', name: 'Russian', emoji: '🇷🇺' },
-  { code: 'it', bcp47: 'it-IT', name: 'Italian', emoji: '🇮🇹' },
-  { code: 'pt', bcp47: 'pt-PT', name: 'Portuguese', emoji: '🇵🇹' },
-];
+import { Language, SUPPORTED_LANGUAGES } from '../../lib/languages';
 
 export default function LiveInteractionScreen() {
   const colors = useColors();
