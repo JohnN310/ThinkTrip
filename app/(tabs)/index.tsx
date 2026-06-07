@@ -1,35 +1,213 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Modal, Animated, Keyboard, Dimensions, TextInput, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Modal, Keyboard, Dimensions, TextInput, TouchableWithoutFeedback, Image, Alert, LayoutAnimation, UIManager, Animated as RNAnimated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
+import * as ImagePicker from 'expo-image-picker';
 import { useColors } from '../../hooks/useColors';
 import { useProfile } from '../../contexts/ProfileContext';
 import { useAlbum } from '../../context/AlbumContext';
-import { Destination } from '../../lib/destinations';
-import { buildPackingList, Category } from '../../lib/packingList';
-import { Card } from '../../components/Card';
+import { useCountryContent } from '../../hooks/useCountryContent';
+import { useAuth } from '../../contexts/AuthContext';
+import { db, storage } from '../../lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { Gesture, GestureDetector, GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS, FadeInUp, SlideInDown, ZoomIn } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DolphinMascot } from '../../components/DolphinMascot';
 import GlobeView, { GlobeViewRef } from '../../components/GlobeView';
 import CountrySelectModal from '../../components/CountrySelectModal';
 
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+type TabType = 'facts' | 'places' | 'culture' | 'events';
 
-const getAqiLabel = (aqiIndex: number) => {
-  if (!aqiIndex) return 'Unknown';
-  const labels = ['Good', 'Fair', 'Moderate', 'Poor', 'Very Poor'];
-  return labels[aqiIndex - 1] || 'Unknown';
+const TABS: { id: TabType; title: string; entries: number; icon: any; iconColor: string; iconBg: string }[] = [
+  { id: 'facts', title: 'Facts', entries: 4, icon: 'lightbulb-outline', iconColor: '#d97706', iconBg: '#fef3c7' },
+  { id: 'places', title: 'Places', entries: 4, icon: 'map-marker-outline', iconColor: '#059669', iconBg: '#d1fae5' },
+  { id: 'culture', title: 'Culture', entries: 4, icon: 'account-group-outline', iconColor: '#4f46e5', iconBg: '#e0e7ff' },
+  { id: 'events', title: 'Events', entries: 3, icon: 'calendar-blank-outline', iconColor: '#db2777', iconBg: '#fce7f3' },
+];
+
+const DUMMY_DATA = {
+  facts: [
+    { title: 'Vending Machine Nation', description: 'Japan has over 1 vending machine for every 23 people, selling hot coffee, fresh eggs, and even umbrellas.', icon: 'cup-water' },
+    { title: 'Train Punctuality', description: 'If a train is even 1 minute late, an official delay certificate is issued — passengers use it to excuse lateness at work.', icon: 'train' }
+  ],
+  events: [
+    { title: 'Cherry Blossom Season', date: 'Late March – Early April', description: 'Hanami festivals take over every city park. Locals stake spots days in advance for picnics beneath the blossoms.', icon: 'flower' },
+    { title: 'Gion Matsuri', date: 'July', description: 'Kyoto\'s grandest festival, dating to 869 AD — processions of 32 enormous ceremonial floats fill the streets.', icon: 'lantern' }
+  ]
 };
 
-const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_WEATHER_KEY;
-const POPULAR_CITIES = ['Tokyo, JP', 'London, England, GB', 'New York, US', 'Paris, Ile-de-France, FR', 'Bangkok, TH', 'Dubai, AE', 'Seoul, KR', 'Marrakesh, MA'];
+const INITIAL_MEMORIES = [
+  'https://images.unsplash.com/photo-1580828369019-4b36125021ed?auto=format&fit=crop&q=80&w=400',
+  'https://images.unsplash.com/photo-1551458981-817c76892c2b?auto=format&fit=crop&q=80&w=400',
+  'https://images.unsplash.com/photo-1528164344705-47542687000d?auto=format&fit=crop&q=80&w=400',
+  'https://images.unsplash.com/photo-1610260463137-97d51ee9fa59?auto=format&fit=crop&q=80&w=400',
+];
+
+const ITEM_WIDTH = (SCREEN_WIDTH - 64) / 2;
+const ITEM_HEIGHT = ITEM_WIDTH + 30;
+const GAP = 16;
+
+const getPosition = (index: number) => {
+  'worklet';
+  return {
+    x: (index % 2) * (ITEM_WIDTH + GAP),
+    y: Math.floor(index / 2) * (ITEM_HEIGHT + GAP),
+  };
+};
+
+const DraggablePolaroid = ({ img, id, isEditing, onStartEditing, onDelete, memoriesLength, colors, positions, onReorderComplete }: any) => {
+  const isDragging = useSharedValue(false);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const startPos = useSharedValue({ x: 0, y: 0 });
+  const scale = useSharedValue(1);
+  const zIndex = useSharedValue(0);
+
+  const panGesture = Gesture.Pan()
+    .minDistance(isEditing ? 15 : 10000)
+    .activateAfterLongPress(isEditing ? 300 : 400)
+    .onStart(() => {
+      if (!isEditing) {
+        runOnJS(onStartEditing)();
+      }
+      isDragging.value = true;
+      const currentIndex = positions.value[id];
+      startPos.value = getPosition(currentIndex);
+      translateX.value = 0;
+      translateY.value = 0;
+      scale.value = withSpring(1.05);
+      zIndex.value = 100;
+      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy);
+    })
+    .onUpdate((e) => {
+      translateX.value = e.translationX;
+      translateY.value = e.translationY;
+
+      const currentX = startPos.value.x + e.translationX + ITEM_WIDTH / 2;
+      const currentY = startPos.value.y + e.translationY + ITEM_HEIGHT / 2;
+
+      const col = Math.floor(currentX / (ITEM_WIDTH + GAP));
+      const row = Math.floor(currentY / (ITEM_HEIGHT + GAP));
+      let hoverIndex = row * 2 + col;
+      hoverIndex = Math.max(0, Math.min(memoriesLength - 1, hoverIndex));
+
+      const oldIndex = positions.value[id];
+
+      if (hoverIndex !== oldIndex) {
+        const newPositions = Object.assign({}, positions.value);
+        const otherId = Object.keys(newPositions).find(k => newPositions[k] === hoverIndex);
+
+        if (otherId) {
+          newPositions[otherId] = oldIndex;
+          newPositions[id] = hoverIndex;
+          positions.value = newPositions;
+          runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+        }
+      }
+    })
+    .onEnd(() => {
+      isDragging.value = false;
+
+      translateX.value = withSpring(0, { damping: 50, stiffness: 200 });
+      translateY.value = withSpring(0, { damping: 50, stiffness: 200 });
+      scale.value = withSpring(1);
+      zIndex.value = 10;
+
+      runOnJS(onReorderComplete)(positions.value);
+    });
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const currentIndex = positions.value[id];
+    const pos = getPosition(currentIndex);
+
+    if (isDragging.value) {
+      return {
+        position: 'absolute',
+        top: startPos.value.y,
+        left: startPos.value.x,
+        zIndex: 100,
+        transform: [
+          { translateX: translateX.value },
+          { translateY: translateY.value },
+          { scale: scale.value },
+          { rotate: currentIndex % 2 === 0 ? '-2deg' : '2deg' }
+        ],
+        shadowOpacity: 0.25,
+        shadowRadius: 12,
+        elevation: 8,
+      };
+    } else {
+      return {
+        position: 'absolute',
+        top: withSpring(pos.y, { damping: 50, stiffness: 200 }),
+        left: withSpring(pos.x, { damping: 50, stiffness: 200 }),
+        zIndex: zIndex.value,
+        transform: [
+          { translateX: translateX.value },
+          { translateY: translateY.value },
+          { scale: scale.value },
+          { rotate: currentIndex % 2 === 0 ? '-2deg' : '2deg' }
+        ],
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
+      };
+    }
+  });
+
+  return (
+    <GestureDetector gesture={panGesture}>
+      <Animated.View
+        hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
+        style={[styles.polaroid, { backgroundColor: colors.card, marginBottom: 0 }, animatedStyle]}
+      >
+        <Image source={{ uri: img }} style={[styles.polaroidImage, { backgroundColor: colors.border }]} />
+        <Text style={[styles.polaroidText, { color: colors.mutedForeground }]}>Add a note...</Text>
+
+        {isEditing && (
+          <TouchableOpacity
+            style={[styles.deleteBadge, { top: -10, right: -10, width: 28, height: 28, borderRadius: 14 }]}
+            onPress={() => onDelete(id)}
+            activeOpacity={0.8}
+            hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
+          >
+            <Feather name="x" size={16} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+    </GestureDetector>
+  );
+};
+
+const PhotoStack = ({ latestPhotoUrl, index }: { latestPhotoUrl: string | null, index: number }) => {
+  return (
+    <View style={{ width: 64, height: 64, marginRight: 16 }}>
+      <Animated.View entering={ZoomIn.delay(index * 100 + 100)} style={{ position: 'absolute', width: 56, height: 56, backgroundColor: '#E5E7EB', borderRadius: 8, top: 0, left: 4, transform: [{ rotate: '6deg' }] }} />
+      <Animated.View entering={ZoomIn.delay(index * 100 + 150)} style={{ position: 'absolute', width: 60, height: 60, backgroundColor: '#D1D5DB', borderRadius: 8, top: 2, left: 2, transform: [{ rotate: '-3deg' }] }} />
+      <Animated.View entering={ZoomIn.delay(index * 100 + 200)} style={{ position: 'absolute', width: 64, height: 64, backgroundColor: '#F3F4F6', borderRadius: 8, top: 0, left: 0, overflow: 'hidden', borderWidth: 2, borderColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+        {latestPhotoUrl ? (
+          <Image source={{ uri: latestPhotoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+        ) : (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <Feather name="image" size={20} color="#9CA3AF" />
+          </View>
+        )}
+      </Animated.View>
+    </View>
+  );
+};
 
 export interface GeocodeSuggestion {
   name: string;
@@ -39,140 +217,57 @@ export interface GeocodeSuggestion {
   state?: string;
 }
 
-export default function PlanScreen() {
-
+export default function MemoryScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { profile, toggleSavedLocation, hydrated } = useProfile();
-  const { addCountry } = useAlbum();
+  const { profile, hydrated } = useProfile();
+  const { user } = useAuth();
+  
+  // NEW VIEW STATE
+  const [viewMode, setViewMode] = useState<'memory' | 'globe'>('memory');
 
-  const [liveWeather, setLiveWeather] = useState<any>(null);
-  const [trueLiveWeather, setTrueLiveWeather] = useState<any>(null);
-  const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
+  // Memory View State
+  const { addCountry, visitedCountries, updateAlbumMeta, removeCountry } = useAlbum();
+  const [currentCountry, setCurrentCountry] = useState<string | null>(null);
 
-  // --- Welcome Guide Scroll State ---
-  const welcomeScrollRef = useRef<ScrollView>(null);
-  const [welcomeScrollHeight, setWelcomeScrollHeight] = useState(0);
-  const [welcomeContentHeight, setWelcomeContentHeight] = useState(0);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-
-  const isWelcomeScrollable = welcomeContentHeight > welcomeScrollHeight;
-
-  const handleWelcomeScroll = (event: any) => {
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 20) {
-      setIsAtBottom(true);
-    } else {
-      setIsAtBottom(false);
+  useEffect(() => {
+    if (!currentCountry && visitedCountries.length > 0) {
+      setCurrentCountry(visitedCountries[0].country);
+    } else if (visitedCountries.length === 0 && currentCountry !== null) {
+      setCurrentCountry(null);
     }
-  };
+  }, [visitedCountries.length, currentCountry]);
 
-  useEffect(() => {
-    if (isWelcomeScrollable) setIsAtBottom(false);
-    else setIsAtBottom(true);
-  }, [isWelcomeScrollable]);
+  const destination = currentCountry || '';
+  const { data, isLoading } = useCountryContent(destination);
+  const [activeTab, setActiveTab] = useState<TabType>('facts');
+  const [memories, setMemories] = useState<string[]>([]);
+  const positions = useSharedValue<Record<string, number>>({});
+  const [flagUrl, setFlagUrl] = useState<string | null>(null);
+  const [showAlbumMenu, setShowAlbumMenu] = useState(false);
+  const [isEditingMemories, setIsEditingMemories] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const [guideReady, setGuideReady] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setGuideReady(true), 1000);
-    return () => clearTimeout(t);
-  }, []);
+  // Globe View State
+  const unlockedCountries = useMemo(() => {
+    return visitedCountries
+      .filter(c => c.photoCount > 0)
+      .map(c => c.country.toLowerCase());
+  }, [visitedCountries]);
 
-  useEffect(() => {
-    if (!hydrated || !guideReady) return;
-    AsyncStorage.getItem('@thinktrip_plan_guide_seen').then(val => {
-      if (!val) setShowWelcomeGuide(true);
-    });
-  }, [hydrated, guideReady]);
-
-  const dismissWelcomeGuide = async () => {
-    await AsyncStorage.setItem('@thinktrip_plan_guide_seen', 'true');
-    setShowWelcomeGuide(false);
-  };
-
-  const [forecast, setForecast] = useState<any[]>([]);
-  const [showForecastSheet, setShowForecastSheet] = useState(false);
-  const [selectedPointIndex, setSelectedPointIndex] = useState(0);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(-1);
-  const savedLocations: string[] = profile.savedLocations || [];
-
-  const [hasSetInitialCity, setHasSetInitialCity] = useState(false);
-  const [selectedPackingItem, setSelectedPackingItem] = useState<any>(null);
-  const [showPackingSheet, setShowPackingSheet] = useState(false);
-  const packingFadeAnim = useRef(new Animated.Value(0)).current;
-  const packingSlideAnim = useRef(new Animated.Value(800)).current;
-
-  // Globe State
   const globeRef = useRef<GlobeViewRef>(null);
   const [selectedGlobeCountry, setSelectedGlobeCountry] = useState<any>(null);
   const [showGlobeModal, setShowGlobeModal] = useState(false);
 
-  const handleGlobeCountrySelect = (countryData: any) => {
-    setSelectedGlobeCountry(countryData);
-    setShowGlobeModal(true);
-  };
-
-  const handleGlobeDestinationSet = (countryName: string) => {
-    setShowGlobeModal(false);
-
-    // Add to album
-    addCountry(countryName);
-
-    // Switch to the Home tab and pass the selected destination
-    // router.push({
-    //   pathname: '/(tabs)/home', 
-    //   params: { country: countryName }
-    // });
-  };
-
-  const openPackingSheet = (item: any) => {
-    setSelectedPackingItem(item);
-    setShowPackingSheet(true);
-    Animated.parallel([
-      Animated.timing(packingFadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.spring(packingSlideAnim, { toValue: 0, damping: 24, stiffness: 200, useNativeDriver: true })
-    ]).start();
-  };
-
-  const closePackingSheet = () => {
-    Animated.parallel([
-      Animated.timing(packingFadeAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-      Animated.timing(packingSlideAnim, { toValue: 800, duration: 250, useNativeDriver: true })
-    ]).start(() => {
-      setShowPackingSheet(false);
-      setSelectedPackingItem(null);
-    });
-  };
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(800)).current;
-
-  const closeSheet = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 800, duration: 250, useNativeDriver: true })
-    ]).start(() => setShowForecastSheet(false));
-  };
-
-  const [destination, setDestination] = useState<Destination>({
-    key: 'new-york',
-    name: 'New York',
-    region: '—',
-    climate: { tempLow: 0, tempHigh: 0, humidity: 0 },
-    alerts: [],
-  });
-
+  // Search State
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [selectedChip, setSelectedChip] = useState('New York');
-  const [initialLoadFailed, setInitialLoadFailed] = useState(false);
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const searchAnim = useRef(new RNAnimated.Value(0)).current;
   const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestQueryRef = useRef('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -196,59 +291,20 @@ export default function PlanScreen() {
     });
   };
 
-  const loadDestinationData = async (locationQuery: string | GeocodeSuggestion) => {
-    // We no longer fetch weather data, just set initial loading state to complete
-    setInitialLoadFailed(false);
-  };
-
-  useEffect(() => {
-    if (!hydrated) {
-      setHasSetInitialCity(false);
-      setSelectedDayIndex(-1);
-      return;
-    }
-    if (hydrated && !hasSetInitialCity) {
-      setHasSetInitialCity(true);
-      const defaultCity = savedLocations.length > 0 ? savedLocations[0] : 'New York, US';
-      setSelectedChip(defaultCity);
-      setDestination(prev => ({
-        ...prev,
-        key: defaultCity.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        name: defaultCity
-      }));
-      loadDestinationData(defaultCity).catch(err => {
-        setInitialLoadFailed(true);
-      });
-    }
-  }, [hydrated, hasSetInitialCity, savedLocations]);
-
-  useEffect(() => {
-    if (!hasSetInitialCity) return;
-    loadDestinationData(destination.name).catch((error) => console.error(error));
-  }, [profile.units]);
-
-  // State to track if the search is open
-  const [isSearchActive, setIsSearchActive] = useState(false);
-
-  // Animation value for the width expansion
-  const searchAnim = useRef(new Animated.Value(0)).current;
-
   const toggleSearch = () => {
     if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
 
     if (isSearchActive) {
-      // Dismiss keyboard and collapse
       Keyboard.dismiss();
-      Animated.spring(searchAnim, {
+      RNAnimated.spring(searchAnim, {
         toValue: 0,
-        useNativeDriver: false, // width animations require false
+        useNativeDriver: false,
         friction: 9,
         tension: 60,
       }).start(() => setIsSearchActive(false));
     } else {
-      // Expand and show input
       setIsSearchActive(true);
-      Animated.spring(searchAnim, {
+      RNAnimated.spring(searchAnim, {
         toValue: 1,
         useNativeDriver: false,
         friction: 9,
@@ -257,22 +313,18 @@ export default function PlanScreen() {
     }
   };
 
-  // Fetch Autocomplete Suggestions
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSuggestions([]);
       setIsFetchingSuggestions(false);
       return;
     }
-
-    // Clear previous timeout to debounce typing
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     typingTimeoutRef.current = setTimeout(async () => {
       setIsFetchingSuggestions(true);
       try {
         const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(searchQuery)}`);
-
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
@@ -295,51 +347,191 @@ export default function PlanScreen() {
       } finally {
         setIsFetchingSuggestions(false);
       }
-    }, 400); // 400ms delay for premium typing feel
-
+    }, 400);
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [searchQuery]);
 
-  // Interpolate the animation value into actual pixel widths
   const searchBarWidth = searchAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [48, SCREEN_WIDTH - 40], // From circle to screen width minus margins
+    outputRange: [48, SCREEN_WIDTH - 40],
   });
-
-  // Delay the text fade-in slightly so it doesn't clip outside the pill while expanding
   const searchInputOpacity = searchAnim.interpolate({
     inputRange: [0.5, 1],
     outputRange: [0, 1],
   });
 
-  const searchCity = (locationQuery: string | GeocodeSuggestion, fromChip = false) => {
+  const searchCity = (locationQuery: string | GeocodeSuggestion) => {
     const queryStr = typeof locationQuery === 'string'
       ? locationQuery
       : `${locationQuery.name}${locationQuery.state && locationQuery.state !== locationQuery.name ? `, ${locationQuery.state}` : ''}, ${locationQuery.country}`;
 
     if (!queryStr.trim()) return;
-
     if (Platform.OS !== 'web' && profile.hapticsEnabled) Haptics.selectionAsync();
 
-    // Act as navigation/selection trigger
     let searchTarget = typeof locationQuery === 'string' ? locationQuery : locationQuery.name;
-    // If the recent search or query contains a comma (e.g. "Vietnam, VN"), extract just the country name for the globe matcher
     if (typeof searchTarget === 'string' && searchTarget.includes(',')) {
       searchTarget = searchTarget.split(',')[0].trim();
     }
 
     globeRef.current?.flyToCountry(searchTarget);
-
     addRecentSearch(queryStr);
     setSearchQuery('');
     setSuggestions([]);
-    setIsSearchFocused(false);
   };
 
+  // Memory View Effects
+  useEffect(() => {
+    async function fetchMemories() {
+      if (!user || !destination) {
+        setMemories(INITIAL_MEMORIES);
+        positions.value = Object.assign({}, ...INITIAL_MEMORIES.map((m, i) => ({ [m]: i })));
+        return;
+      }
+      try {
+        const docRef = doc(db, 'users', user.uid, 'albums', destination);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists() && docSnap.data().photos) {
+          const fetchedPhotos = docSnap.data().photos;
+          setMemories(fetchedPhotos);
+          positions.value = Object.assign({}, ...fetchedPhotos.map((m: string, i: number) => ({ [m]: i })));
+        } else {
+          setMemories([]);
+          positions.value = {};
+        }
+      } catch (err) {
+        console.error('Failed to fetch memories', err);
+      }
+    }
+    fetchMemories();
+  }, [destination, user]);
 
-  if (!hydrated || !hasSetInitialCity) {
+  useEffect(() => {
+    async function fetchFlag() {
+      if (!destination) return;
+      try {
+        const response = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(destination)}`);
+        const result = await response.json();
+        if (result && result[0] && result[0].flags) {
+          setFlagUrl(result[0].flags.png || result[0].flags.svg);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch flag', err);
+      }
+    }
+    fetchFlag();
+  }, [destination]);
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0].uri) {
+      const uri = result.assets[0].uri;
+
+      if (!user) {
+        const newArr = [...memories, uri];
+        setMemories(newArr);
+        positions.value = Object.assign({}, ...newArr.map((m, i) => ({ [m]: i })));
+        updateAlbumMeta(destination, uri, newArr.length);
+        return;
+      }
+
+      setIsUploading(true);
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+        const storageReference = ref(storage, `users/${user.uid}/albums/${destination}/${filename}`);
+        await uploadBytes(storageReference, blob);
+        const downloadUrl = await getDownloadURL(storageReference);
+
+        const newArr = [...memories, downloadUrl];
+        setMemories(newArr);
+        positions.value = Object.assign({}, ...newArr.map((m, i) => ({ [m]: i })));
+
+        const docRef = doc(db, 'users', user.uid, 'albums', destination);
+        setDoc(docRef, { photos: newArr }, { merge: true }).catch(err => console.error("Error saving photo URL to firestore:", err));
+        updateAlbumMeta(destination, downloadUrl, newArr.length);
+      } catch (err) {
+        console.error("Error uploading image:", err);
+        Alert.alert("Upload Failed", "There was an error saving your photo to the cloud.");
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  const handleDeleteMemory = (idToDelete: string) => {
+    Alert.alert(
+      "Delete Photo",
+      "Are you sure you want to remove this memory?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            const newArr = memories.filter(m => m !== idToDelete);
+            setMemories(newArr);
+            positions.value = Object.assign({}, ...newArr.map((m, i) => ({ [m]: i })));
+
+            if (user) {
+              const docRef = doc(db, 'users', user.uid, 'albums', destination);
+              setDoc(docRef, { photos: newArr }, { merge: true }).catch(console.error);
+              updateAlbumMeta(destination, newArr[0] || null, newArr.length);
+
+              if (idToDelete.includes('firebasestorage.googleapis.com')) {
+                try {
+                  const storageRef = ref(storage, idToDelete);
+                  deleteObject(storageRef).catch(console.error);
+                } catch (e) {
+                  console.error("Failed to parse storage reference from URL", e);
+                }
+              }
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleReorderComplete = (newPositions: Record<string, number>) => {
+    const sorted = [...memories].sort((a, b) => newPositions[a] - newPositions[b]);
+    setMemories(sorted);
+
+    if (user) {
+      const docRef = doc(db, 'users', user.uid, 'albums', destination);
+      setDoc(docRef, { photos: sorted }, { merge: true }).catch(console.error);
+      updateAlbumMeta(destination, sorted[0] || null, sorted.length);
+    }
+  };
+
+  const handleGlobeCountrySelect = (countryData: any) => {
+    setSelectedGlobeCountry(countryData);
+    setShowGlobeModal(true);
+    globeRef.current?.setAutoRotate(false);
+  };
+
+  const handleGlobeDestinationSet = (countryName: string) => {
+    setShowGlobeModal(false);
+    globeRef.current?.setAutoRotate(true);
+
+    if (Platform.OS !== 'web' && profile.hapticsEnabled) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+
+    addCountry(countryName);
+    setCurrentCountry(countryName);
+    setViewMode('memory');
+  };
+
+  if (!hydrated) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="small" color={colors.primary} />
@@ -348,427 +540,395 @@ export default function PlanScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-
-      {/* ─── 3D Globe Background (FULL SCREEN) ─── */}
-      <View style={StyleSheet.absoluteFillObject}>
-        <GlobeView ref={globeRef} onCountrySelect={handleGlobeCountrySelect} />
-      </View>
-
-      {/* Dismiss keyboard when tapping outside */}
-      {isSearchActive && (
-        <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); toggleSearch(); }}>
-          <View style={[StyleSheet.absoluteFillObject, { zIndex: 5 }]} />
-        </TouchableWithoutFeedback>
-      )}
-
-      {/* ─── Floating Header Area ─── */}
-      <View
-        pointerEvents="box-none"
-        style={[styles.headerArea, { paddingTop: (insets.top || 20) + 16, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }]}
-      >
-        <View style={styles.headerRow} pointerEvents="box-none">
-
-          <View style={styles.headerTextCol} pointerEvents="none">
-            {/* <Text style={[styles.titleText, { color: colors.foreground }]}>
-              World Map
-            </Text> */}
-            {/* <Text style={[styles.subtitleText, { color: colors.mutedForeground }]}>
-              Tap and zoom to explore information,{'\n'}history, and upcoming festivals.
-            </Text> */}
-          </View>
-
-          <View style={styles.headerActions} pointerEvents="auto">
-            <Animated.View style={[styles.searchWrapper, { width: searchBarWidth }]}>
-              <BlurView
-                intensity={40}
-                tint="dark"
-                style={styles.searchGlass}
-              >
-                {/* 1. The Input Field (Rendered first, positioned absolutely so it expands smoothly) */}
-                <Animated.View
-                  style={[styles.inputContainer, { opacity: searchInputOpacity }]}
-                  pointerEvents={isSearchActive ? 'auto' : 'none'}
-                >
-                  <TextInput
-                    style={[styles.searchInput, { color: '#ffffff' }]}
-                    placeholder="Search destinations..."
-                    placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    onSubmitEditing={() => {
-                      searchCity(searchQuery);
-                      toggleSearch();
-                    }}
-                    returnKeyType="search"
-                    autoFocus={isSearchActive}
-                    autoCorrect={false}
-                  />
-                </Animated.View>
-
-                {/* 2. The Icon (Rendered second, anchors firmly to the right side) */}
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  style={styles.searchIconBox}
-                  onPress={toggleSearch}
-                >
-                  <Feather
-                    name={isSearchActive ? "x" : "search"}
-                    size={20}
-                    color="#ffffff"
-                  />
-                </TouchableOpacity>
-              </BlurView>
-            </Animated.View>
-          </View>
-
-        </View>
-
-        {/* ─── Search Dropdown Menu ─── */}
-        <Animated.View
-          pointerEvents={isSearchActive ? 'auto' : 'none'}
-          style={[
-            styles.dropdownContainer,
-            { top: (insets.top || 20) + 16 + 48 + 8, width: searchBarWidth },
-            {
-              opacity: searchAnim,
-              transform: [{
-                translateY: searchAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-10, 0] // Subtle slide down effect
-                })
-              }]
-            }
-          ]}
+    <GestureHandlerRootView style={[styles.container, { backgroundColor: colors.background }]}>
+      
+      {viewMode === 'memory' ? (
+        // ==========================================
+        //             MEMORY VIEW
+        // ==========================================
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          scrollEnabled={!isEditingMemories && !!currentCountry}
+          contentContainerStyle={!currentCountry ? { flex: 1, justifyContent: 'center', alignItems: 'center' } : undefined}
         >
-          {isSearchActive && (
-            <BlurView
-              intensity={40}
-              tint="dark"
-              style={styles.dropdownGlass}
-            >
-              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {/* Top Right Album Button - ALWAYS VISIBLE */}
+          <TouchableOpacity
+            style={{ position: 'absolute', top: insets.top + 10, right: 24, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => setShowAlbumMenu(true)}
+          >
+            <Feather name="book" size={16} color="#fff" />
+            <Text style={{ color: '#fff', marginLeft: 8, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Album</Text>
+          </TouchableOpacity>
 
-                {/* STATE 1: Empty Query -> Show Recent Searches */}
-                {searchQuery.trim().length === 0 && recentSearches.length > 0 && (
-                  <View style={styles.listSection}>
-                    <Text style={[styles.sectionLabel, { color: 'rgba(255, 255, 255, 0.6)' }]}>RECENT SEARCHES</Text>
-                    {recentSearches.map((recentCity, idx) => (
-                      <TouchableOpacity
-                        key={`recent-${idx}`}
-                        style={styles.suggestionRow}
-                        onPress={() => {
-                          searchCity(recentCity);
-                          toggleSearch();
-                        }}
-                      >
-                        <View style={styles.iconCircle}>
-                          <Feather name="clock" size={14} color="rgba(255, 255, 255, 0.6)" />
-                        </View>
-                        <Text style={[styles.suggestionText, { color: '#ffffff' }]}>{recentCity}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
-                {/* STATE 2: Fetching Suggestions */}
-                {isFetchingSuggestions && searchQuery.trim().length > 0 && (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  </View>
-                )}
-
-                {/* STATE 3: Display Suggestions */}
-                {!isFetchingSuggestions && suggestions.length > 0 && (
-                  <View style={styles.listSection}>
-                    <Text style={[styles.sectionLabel, { color: 'rgba(255, 255, 255, 0.6)' }]}>SUGGESTIONS</Text>
-                    {suggestions.map((item, idx) => {
-                      const locationName = `${item.name}${item.state && item.state !== item.name ? `, ${item.state}` : ''}, ${item.country}`;
-                      return (
-                        <TouchableOpacity
-                          key={`sugg-${idx}`}
-                          style={styles.suggestionRow}
-                          onPress={() => {
-                            searchCity(item);
-                            toggleSearch();
-                          }}
-                        >
-                          <View style={styles.iconCircle}>
-                            <Feather name="map-pin" size={14} color="rgba(255, 255, 255, 0.6)" />
-                          </View>
-                          <View style={styles.suggestionTextData}>
-                            <Text style={[styles.suggestionText, { color: '#ffffff' }]}>{item.name}</Text>
-                            <Text style={[styles.suggestionSubtext, { color: 'rgba(255, 255, 255, 0.6)' }]}>
-                              {item.state && item.state !== item.name ? `${item.state}, ` : ''}{item.country}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
-
-                {/* STATE 4: No Results */}
-                {!isFetchingSuggestions && searchQuery.trim().length > 0 && suggestions.length === 0 && (
-                  <View style={styles.loadingContainer}>
-                    <Text style={[styles.suggestionSubtext, { color: 'rgba(255, 255, 255, 0.6)' }]}>No destinations found.</Text>
-                  </View>
-                )}
-
-              </ScrollView>
-            </BlurView>
-          )}
-        </Animated.View>
-
-      </View>
-
-      {/* ─── Modals ─── */}
-      <CountrySelectModal
-        visible={showGlobeModal}
-        country={selectedGlobeCountry}
-        onClose={() => setShowGlobeModal(false)}
-        onSelect={handleGlobeDestinationSet}
-      />
-
-      <Modal visible={showPackingSheet} transparent animationType="none" onRequestClose={closePackingSheet}>
-        <Animated.View style={[styles.sheetBackdrop, { opacity: packingFadeAnim }]}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closePackingSheet} />
-          <Animated.View style={[
-            styles.sheet,
-            {
-              backgroundColor: colors.card,
-              paddingBottom: insets.bottom + 20,
-              transform: [{ translateY: packingSlideAnim }]
-            }
-          ]}>
-            <View style={[styles.sheetHandle, { backgroundColor: colors.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }]} />
-            {selectedPackingItem && (
-              <ScrollView contentContainerStyle={{ paddingHorizontal: 20, gap: 20, paddingBottom: 20 }}>
-                {/* Modal Content */}
-              </ScrollView>
-            )}
-          </Animated.View>
-        </Animated.View>
-      </Modal>
-
-      {/* Welcome Guide Modal */}
-      <Modal visible={showWelcomeGuide} transparent animationType="fade">
-        <View style={[styles.modalBackdrop, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-          <View style={[styles.welcomeCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ScrollView
-              ref={welcomeScrollRef}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 80 }}
-              onLayout={(e) => setWelcomeScrollHeight(e.nativeEvent.layout.height)}
-              onContentSizeChange={(w, h) => setWelcomeContentHeight(h)}
-              onScroll={handleWelcomeScroll}
-              scrollEventThrottle={16}
-            >
-              <View style={[styles.welcomeHero, { backgroundColor: colors.muted }]}>
-                <DolphinMascot size={150} />
-              </View>
-              <View style={styles.welcomeGreetRow}>
-                <View style={[styles.welcomeGreetDot, { backgroundColor: colors.primary }]} />
-                <Text style={[styles.welcomeGreetText, { color: colors.mutedForeground }]}>PLAN & PREPARE</Text>
-              </View>
-              <Text style={[styles.welcomeTitle, { color: colors.foreground }]}>Hi, let's plan your journey.</Text>
-            </ScrollView>
-            <TouchableOpacity
-              style={[
-                styles.welcomeBtnFixed,
-                { backgroundColor: (!isWelcomeScrollable || isAtBottom) ? colors.primary : colors.muted }
-              ]}
-              onPress={() => {
-                if (!isWelcomeScrollable || isAtBottom) dismissWelcomeGuide();
-                else welcomeScrollRef.current?.scrollToEnd({ animated: true });
-              }}
-            >
-              <Text style={[
-                styles.welcomeBtnText,
-                { color: (!isWelcomeScrollable || isAtBottom) ? colors.primaryForeground : colors.foreground }
-              ]}>
-                {(!isWelcomeScrollable || isAtBottom) ? "Let's go" : "Scroll down"}
+          {!currentCountry ? (
+            <View style={{ alignItems: 'center', padding: 32 }}>
+              <Feather name="globe" size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
+              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: colors.foreground, marginBottom: 8, textAlign: 'center' }}>No Country Selected</Text>
+              <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.mutedForeground, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
+                You haven't added any countries to your albums yet. Search to get started!
               </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+              <TouchableOpacity style={styles.addButton} onPress={() => setViewMode('globe')}>
+                <Text style={styles.addButtonText}>Explore the Globe</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {/* Dark Atmospheric Header Area */}
+              <TouchableOpacity activeOpacity={0.9} onPress={() => setViewMode('globe')} style={[styles.darkHeaderBackground, { minHeight: insets.top + 220 }]}>
+                {flagUrl && (
+                  <Image
+                    source={{ uri: flagUrl }}
+                    style={[StyleSheet.absoluteFillObject, { opacity: 0.4 }]}
+                    resizeMode="cover"
+                  />
+                )}
+                <View style={[styles.heroContent, { marginTop: insets.top + 40 }]}>
+                  <Text style={styles.heroEyebrow}>DESTINATION</Text>
+                  <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit>{destination}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <Feather name="globe" size={14} color="#D1D5DB" />
+                    <Text style={styles.heroSubtitle}>Tap to explore on globe</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
 
-    </View>
+              {/* Memory Trace Section */}
+              <View style={styles.memorySection}>
+                <View style={styles.memoryHeaderRow}>
+                  <View style={styles.memoryEyebrowRow}>
+                    <Feather name="camera" size={14} color={colors.mutedForeground} />
+                    <Text style={[styles.memoryEyebrow, { color: colors.mutedForeground }]}>MEMORY TRACE</Text>
+                  </View>
+
+                  {isEditingMemories ? (
+                    <TouchableOpacity style={[styles.addButton, { backgroundColor: '#238310ff' }]} onPress={() => setIsEditingMemories(false)} activeOpacity={0.8}>
+                      <Feather name="check" size={16} color="#ffffff" />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity style={[styles.addButton, { backgroundColor: colors.foreground, opacity: isUploading ? 0.5 : 1 }]} onPress={pickImage} activeOpacity={0.8} disabled={isUploading}>
+                      {isUploading ? <ActivityIndicator size="small" color={colors.background} style={{ marginRight: 4 }} /> : <Feather name="plus" size={16} color={colors.background} />}
+                      <Text style={[styles.addButtonText, { color: colors.background }]}>{isUploading ? '' : 'Add'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={[styles.polaroidGrid, { height: Math.ceil((memories.length + 1) / 2) * (ITEM_HEIGHT + GAP) }]}>
+                  {memories.map((img) => (
+                    <DraggablePolaroid
+                      key={img}
+                      img={img}
+                      id={img}
+                      isEditing={isEditingMemories}
+                      onStartEditing={() => setIsEditingMemories(true)}
+                      onDelete={handleDeleteMemory}
+                      onReorderComplete={handleReorderComplete}
+                      memoriesLength={memories.length}
+                      positions={positions}
+                      colors={colors}
+                    />
+                  ))}
+                  <TouchableOpacity
+                    style={[
+                      styles.polaroid,
+                      styles.polaroidEmpty,
+                      {
+                        position: 'absolute',
+                        top: Math.floor(memories.length / 2) * (ITEM_HEIGHT + GAP),
+                        left: (memories.length % 2) * (ITEM_WIDTH + GAP),
+                        borderColor: colors.border,
+                        backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255, 255, 255, 0.5)',
+                        opacity: isUploading ? 0.5 : 1
+                      }
+                    ]}
+                    onPress={pickImage}
+                    activeOpacity={0.7}
+                    disabled={isUploading}
+                  >
+                    {isUploading ? <ActivityIndicator size="large" color={colors.mutedForeground} /> : <Feather name="plus" size={32} color={colors.mutedForeground} />}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* Hero Card Album Modal */}
+          <Modal visible={showAlbumMenu} transparent animationType="fade">
+            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill}>
+              <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowAlbumMenu(false)} />
+
+              <View style={{ flex: 1, justifyContent: 'flex-end' }} pointerEvents="box-none">
+                <Animated.View
+                  entering={SlideInDown.duration(400)}
+                  style={{
+                    backgroundColor: colors.background,
+                    borderTopLeftRadius: 32,
+                    borderTopRightRadius: 32,
+                    paddingTop: 32,
+                    paddingHorizontal: 24,
+                    paddingBottom: insets.bottom + 24,
+                    maxHeight: '85%'
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                    <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 24, color: colors.foreground }}>Your Albums</Text>
+                    <TouchableOpacity onPress={() => setShowAlbumMenu(false)} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, justifyContent: 'center', alignItems: 'center' }}>
+                      <Feather name="x" size={20} color={colors.foreground} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {visitedCountries.length === 0 && (
+                    <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', lineHeight: 22 }}>You haven't added any countries yet. Tap "Explore the Globe" to select one!</Text>
+                  )}
+
+                  <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                    {visitedCountries.map((album, index) => (
+                      <Animated.View key={album.country} entering={FadeInUp.delay(index * 100)}>
+                        <Swipeable
+                          renderRightActions={() => (
+                            <TouchableOpacity
+                              style={{
+                                backgroundColor: '#EF4444',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                width: 80,
+                                borderRadius: 20,
+                                marginBottom: 12,
+                                marginLeft: 12,
+                              }}
+                              onPress={() => {
+                                Alert.alert(
+                                  "Delete Album",
+                                  `Are you sure you want to remove ${album.country}?`,
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    {
+                                      text: "Delete",
+                                      style: "destructive",
+                                      onPress: () => {
+                                        removeCountry(album.country);
+                                        if (album.country === currentCountry) {
+                                          const fallback = visitedCountries.find(c => c.country !== album.country)?.country || 'Japan';
+                                          setCurrentCountry(fallback);
+                                        }
+                                      }
+                                    }
+                                  ]
+                                );
+                              }}
+                            >
+                              <Feather name="trash-2" size={24} color="#FFF" />
+                            </TouchableOpacity>
+                          )}
+                        >
+                          <TouchableOpacity
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              padding: 16,
+                              backgroundColor: colors.card,
+                              borderRadius: 20,
+                              marginBottom: 12,
+                              shadowColor: '#000',
+                              shadowOffset: { width: 0, height: 4 },
+                              shadowOpacity: 0.04,
+                              shadowRadius: 12,
+                              elevation: 2
+                            }}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              setCurrentCountry(album.country);
+                              setShowAlbumMenu(false);
+                            }}
+                          >
+                            <PhotoStack latestPhotoUrl={album.latestPhotoUrl} index={index} />
+
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                                {album.flag?.startsWith('http') ? (
+                                  <Image source={{ uri: album.flag }} style={{ width: 22, height: 16, marginRight: 8, borderRadius: 2 }} />
+                                ) : (
+                                  album.flag && <Text style={{ fontSize: 18, marginRight: 6 }}>{album.flag}</Text>
+                                )}
+                                <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 18, color: colors.foreground, flexShrink: 1 }} numberOfLines={1}>
+                                  {album.country}
+                                </Text>
+                              </View>
+                              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.mutedForeground }}>
+                                {album.photoCount} {album.photoCount === 1 ? 'memory' : 'memories'}
+                              </Text>
+                            </View>
+
+                            <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+                          </TouchableOpacity>
+                        </Swipeable>
+                      </Animated.View>
+                    ))}
+                  </ScrollView>
+                </Animated.View>
+              </View>
+            </BlurView>
+          </Modal>
+        </ScrollView>
+      ) : (
+        // ==========================================
+        //             GLOBE VIEW
+        // ==========================================
+        <View style={StyleSheet.absoluteFillObject}>
+          <GlobeView ref={globeRef} onCountrySelect={handleGlobeCountrySelect} unlockedCountries={unlockedCountries} />
+          
+          {isSearchActive && (
+            <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); toggleSearch(); }}>
+              <View style={[StyleSheet.absoluteFillObject, { zIndex: 5 }]} />
+            </TouchableWithoutFeedback>
+          )}
+
+          {/* Floating Back Button & Search Area */}
+          <View pointerEvents="box-none" style={[styles.headerArea, { paddingTop: (insets.top || 20) + 16, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }]}>
+            <View style={styles.headerRow} pointerEvents="box-none">
+              <View style={styles.headerTextCol} pointerEvents="auto">
+                <TouchableOpacity
+                  style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}
+                  onPress={() => setViewMode('memory')}
+                >
+                  <Feather name="arrow-left" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.headerActions} pointerEvents="auto">
+                <RNAnimated.View style={[styles.searchWrapper, { width: searchBarWidth }]}>
+                  <BlurView intensity={40} tint="dark" style={styles.searchGlass}>
+                    <RNAnimated.View style={[styles.inputContainer, { opacity: searchInputOpacity }]} pointerEvents={isSearchActive ? 'auto' : 'none'}>
+                      <TextInput
+                        style={[styles.searchInput, { color: '#ffffff' }]}
+                        placeholder="Search destinations..."
+                        placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        onSubmitEditing={() => { searchCity(searchQuery); toggleSearch(); }}
+                        returnKeyType="search"
+                        autoFocus={isSearchActive}
+                        autoCorrect={false}
+                      />
+                    </RNAnimated.View>
+                    <TouchableOpacity activeOpacity={0.7} style={styles.searchIconBox} onPress={toggleSearch}>
+                      <Feather name={isSearchActive ? "x" : "search"} size={20} color="#ffffff" />
+                    </TouchableOpacity>
+                  </BlurView>
+                </RNAnimated.View>
+              </View>
+            </View>
+
+            {/* Search Dropdown Menu */}
+            <RNAnimated.View
+              pointerEvents={isSearchActive ? 'auto' : 'none'}
+              style={[
+                styles.dropdownContainer,
+                { top: (insets.top || 20) + 16 + 48 + 8, width: searchBarWidth },
+                { opacity: searchAnim, transform: [{ translateY: searchAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }] }
+              ]}
+            >
+              {isSearchActive && (
+                <BlurView intensity={40} tint="dark" style={styles.dropdownGlass}>
+                  <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                    {searchQuery.trim().length === 0 && recentSearches.length > 0 && (
+                      <View style={styles.listSection}>
+                        <Text style={[styles.sectionLabel, { color: 'rgba(255, 255, 255, 0.6)' }]}>RECENT SEARCHES</Text>
+                        {recentSearches.map((recentCity, idx) => (
+                          <TouchableOpacity
+                            key={`recent-${idx}`}
+                            style={styles.suggestionRow}
+                            onPress={() => { searchCity(recentCity); toggleSearch(); }}
+                          >
+                            <View style={styles.iconCircle}><Feather name="clock" size={14} color="rgba(255, 255, 255, 0.6)" /></View>
+                            <Text style={[styles.suggestionText, { color: '#ffffff' }]}>{recentCity}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {isFetchingSuggestions && searchQuery.trim().length > 0 && (
+                      <View style={styles.loadingContainer}><ActivityIndicator size="small" color="#ffffff" /></View>
+                    )}
+
+                    {!isFetchingSuggestions && suggestions.length > 0 && (
+                      <View style={styles.listSection}>
+                        <Text style={[styles.sectionLabel, { color: 'rgba(255, 255, 255, 0.6)' }]}>SUGGESTIONS</Text>
+                        {suggestions.map((item, idx) => (
+                          <TouchableOpacity
+                            key={`sugg-${idx}`}
+                            style={styles.suggestionRow}
+                            onPress={() => { searchCity(item); toggleSearch(); }}
+                          >
+                            <View style={styles.iconCircle}><Feather name="map-pin" size={14} color="rgba(255, 255, 255, 0.6)" /></View>
+                            <View style={styles.suggestionTextData}>
+                              <Text style={[styles.suggestionText, { color: '#ffffff' }]}>{item.name}</Text>
+                              <Text style={[styles.suggestionSubtext, { color: 'rgba(255, 255, 255, 0.6)' }]}>
+                                {item.state && item.state !== item.name ? `${item.state}, ` : ''}{item.country}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {!isFetchingSuggestions && searchQuery.trim().length > 0 && suggestions.length === 0 && (
+                      <View style={styles.loadingContainer}><Text style={[styles.suggestionSubtext, { color: 'rgba(255, 255, 255, 0.6)' }]}>No destinations found.</Text></View>
+                    )}
+                  </ScrollView>
+                </BlurView>
+              )}
+            </RNAnimated.View>
+          </View>
+
+          <CountrySelectModal
+            visible={showGlobeModal}
+            country={selectedGlobeCountry}
+            onClose={() => { setShowGlobeModal(false); globeRef.current?.setAutoRotate(true); }}
+            onSelect={handleGlobeDestinationSet}
+          />
+        </View>
+      )}
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerArea: { paddingHorizontal: 20, paddingBottom: 0 },
-
-  // New Header Layout Styles
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    position: 'relative', // Ensures absolute children align to this container
-    width: '100%',
-  },
-  headerTextCol: {
-    flex: 1,
-    paddingRight: 16
-  },
-  titleText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 32,
-    letterSpacing: -0.5,
-    marginBottom: 4
-  },
-  subtitleText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 18
-  },
-  headerActions: {
-    position: 'absolute', // Detaches from flex flow
-    right: 0,             // Locks to the right edge
-    top: 2,               // Replaces previous marginTop
-    flexDirection: 'row',
-    zIndex: 10,
-  },
-  searchWrapper: {
-    height: 48,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  searchGlass: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end', // Keeps the icon perfectly still on the right
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    overflow: 'hidden',
-  },
-  searchIconBox: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2, // Keeps icon above input text
-  },
-  inputContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 48, // Leaves exact room for the icon box so text doesn't overlap
-    height: '100%',
-    justifyContent: 'center',
-    paddingLeft: 16, // Pushes text away from the left edge
-  },
-  searchInput: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 15,
-    height: '100%',
-    width: '100%',
-    padding: 0, // Resets default Android padding
-  },
-
-  // Dropdown Styles
-  dropdownContainer: {
-    position: 'absolute',
-    right: 20,
-    zIndex: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  dropdownGlass: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    overflow: 'hidden',
-    maxHeight: 280, // Prevents the list from taking over the whole screen
-  },
-  listSection: {
-    paddingVertical: 12,
-  },
-  sectionLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    letterSpacing: 1.2,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  suggestionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  iconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(150, 150, 150, 0.15)', // Very subtle clinical backing
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  suggestionTextData: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  suggestionText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 15,
-  },
-  suggestionSubtext: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  loadingContainer: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Modals / Sheet Base Styles
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 14 },
-  sheetHandle: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  welcomeCard: {
-    width: '100%',
-    height: '85%',
-    maxHeight: 700,
-    borderRadius: 24,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
-    overflow: 'hidden'
-  },
-  welcomeHero: { width: '100%', height: 160, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 24, overflow: 'hidden' },
-  welcomeGreetRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  welcomeGreetDot: { width: 8, height: 8, borderRadius: 4 },
-  welcomeGreetText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.5 },
-  welcomeTitle: { fontFamily: 'Inter_700Bold', fontSize: 28, letterSpacing: -0.5, marginBottom: 10 },
-  welcomeBtnFixed: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 999,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  welcomeBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', width: '100%' },
+  headerTextCol: { flex: 1, paddingRight: 16 },
+  headerActions: { position: 'absolute', right: 0, top: 2, flexDirection: 'row', zIndex: 10 },
+  searchWrapper: { height: 48, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 4 },
+  searchGlass: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', overflow: 'hidden' },
+  searchIconBox: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  inputContainer: { position: 'absolute', left: 0, right: 48, height: '100%', justifyContent: 'center', paddingLeft: 16 },
+  searchInput: { fontFamily: 'Inter_500Medium', fontSize: 15, height: '100%', width: '100%', padding: 0 },
+  dropdownContainer: { position: 'absolute', right: 20, zIndex: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 8 },
+  dropdownGlass: { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', overflow: 'hidden', maxHeight: 280 },
+  listSection: { paddingVertical: 12 },
+  sectionLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.2, paddingHorizontal: 16, marginBottom: 8 },
+  suggestionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16 },
+  iconCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(150, 150, 150, 0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  suggestionTextData: { flex: 1, justifyContent: 'center' },
+  suggestionText: { fontFamily: 'Inter_500Medium', fontSize: 15 },
+  suggestionSubtext: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 2 },
+  loadingContainer: { padding: 24, alignItems: 'center', justifyContent: 'center' },
+  darkHeaderBackground: { backgroundColor: '#1E1B2E', borderBottomLeftRadius: 40, borderBottomRightRadius: 40, overflow: 'hidden' },
+  heroContent: { paddingHorizontal: 24, marginBottom: 32 },
+  heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#9CA3AF', letterSpacing: 2, marginBottom: 4 },
+  heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 48, color: '#ffffff', letterSpacing: -1, marginBottom: 8 },
+  heroSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#D1D5DB', lineHeight: 22 },
+  memorySection: { paddingHorizontal: 24, paddingTop: 16, marginBottom: 40 },
+  memoryHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  memoryEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  memoryEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 12, letterSpacing: 1.5 },
+  addButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111827', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, gap: 6 },
+  addButtonText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#ffffff' },
+  polaroidGrid: { position: 'relative', width: '100%' },
+  polaroid: { width: (SCREEN_WIDTH - 64) / 2, backgroundColor: '#ffffff', padding: 8, borderRadius: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3, marginBottom: 8 },
+  polaroidImage: { width: '100%', aspectRatio: 1, backgroundColor: '#E5E7EB', marginBottom: 12, borderRadius: 2 },
+  polaroidText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#9CA3AF', textAlign: 'center', marginBottom: 4 },
+  deleteBadge: { position: 'absolute', top: -8, right: -8, backgroundColor: '#EF4444', width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  polaroidEmpty: { aspectRatio: 0.85, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#E5E7EB', borderStyle: 'dashed', backgroundColor: 'rgba(255, 255, 255, 0.5)', shadowOpacity: 0, elevation: 0, transform: [{ rotate: '0deg' }] },
 });

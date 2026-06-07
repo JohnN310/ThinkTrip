@@ -7,13 +7,15 @@ import * as Haptics from 'expo-haptics';
 
 interface GlobeViewProps {
   onCountrySelect: (countryData: { name: string; iso_a2: string }) => void;
+  unlockedCountries?: string[];
 }
 
 export interface GlobeViewRef {
   flyToCountry: (query: string) => void;
+  setAutoRotate: (shouldRotate: boolean) => void;
 }
 
-const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect }, ref) => {
+const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect, unlockedCountries = [] }, ref) => {
   const colors = useColors();
   const webViewRef = useRef<WebView>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,6 +25,12 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
     flyToCountry: (query: string) => {
       if (webViewRef.current && !isLoading) {
         const payload = { type: 'selectCountry', query };
+        webViewRef.current.injectJavaScript(`window.postMessage(${JSON.stringify(JSON.stringify(payload))}, '*'); true;`);
+      }
+    },
+    setAutoRotate: (shouldRotate: boolean) => {
+      if (webViewRef.current && !isLoading) {
+        const payload = { type: 'setAutoRotate', shouldRotate };
         webViewRef.current.injectJavaScript(`window.postMessage(${JSON.stringify(JSON.stringify(payload))}, '*'); true;`);
       }
     }
@@ -35,11 +43,10 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
       <style>
-        /* CSS Reset to prevent any native web mobile behaviors */
         * {
-          -webkit-tap-highlight-color: transparent; /* Removes the grey screen flash */
-          -webkit-touch-callout: none; /* Disables long-press popup menus */
-          user-select: none; /* Prevents text selection */
+          -webkit-tap-highlight-color: transparent;
+          -webkit-touch-callout: none;
+          user-select: none;
           outline: none;
         }
         body { margin: 0; padding: 0; background-color: transparent; overflow: hidden; }
@@ -56,6 +63,7 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
         let world;
         let selectedD = null;
         let isDarkMode = true;
+        let unlockedCountriesList = [];
 
         const THEMES = {
           dark: {
@@ -103,13 +111,31 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
           }
         }
 
-        function updatePolygons() {
+        // ONE unified styling function for the globe
+        function updatePolygons(hoverD = null) {
            const t = isDarkMode ? THEMES.dark : THEMES.light;
            world.polygonCapColor(d => {
              if (d === selectedD) return t.polySelected;
+             if (hoverD && d === hoverD) return t.polyHover;
+             
+             const name = (d.properties.NAME || '').toLowerCase();
+             const admin = (d.properties.ADMIN || '').toLowerCase();
+             const isUnlocked = unlockedCountriesList.includes(name) || unlockedCountriesList.includes(admin);
+             
+             if (isUnlocked) return '#10b981'; // Green for unlocked countries
              return t.polyCap;
            })
-           .polygonAltitude(d => d === selectedD ? 0.06 : 0.01);
+           .polygonAltitude(d => {
+             if (d === selectedD) return 0.06;
+             if (hoverD && d === hoverD) return 0.04;
+             
+             const name = (d.properties.NAME || '').toLowerCase();
+             const admin = (d.properties.ADMIN || '').toLowerCase();
+             const isUnlocked = unlockedCountriesList.includes(name) || unlockedCountriesList.includes(admin);
+
+             if (isUnlocked) return 0.025; // Slightly raised
+             return 0.01;
+           });
         }
 
         function initGlobe() {
@@ -118,20 +144,12 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
             .showAtmosphere(true)
             .atmosphereAltitude(0.15)
             .onPolygonHover(hoverD => {
-               const t = isDarkMode ? THEMES.dark : THEMES.light;
-               world.polygonAltitude(d => {
-                 if (d === selectedD) return 0.06;
-                 return d === hoverD ? 0.04 : 0.01;
-               })
-               .polygonCapColor(d => {
-                 if (d === selectedD) return t.polySelected;
-                 if (d === hoverD) return t.polyHover;
-                 return t.polyCap;
-               });
+               // Simply pass the hovered polygon to our central function
+               updatePolygons(hoverD);
             })
             .onPolygonClick(d => {
               selectedD = d;
-              updatePolygons();
+              updatePolygons(null); // Clear hover state on click
 
               try {
                 const [lng, lat] = d3.geoCentroid(d);
@@ -164,7 +182,6 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
 
         initGlobe();
 
-        // Listen for React Native messages
         window.addEventListener('message', (event) => {
           try {
             const data = JSON.parse(event.data);
@@ -173,6 +190,12 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
             if (data.type === 'updateTheme') {
               applyTheme(data.isDark);
             } 
+            else if (data.type === 'updateGlobeState') {
+              if (data.unlockedCountries) {
+                unlockedCountriesList = data.unlockedCountries;
+              }
+              applyTheme(data.isDark);
+            }
             else if (data.type === 'zoomIn') {
               const currentPov = world.pointOfView();
               world.pointOfView({ altitude: Math.max(0.1, currentPov.altitude * 0.7) }, 400);
@@ -180,6 +203,11 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
             else if (data.type === 'zoomOut') {
               const currentPov = world.pointOfView();
               world.pointOfView({ altitude: Math.min(4, currentPov.altitude * 1.4) }, 400);
+            }
+            else if (data.type === 'setAutoRotate') {
+              if (world) {
+                world.controls().autoRotate = data.shouldRotate;
+              }
             }
             else if (data.type === 'selectCountry') {
               if (!world || !world.polygonsData()) return;
@@ -194,7 +222,7 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
 
               if (d) {
                 selectedD = d;
-                updatePolygons();
+                updatePolygons(null); // Ensure hover state is cleared
 
                 try {
                   const [lng, lat] = d3.geoCentroid(d);
@@ -220,10 +248,10 @@ const GlobeView = forwardRef<GlobeViewRef, GlobeViewProps>(({ onCountrySelect },
 
   useEffect(() => {
     if (webViewRef.current && !isLoading) {
-      const payload = { type: 'updateTheme', isDark: colors.isDark };
+      const payload = { type: 'updateGlobeState', isDark: colors.isDark, unlockedCountries: unlockedCountries.map(c => c.toLowerCase()) };
       webViewRef.current.injectJavaScript(`window.postMessage(${JSON.stringify(JSON.stringify(payload))}, '*'); true;`);
     }
-  }, [colors.isDark, isLoading]);
+  }, [colors.isDark, isLoading, unlockedCountries]);
 
   const handleZoom = (direction: 'in' | 'out') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

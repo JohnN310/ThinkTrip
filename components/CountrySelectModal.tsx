@@ -196,7 +196,7 @@ export default function CountrySelectModal({ visible, country, onClose, onSelect
                 onPress={() => onSelect(country?.name || '')}
               >
                 <Feather name="map-pin" size={18} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.buttonText}>Add {country?.name} to album</Text>
+                <Text style={styles.buttonText}>Add to album</Text>
               </TouchableOpacity>
             </View>
           ) : (

@@ -44,3 +44,7 @@ yarn-error.*
 # personal and ai context
 personal.md
 app_description.md
+
+
+# Live Interaction
+_live.tsx
