@@ -786,14 +786,20 @@ export default function MemoryScreen() {
           {/* Floating Back Button & Search Area */}
           <View pointerEvents="box-none" style={[styles.headerArea, { paddingTop: (insets.top || 20) + 16, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }]}>
             <View style={styles.headerRow} pointerEvents="box-none">
-              <View style={styles.headerTextCol} pointerEvents="auto">
+              <RNAnimated.View 
+                style={[styles.headerTextCol, {
+                  opacity: searchAnim.interpolate({ inputRange: [0, 0.3], outputRange: [1, 0] }),
+                  transform: [{ scale: searchAnim.interpolate({ inputRange: [0, 0.3], outputRange: [1, 0.8] }) }]
+                }]} 
+                pointerEvents={isSearchActive ? "none" : "auto"}
+              >
                 <TouchableOpacity
                   style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}
                   onPress={() => setViewMode('memory')}
                 >
                   <Feather name="arrow-left" size={20} color="#fff" />
                 </TouchableOpacity>
-              </View>
+              </RNAnimated.View>
 
               <View style={styles.headerActions} pointerEvents="auto">
                 <RNAnimated.View style={[styles.searchWrapper, { width: searchBarWidth }]}>
