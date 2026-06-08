@@ -58,6 +58,33 @@ const ALLERGY_METADATA: Record<string, { emoji: string; lightBg: string; darkBg:
 
 type SheetType = 'Account' | 'Skin' | 'Diet' | 'Travel' | 'Units' | 'Languages' | 'About' | 'Theme' | null;
 
+const StatBlock = ({ icon, value, label, iconColor, bgColor, colors }: any) => (
+  <View style={styles.statBlock}>
+    <View style={[styles.statIconBox, { backgroundColor: bgColor }]}>
+      <Feather name={icon as any} size={16} color={iconColor} />
+    </View>
+    <Text style={[styles.statValue, { color: colors.foreground }]}>{value}</Text>
+    <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{label}</Text>
+  </View>
+);
+
+const GroupRow = ({ icon, title, subtitle, onPress, isLast, rightElement, colors }: any) => (
+  <TouchableOpacity
+    activeOpacity={0.7}
+    onPress={onPress}
+    style={[styles.groupRow, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}
+  >
+    <View style={styles.groupRowIcon}>
+      <Feather name={icon as any} size={20} color={colors.foreground} />
+    </View>
+    <View style={styles.groupRowTextCol}>
+      <Text style={[styles.groupRowTitle, { color: colors.foreground }]}>{title}</Text>
+      {subtitle && <Text style={[styles.groupRowSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>}
+    </View>
+    {rightElement || <Feather name="chevron-right" size={20} color={colors.mutedForeground} />}
+  </TouchableOpacity>
+);
+
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -853,288 +880,162 @@ export default function ProfileScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: insets.top || 16,
-          paddingBottom: (Platform.OS === 'ios' ? 88 : 74) + 16,
-          gap: 6
+          paddingHorizontal: 20,
+          paddingTop: insets.top || 20,
+          paddingBottom: (Platform.OS === 'ios' ? 88 : 74) + 20,
+          gap: 24, // Consistent vertical rhythm
         }}
         showsVerticalScrollIndicator={false}
       >
-        <Card style={[styles.identityCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.avatar, { backgroundColor: profile.avatarColor || colors.primary }]}>
-            {profile.avatarEmoji ? (
-              <Text style={{ fontSize: 28 }}>{profile.avatarEmoji}</Text>
-            ) : (
-              <Text style={[styles.avatarText, { color: colors.accent }]}>{getInitials(profile.displayName)}</Text>
-            )}
-          </View>
-          <View style={styles.identityTextCol}>
-            <Text
-              style={[styles.identityName, { color: colors.foreground }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.5}
-            >
-              {profile.displayName || 'Set up profile'}
-            </Text>
-            {profile.email ? <Text style={[styles.identityEmail, { color: colors.mutedForeground }]}>{profile.email}</Text> : null}
-            <View style={styles.identityMeta}>
-              <Feather name="map-pin" size={12} color={colors.mutedForeground} />
-              <Text style={[styles.identityCity, { color: colors.mutedForeground }]}>{profile.homeCity || 'Add home city'}</Text>
+
+        {/* 2. Hero Identity Card */}
+        <View style={[styles.heroCard, { backgroundColor: colors.card, shadowColor: colors.foreground }]}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setActiveSheet('Account')} style={styles.heroTop}>
+            <View style={styles.avatarWrapper}>
+              <View style={[styles.avatar, { backgroundColor: profile.avatarColor || '#e2e8f0' }]}>
+                {profile.avatarEmoji ? (
+                  <Text style={{ fontSize: 36 }}>{profile.avatarEmoji}</Text>
+                ) : (
+                  <Text style={[styles.avatarText, { color: colors.accent }]}>{getInitials(profile.displayName)}</Text>
+                )}
+              </View>
             </View>
-          </View>
-          <TouchableOpacity style={[styles.editBtn, { borderColor: colors.border }]} onPress={() => setActiveSheet('Account')}>
-            <Feather name="edit-2" size={14} color={colors.foreground} />
+
+            <View style={styles.heroTextCol}>
+              <Text style={[styles.heroName, { color: colors.foreground }]}>{profile.displayName || 'Set up profile'}</Text>
+              <Text style={[styles.heroEmail, { color: colors.mutedForeground }]}>{profile.email}</Text>
+              <View style={styles.locationRow}>
+                <Feather name="map-pin" size={12} color={colors.primary} />
+                <Text style={[styles.locationText, { color: colors.primary }]}>{profile.homeCity || 'Add home city'}</Text>
+              </View>
+            </View>
           </TouchableOpacity>
-        </Card>
 
-        <View style={{ marginBottom: 24 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginLeft: 4 }}>
-            {/* <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.mutedForeground }} /> */}
-            <Text style={[styles.groupTitle, { color: colors.mutedForeground, marginBottom: 0, marginLeft: 0 }]}>HEALTH BASELINE</Text>
-          </View>
-          <View style={{ gap: 6 }}>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setActiveSheet('Skin')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="droplet" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Skin & body</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{`${capitalize(profile.skinType)}${skinActiveCount > 0 ? ` • ${skinActiveCount} active` : ''}`}</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setActiveSheet('Diet')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="shield" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Diet & allergies</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{dietActiveCount > 0 ? `${dietActiveCount} restriction(s) active` : 'None set'}</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setActiveSheet('Travel')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="compass" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Travel context</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{`${capitalize(profile.travelType)} • ${capitalize(profile.activityLevel)} activity`}</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
+          {/* Actual Data from Profile for Stats */}
+          <View style={styles.statsContainer}>
+            <StatBlock icon="map-pin" value={profile.savedLocations?.length || 0} label="Locations saved" iconColor="#5c7ce5" bgColor="#eff6ff" colors={colors} />
+            <StatBlock icon="droplet" value={skinActiveCount} label="Skin active" iconColor="#5c7ce5" bgColor="#eff6ff" colors={colors} />
+            <StatBlock icon="shield" value={dietActiveCount} label="Diet active" iconColor="#5c7ce5" bgColor="#eff6ff" colors={colors} />
           </View>
         </View>
 
-        <View style={{ marginBottom: 24 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginLeft: 4 }}>
-            {/* <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.mutedForeground }} /> */}
-            <Text style={[styles.groupTitle, { color: colors.mutedForeground, marginBottom: 0, marginLeft: 0 }]}>APP PREFERENCES</Text>
+        {/* 3. Health Baseline */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>HEALTH BASELINE</Text>
           </View>
-          <View style={{ gap: 6 }}>
+          <View style={[styles.cardGroup, { backgroundColor: colors.card, shadowColor: colors.foreground }]}>
+            <GroupRow
+              icon="droplet"
+              title="Skin & body"
+              subtitle={`${capitalize(profile.skinType)}${skinActiveCount > 0 ? ` • ${skinActiveCount} active` : ''}`}
+              onPress={() => setActiveSheet('Skin')}
+              colors={colors}
+            />
+            <GroupRow
+              icon="shield"
+              title="Diet & allergies"
+              subtitle={dietActiveCount > 0 ? `${dietActiveCount} restriction(s) active` : 'None set'}
+              onPress={() => setActiveSheet('Diet')}
+              colors={colors}
+            />
+            <GroupRow
+              icon="compass"
+              title="Travel context"
+              subtitle={`${capitalize(profile.travelType)} • ${capitalize(profile.activityLevel)} activity`}
+              onPress={() => setActiveSheet('Travel')}
+              isLast={true}
+              colors={colors}
+            />
+          </View>
+        </View>
 
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setActiveSheet('Units')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="globe" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Units</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{capitalize(profile.units)}</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setActiveSheet('Languages')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="type" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Scan Languages</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{profile.scanSourceLanguage?.toUpperCase()} → {profile.scanTargetLanguage?.toUpperCase()}</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
+        {/* 4. App Preferences */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>APP PREFERENCES</Text>
+          </View>
+          <View style={[styles.cardGroup, { backgroundColor: colors.card, shadowColor: colors.foreground }]}>
+            <GroupRow icon="globe" title="Units" subtitle={capitalize(profile.units)} onPress={() => setActiveSheet('Units')} colors={colors} />
+            <GroupRow icon="type" title="Scan Languages" subtitle={`${profile.scanSourceLanguage?.toUpperCase()} → ${profile.scanTargetLanguage?.toUpperCase()}`} onPress={() => setActiveSheet('Languages')} colors={colors} />
+            <GroupRow
+              icon="navigation"
+              title="Location Services"
+              subtitle={profile.locationRoutingEnabled ? 'Enabled' : 'Disabled'}
               onPress={() => handleToggleLocationRouting(!profile.locationRoutingEnabled)}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="navigation" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Location Services</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{profile.locationRoutingEnabled ? 'Enabled' : 'Disabled'}</Text>
-              </View>
-              <View pointerEvents="none">
-                <Switch
-                  value={draft.locationRoutingEnabled ?? profile.locationRoutingEnabled}
-                  trackColor={{ true: colors.primary }}
-                  thumbColor="#ffffff"
-                  ios_backgroundColor={colors.border}
-                />
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
+              rightElement={
+                <View pointerEvents="none">
+                  <Switch
+                    value={draft.locationRoutingEnabled ?? profile.locationRoutingEnabled}
+                    trackColor={{ true: colors.primary }}
+                    thumbColor="#ffffff"
+                    ios_backgroundColor={colors.border}
+                  />
+                </View>
+              }
+              colors={colors}
+            />
+            <GroupRow
+              icon="zap"
+              title="Haptic feedback"
+              subtitle={profile.hapticsEnabled ? 'On' : 'Off'}
               onPress={() => {
                 const newValue = !profile.hapticsEnabled;
                 setDraft({ hapticsEnabled: newValue });
                 save({ hapticsEnabled: newValue });
               }}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="zap" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Haptic feedback</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{profile.hapticsEnabled ? 'On' : 'Off'}</Text>
-              </View>
-              <View pointerEvents="none">
-                <Switch
-                  value={draft.hapticsEnabled ?? profile.hapticsEnabled}
-                  trackColor={{ true: colors.primary }}
-                  thumbColor="#ffffff"
-                  ios_backgroundColor={colors.border}
-                />
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
+              rightElement={
+                <View pointerEvents="none">
+                  <Switch
+                    value={draft.hapticsEnabled ?? profile.hapticsEnabled}
+                    trackColor={{ true: colors.primary }}
+                    thumbColor="#ffffff"
+                    ios_backgroundColor={colors.border}
+                  />
+                </View>
+              }
+              colors={colors}
+            />
+            <GroupRow
+              icon="moon"
+              title="Appearance"
+              subtitle={capitalize(profile.themePreference || 'system')}
               onPress={() => setActiveSheet('Theme')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="moon" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Appearance</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>{capitalize(profile.themePreference || 'system')}</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
+              colors={colors}
+            />
+            <GroupRow
+              icon="award"
+              title="Go Premium"
+              subtitle="Unlock advanced features and personalize your experience."
+              onPress={() => { }}
+              isLast={true}
+              colors={colors}
+            />
           </View>
         </View>
 
-        <View style={{ marginBottom: 24 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginLeft: 4 }}>
-            {/* <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.mutedForeground }} /> */}
-            <Text style={[styles.groupTitle, { color: colors.mutedForeground, marginBottom: 0, marginLeft: 0 }]}>SUPPORT & DATA</Text>
+        {/* 4.5 Data & Support */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>SUPPORT & DATA</Text>
           </View>
-          <View style={{ gap: 6 }}>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => handleOpenLink('https://thinktrip.app/privacy')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="shield" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Privacy Policy</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>How we protect your data</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={handleExportData}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="download" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Export my data</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>Download a copy of everything</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => handleOpenLink('https://thinktrip.app/help')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="help-circle" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Help center</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>FAQs and support articles</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => handleOpenLink('https://forms.gle/tCYfmomQQv6Wzm7Y8')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="message-square" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>Send feedback</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>Report bugs or request features</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setActiveSheet('About')}
-              style={[styles.healthCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <View style={[styles.healthIconBox, { backgroundColor: colors.muted }]}>
-                <Feather name="info" size={20} color={colors.foreground} />
-              </View>
-              <View style={styles.healthTextCol}>
-                <Text style={[styles.healthLabel, { color: colors.foreground }]}>About</Text>
-                <Text style={[styles.healthDesc, { color: colors.mutedForeground }]}>ThinkTrip • v1.0.0</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </TouchableOpacity>
-
+          <View style={[styles.cardGroup, { backgroundColor: colors.card, shadowColor: colors.foreground }]}>
+            <GroupRow icon="shield" title="Privacy Policy" subtitle="How we protect your data" onPress={() => handleOpenLink('https://thinktrip.app/privacy')} colors={colors} />
+            <GroupRow icon="download" title="Export my data" subtitle="Download a copy of everything" onPress={handleExportData} colors={colors} />
+            <GroupRow icon="help-circle" title="Help center" subtitle="FAQs and support articles" onPress={() => handleOpenLink('https://thinktrip.app/help')} colors={colors} />
+            <GroupRow icon="message-square" title="Send feedback" subtitle="Report bugs or request features" onPress={() => handleOpenLink('https://forms.gle/tCYfmomQQv6Wzm7Y8')} colors={colors} />
+            <GroupRow icon="info" title="About" subtitle="ThinkTrip • v1.0.0" onPress={() => setActiveSheet('About')} isLast={true} colors={colors} />
           </View>
-          <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.mutedForeground, textAlign: 'center', marginTop: 24 }}>
+          <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.mutedForeground, textAlign: 'center', marginTop: 12 }}>
             ThinkTrip • v1.0.0 (build 1)
           </Text>
         </View>
 
-        <TouchableOpacity style={[styles.signOutBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={handleSignOut}>
+        {/* 5. Sign Out (Clean minimal button) */}
+        <TouchableOpacity style={styles.cleanSignOutBtn} onPress={handleSignOut}>
           <Text style={[styles.signOutText, { color: colors.destructive }]}>Sign out</Text>
         </TouchableOpacity>
+
       </ScrollView>
 
       {showToast && (
@@ -1198,46 +1099,48 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  identityCard: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 16, marginBottom: 18 },
-  avatar: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontFamily: 'Inter_700Bold', fontSize: 22, letterSpacing: -0.5 },
-  identityTextCol: { flex: 1, gap: 2 },
-  identityName: { fontFamily: 'Inter_700Bold', fontSize: 18, letterSpacing: -0.3 },
-  identityEmail: { fontFamily: 'Inter_400Regular', fontSize: 13 },
-  identityMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  identityCity: { fontFamily: 'Inter_500Medium', fontSize: 13 },
-  editBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  signOutBtn: { width: '100%', paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center', marginBottom: 20 },
-  signOutText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
 
-  healthCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  healthIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  healthTextCol: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  healthLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-  },
-  healthDesc: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    marginTop: 2,
-  },
+  // Header
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
+  greeting: { fontFamily: 'Inter_700Bold', fontSize: 28, letterSpacing: -0.5, marginBottom: 4 },
+  subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22 },
+
+  // Hero Card
+  heroCard: { borderRadius: 24, padding: 20, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
+  avatarWrapper: { position: 'relative' },
+  avatar: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontFamily: 'Inter_700Bold', fontSize: 24, letterSpacing: -0.5 },
+  heroTextCol: { flex: 1, gap: 4 },
+  heroName: { fontFamily: 'Inter_700Bold', fontSize: 20, letterSpacing: -0.3 },
+  heroEmail: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  locationText: { fontFamily: 'Inter_500Medium', fontSize: 13 },
+
+  // Stats inside Hero
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 20 },
+  statBlock: { alignItems: 'center', flex: 1, gap: 6 },
+  statIconBox: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  statValue: { fontFamily: 'Inter_700Bold', fontSize: 18 },
+  statLabel: { fontFamily: 'Inter_400Regular', fontSize: 10, textAlign: 'center', lineHeight: 12 },
+
+  // Sections
+  section: { gap: 12 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
+  sectionTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.2 },
+
+  cardGroup: { borderRadius: 20, paddingHorizontal: 16, overflow: 'hidden', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+
+  // Unified List Rows
+  groupRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
+  groupRowIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+  groupRowTextCol: { flex: 1, justifyContent: 'center' },
+  groupRowTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15, marginBottom: 2 },
+  groupRowSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 13 },
+
+  // Clean minimal sign out
+  cleanSignOutBtn: { paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+  signOutText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
 
   toast: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
   toastText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
@@ -1249,23 +1152,9 @@ const styles = StyleSheet.create({
   sheetActionText: { fontFamily: 'Inter_500Medium', fontSize: 15 },
   sheetTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
 
-  inputHint: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
-  groupTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
+  inputHint: { fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1.2, marginBottom: 8 },
+  groupTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.2 },
   hintTop: { fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 6 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontFamily: 'Inter_500Medium', fontSize: 15 },
-  errorText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    marginTop: 6,
-  },
+  errorText: { fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 6 },
 });
