@@ -5,15 +5,13 @@ import { BlurView } from 'expo-blur';
 import { useColors } from '../../hooks/useColors';
 import { Feather } from '@expo/vector-icons';
 import { SymbolView } from 'expo-symbols';
-import { AlbumProvider } from '../../context/AlbumContext';
 
 export default function TabLayout() {
   const colors = useColors();
   const colorScheme = useColorScheme();
 
   return (
-    <AlbumProvider>
-      <Tabs
+    <Tabs
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: colors.primary,
@@ -106,6 +104,5 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-    </AlbumProvider>
   );
 }

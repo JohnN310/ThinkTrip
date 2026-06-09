@@ -8,6 +8,7 @@ export interface AlbumMeta {
   country: string;
   flag: string | null;
   latestPhotoUrl: string | null;
+  secondPhotoUrl?: string | null;
   photoCount: number;
   lastUpdated: number;
 }
@@ -16,7 +17,7 @@ interface AlbumContextType {
   visitedCountries: AlbumMeta[];
   addCountry: (country: string) => Promise<void>;
   removeCountry: (country: string) => Promise<void>;
-  updateAlbumMeta: (country: string, latestPhotoUrl: string | null, photoCount: number) => Promise<void>;
+  updateAlbumMeta: (country: string, latestPhotoUrl: string | null, secondPhotoUrl: string | null, photoCount: number) => Promise<void>;
 }
 
 const defaultAlbums: AlbumMeta[] = [];
@@ -104,7 +105,7 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateAlbumMeta = async (country: string, latestPhotoUrl: string | null, photoCount: number) => {
+  const updateAlbumMeta = async (country: string, latestPhotoUrl: string | null, secondPhotoUrl: string | null, photoCount: number) => {
     const existingIndex = visitedCountries.findIndex(c => c.country === country);
     if (existingIndex === -1) return;
 
@@ -112,6 +113,7 @@ export function AlbumProvider({ children }: { children: ReactNode }) {
     newCountries[existingIndex] = {
       ...newCountries[existingIndex],
       latestPhotoUrl,
+      secondPhotoUrl,
       photoCount,
       lastUpdated: Date.now()
     };

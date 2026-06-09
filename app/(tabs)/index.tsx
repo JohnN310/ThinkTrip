@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Modal, Keyboard, Dimensions, TextInput, TouchableWithoutFeedback, Image, Alert, LayoutAnimation, UIManager, Animated as RNAnimated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Modal, Keyboard, Dimensions, TextInput, TouchableWithoutFeedback, Image, Alert, LayoutAnimation, UIManager, Animated as RNAnimated, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -9,7 +9,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as ImagePicker from 'expo-image-picker';
 import { useColors } from '../../hooks/useColors';
 import { useProfile } from '../../contexts/ProfileContext';
-import { useAlbum } from '../../context/AlbumContext';
+import { useAlbum } from '../../contexts/AlbumContext';
 import { useCountryContent } from '../../hooks/useCountryContent';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, storage } from '../../lib/firebase';
@@ -48,167 +48,6 @@ const DUMMY_DATA = {
   ]
 };
 
-const INITIAL_MEMORIES = [
-  'https://images.unsplash.com/photo-1580828369019-4b36125021ed?auto=format&fit=crop&q=80&w=400',
-  'https://images.unsplash.com/photo-1551458981-817c76892c2b?auto=format&fit=crop&q=80&w=400',
-  'https://images.unsplash.com/photo-1528164344705-47542687000d?auto=format&fit=crop&q=80&w=400',
-  'https://images.unsplash.com/photo-1610260463137-97d51ee9fa59?auto=format&fit=crop&q=80&w=400',
-];
-
-const ITEM_WIDTH = (SCREEN_WIDTH - 64) / 2;
-const ITEM_HEIGHT = ITEM_WIDTH + 30;
-const GAP = 16;
-
-const getPosition = (index: number) => {
-  'worklet';
-  return {
-    x: (index % 2) * (ITEM_WIDTH + GAP),
-    y: Math.floor(index / 2) * (ITEM_HEIGHT + GAP),
-  };
-};
-
-const DraggablePolaroid = ({ img, id, isEditing, onStartEditing, onDelete, memoriesLength, colors, positions, onReorderComplete }: any) => {
-  const isDragging = useSharedValue(false);
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const startPos = useSharedValue({ x: 0, y: 0 });
-  const scale = useSharedValue(1);
-  const zIndex = useSharedValue(0);
-
-  const panGesture = Gesture.Pan()
-    .minDistance(isEditing ? 15 : 10000)
-    .activateAfterLongPress(isEditing ? 300 : 400)
-    .onStart(() => {
-      if (!isEditing) {
-        runOnJS(onStartEditing)();
-      }
-      isDragging.value = true;
-      const currentIndex = positions.value[id];
-      startPos.value = getPosition(currentIndex);
-      translateX.value = 0;
-      translateY.value = 0;
-      scale.value = withSpring(1.05);
-      zIndex.value = 100;
-      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy);
-    })
-    .onUpdate((e) => {
-      translateX.value = e.translationX;
-      translateY.value = e.translationY;
-
-      const currentX = startPos.value.x + e.translationX + ITEM_WIDTH / 2;
-      const currentY = startPos.value.y + e.translationY + ITEM_HEIGHT / 2;
-
-      const col = Math.floor(currentX / (ITEM_WIDTH + GAP));
-      const row = Math.floor(currentY / (ITEM_HEIGHT + GAP));
-      let hoverIndex = row * 2 + col;
-      hoverIndex = Math.max(0, Math.min(memoriesLength - 1, hoverIndex));
-
-      const oldIndex = positions.value[id];
-
-      if (hoverIndex !== oldIndex) {
-        const newPositions = Object.assign({}, positions.value);
-        const otherId = Object.keys(newPositions).find(k => newPositions[k] === hoverIndex);
-
-        if (otherId) {
-          newPositions[otherId] = oldIndex;
-          newPositions[id] = hoverIndex;
-          positions.value = newPositions;
-          runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-        }
-      }
-    })
-    .onEnd(() => {
-      isDragging.value = false;
-
-      translateX.value = withSpring(0, { damping: 50, stiffness: 200 });
-      translateY.value = withSpring(0, { damping: 50, stiffness: 200 });
-      scale.value = withSpring(1);
-      zIndex.value = 10;
-
-      runOnJS(onReorderComplete)(positions.value);
-    });
-
-  const animatedStyle = useAnimatedStyle(() => {
-    const currentIndex = positions.value[id];
-    const pos = getPosition(currentIndex);
-
-    if (isDragging.value) {
-      return {
-        position: 'absolute',
-        top: startPos.value.y,
-        left: startPos.value.x,
-        zIndex: 100,
-        transform: [
-          { translateX: translateX.value },
-          { translateY: translateY.value },
-          { scale: scale.value },
-          { rotate: currentIndex % 2 === 0 ? '-2deg' : '2deg' }
-        ],
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-        elevation: 8,
-      };
-    } else {
-      return {
-        position: 'absolute',
-        top: withSpring(pos.y, { damping: 50, stiffness: 200 }),
-        left: withSpring(pos.x, { damping: 50, stiffness: 200 }),
-        zIndex: zIndex.value,
-        transform: [
-          { translateX: translateX.value },
-          { translateY: translateY.value },
-          { scale: scale.value },
-          { rotate: currentIndex % 2 === 0 ? '-2deg' : '2deg' }
-        ],
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 3,
-      };
-    }
-  });
-
-  return (
-    <GestureDetector gesture={panGesture}>
-      <Animated.View
-        hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
-        style={[styles.polaroid, { backgroundColor: colors.card, marginBottom: 0 }, animatedStyle]}
-      >
-        <Image source={{ uri: img }} style={[styles.polaroidImage, { backgroundColor: colors.border }]} />
-        <Text style={[styles.polaroidText, { color: colors.mutedForeground }]}>Add a note...</Text>
-
-        {isEditing && (
-          <TouchableOpacity
-            style={[styles.deleteBadge, { top: -10, right: -10, width: 28, height: 28, borderRadius: 14 }]}
-            onPress={() => onDelete(id)}
-            activeOpacity={0.8}
-            hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
-          >
-            <Feather name="x" size={16} color="#fff" />
-          </TouchableOpacity>
-        )}
-      </Animated.View>
-    </GestureDetector>
-  );
-};
-
-const PhotoStack = ({ latestPhotoUrl, index }: { latestPhotoUrl: string | null, index: number }) => {
-  return (
-    <View style={{ width: 64, height: 64, marginRight: 16 }}>
-      <Animated.View entering={ZoomIn.delay(index * 100 + 100)} style={{ position: 'absolute', width: 56, height: 56, backgroundColor: '#E5E7EB', borderRadius: 8, top: 0, left: 4, transform: [{ rotate: '6deg' }] }} />
-      <Animated.View entering={ZoomIn.delay(index * 100 + 150)} style={{ position: 'absolute', width: 60, height: 60, backgroundColor: '#D1D5DB', borderRadius: 8, top: 2, left: 2, transform: [{ rotate: '-3deg' }] }} />
-      <Animated.View entering={ZoomIn.delay(index * 100 + 200)} style={{ position: 'absolute', width: 64, height: 64, backgroundColor: '#F3F4F6', borderRadius: 8, top: 0, left: 0, overflow: 'hidden', borderWidth: 2, borderColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
-        {latestPhotoUrl ? (
-          <Image source={{ uri: latestPhotoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-        ) : (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <Feather name="image" size={20} color="#9CA3AF" />
-          </View>
-        )}
-      </Animated.View>
-    </View>
-  );
-};
-
 export interface GeocodeSuggestion {
   name: string;
   lat: number;
@@ -217,37 +56,88 @@ export interface GeocodeSuggestion {
   state?: string;
 }
 
+const AlbumCard = ({ album, onPress, colors }: { album: any, onPress: () => void, colors: any }) => {
+  const isEmpty = album.photoCount === 0;
+
+  return (
+    <TouchableOpacity 
+      activeOpacity={0.8} 
+      onPress={onPress}
+      style={[styles.albumCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+    >
+      {/* Thumbnail Stack */}
+      <View style={styles.thumbnailContainer}>
+        {/* Left Photo (Tilted Left - Back) */}
+        <View style={[styles.thumbnailPolaroid, { transform: [{ rotate: '-6deg' }], left: 0 }]}>
+          {album.secondPhotoUrl ? (
+            <Image source={{ uri: album.secondPhotoUrl }} style={styles.thumbnailImage} />
+          ) : (
+            <View style={[styles.thumbnailImage, { backgroundColor: colors.muted, justifyContent: 'center', alignItems: 'center' }]}>
+              <Feather name="image" size={16} color={colors.mutedForeground} />
+            </View>
+          )}
+        </View>
+
+        {/* Right Photo (Tilted Right - Front) */}
+        <View style={[styles.thumbnailPolaroid, { transform: [{ rotate: '4deg' }], right: 0 }]}>
+          {album.latestPhotoUrl ? (
+            <Image source={{ uri: album.latestPhotoUrl }} style={styles.thumbnailImage} />
+          ) : (
+             <View style={[styles.thumbnailImage, { backgroundColor: colors.muted, justifyContent: 'center', alignItems: 'center' }]}>
+                {isEmpty ? <Feather name="lock" size={16} color={colors.mutedForeground} /> : <Feather name="image" size={16} color={colors.mutedForeground} />}
+             </View>
+          )}
+        </View>
+
+        {/* Floating Flag */}
+        {album.flag && (
+          <View style={styles.flagBadge}>
+            {album.flag.startsWith('http') ? (
+               <Image source={{ uri: album.flag }} style={styles.flagImage} />
+            ) : (
+               <Text style={styles.flagEmoji}>{album.flag}</Text>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* Metadata */}
+      <View style={styles.albumMeta}>
+        <Text style={[styles.albumTitle, { color: colors.foreground }]} numberOfLines={1}>
+          {album.country}
+        </Text>
+        <Text style={[styles.albumSubtitle, { color: colors.mutedForeground }]}>
+          {album.photoCount} {album.photoCount === 1 ? 'memory' : 'memories'}
+        </Text>
+      </View>
+
+      {/* Optional Lock Icon Overlay for 0 memories, matching wireframe */}
+      {isEmpty && (
+        <View style={[styles.lockOverlay, { backgroundColor: colors.muted }]}>
+          <Feather name="lock" size={14} color={colors.mutedForeground} />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
+
 export default function MemoryScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, hydrated } = useProfile();
-  const { user } = useAuth();
   
   // NEW VIEW STATE
-  const [viewMode, setViewMode] = useState<'memory' | 'globe'>('memory');
+  const [viewMode, setViewMode] = useState<'albums' | 'globe'>('albums');
 
   // Memory View State
-  const { addCountry, visitedCountries, updateAlbumMeta, removeCountry } = useAlbum();
-  const [currentCountry, setCurrentCountry] = useState<string | null>(null);
+  const { addCountry, visitedCountries } = useAlbum();
+  const [albumSearchQuery, setAlbumSearchQuery] = useState('');
 
-  useEffect(() => {
-    if (!currentCountry && visitedCountries.length > 0) {
-      setCurrentCountry(visitedCountries[0].country);
-    } else if (visitedCountries.length === 0 && currentCountry !== null) {
-      setCurrentCountry(null);
-    }
-  }, [visitedCountries.length, currentCountry]);
-
-  const destination = currentCountry || '';
-  const { data, isLoading } = useCountryContent(destination);
-  const [activeTab, setActiveTab] = useState<TabType>('facts');
-  const [memories, setMemories] = useState<string[]>([]);
-  const positions = useSharedValue<Record<string, number>>({});
-  const [flagUrl, setFlagUrl] = useState<string | null>(null);
-  const [showAlbumMenu, setShowAlbumMenu] = useState(false);
-  const [isEditingMemories, setIsEditingMemories] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  // Filter logic for the grid
+  const filteredAlbums = visitedCountries.filter(album => 
+    album.country.toLowerCase().includes(albumSearchQuery.toLowerCase())
+  );
 
   // Globe View State
   const unlockedCountries = useMemo(() => {
@@ -381,137 +271,6 @@ export default function MemoryScreen() {
     setSuggestions([]);
   };
 
-  // Memory View Effects
-  useEffect(() => {
-    async function fetchMemories() {
-      if (!user || !destination) {
-        setMemories(INITIAL_MEMORIES);
-        positions.value = Object.assign({}, ...INITIAL_MEMORIES.map((m, i) => ({ [m]: i })));
-        return;
-      }
-      try {
-        const docRef = doc(db, 'users', user.uid, 'albums', destination);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists() && docSnap.data().photos) {
-          const fetchedPhotos = docSnap.data().photos;
-          setMemories(fetchedPhotos);
-          positions.value = Object.assign({}, ...fetchedPhotos.map((m: string, i: number) => ({ [m]: i })));
-        } else {
-          setMemories([]);
-          positions.value = {};
-        }
-      } catch (err) {
-        console.error('Failed to fetch memories', err);
-      }
-    }
-    fetchMemories();
-  }, [destination, user]);
-
-  useEffect(() => {
-    async function fetchFlag() {
-      if (!destination) return;
-      try {
-        const response = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(destination)}`);
-        const result = await response.json();
-        if (result && result[0] && result[0].flags) {
-          setFlagUrl(result[0].flags.png || result[0].flags.svg);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch flag', err);
-      }
-    }
-    fetchFlag();
-  }, [destination]);
-
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0].uri) {
-      const uri = result.assets[0].uri;
-
-      if (!user) {
-        const newArr = [...memories, uri];
-        setMemories(newArr);
-        positions.value = Object.assign({}, ...newArr.map((m, i) => ({ [m]: i })));
-        updateAlbumMeta(destination, uri, newArr.length);
-        return;
-      }
-
-      setIsUploading(true);
-      try {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
-        const storageReference = ref(storage, `users/${user.uid}/albums/${destination}/${filename}`);
-        await uploadBytes(storageReference, blob);
-        const downloadUrl = await getDownloadURL(storageReference);
-
-        const newArr = [...memories, downloadUrl];
-        setMemories(newArr);
-        positions.value = Object.assign({}, ...newArr.map((m, i) => ({ [m]: i })));
-
-        const docRef = doc(db, 'users', user.uid, 'albums', destination);
-        setDoc(docRef, { photos: newArr }, { merge: true }).catch(err => console.error("Error saving photo URL to firestore:", err));
-        updateAlbumMeta(destination, downloadUrl, newArr.length);
-      } catch (err) {
-        console.error("Error uploading image:", err);
-        Alert.alert("Upload Failed", "There was an error saving your photo to the cloud.");
-      } finally {
-        setIsUploading(false);
-      }
-    }
-  };
-
-  const handleDeleteMemory = (idToDelete: string) => {
-    Alert.alert(
-      "Delete Photo",
-      "Are you sure you want to remove this memory?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            const newArr = memories.filter(m => m !== idToDelete);
-            setMemories(newArr);
-            positions.value = Object.assign({}, ...newArr.map((m, i) => ({ [m]: i })));
-
-            if (user) {
-              const docRef = doc(db, 'users', user.uid, 'albums', destination);
-              setDoc(docRef, { photos: newArr }, { merge: true }).catch(console.error);
-              updateAlbumMeta(destination, newArr[0] || null, newArr.length);
-
-              if (idToDelete.includes('firebasestorage.googleapis.com')) {
-                try {
-                  const storageRef = ref(storage, idToDelete);
-                  deleteObject(storageRef).catch(console.error);
-                } catch (e) {
-                  console.error("Failed to parse storage reference from URL", e);
-                }
-              }
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleReorderComplete = (newPositions: Record<string, number>) => {
-    const sorted = [...memories].sort((a, b) => newPositions[a] - newPositions[b]);
-    setMemories(sorted);
-
-    if (user) {
-      const docRef = doc(db, 'users', user.uid, 'albums', destination);
-      setDoc(docRef, { photos: sorted }, { merge: true }).catch(console.error);
-      updateAlbumMeta(destination, sorted[0] || null, sorted.length);
-    }
-  };
-
   const handleGlobeCountrySelect = (countryData: any) => {
     setSelectedGlobeCountry(countryData);
     setShowGlobeModal(true);
@@ -527,8 +286,7 @@ export default function MemoryScreen() {
     }
 
     addCountry(countryName);
-    setCurrentCountry(countryName);
-    setViewMode('memory');
+    router.push(('/album/' + countryName) as any);
   };
 
   if (!hydrated) {
@@ -542,235 +300,66 @@ export default function MemoryScreen() {
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: colors.background }]}>
       
-      {viewMode === 'memory' ? (
-        // ==========================================
-        //             MEMORY VIEW
-        // ==========================================
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-          scrollEnabled={!isEditingMemories && !!currentCountry}
-          contentContainerStyle={!currentCountry ? { flex: 1, justifyContent: 'center', alignItems: 'center' } : undefined}
-        >
-          {/* Top Right Album Button - ALWAYS VISIBLE */}
-          <TouchableOpacity
-            style={{ position: 'absolute', top: insets.top + 10, right: 24, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}
-            onPress={() => setShowAlbumMenu(true)}
-          >
-            <Feather name="book" size={16} color="#fff" />
-            <Text style={{ color: '#fff', marginLeft: 8, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Album</Text>
-          </TouchableOpacity>
-
-          {!currentCountry ? (
-            <View style={{ alignItems: 'center', padding: 32 }}>
-              <Feather name="globe" size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
-              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: colors.foreground, marginBottom: 8, textAlign: 'center' }}>No Country Selected</Text>
-              <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: colors.mutedForeground, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
-                You haven't added any countries to your albums yet. Search to get started!
-              </Text>
-              <TouchableOpacity style={styles.addButton} onPress={() => setViewMode('globe')}>
-                <Text style={styles.addButtonText}>Explore the Globe</Text>
-              </TouchableOpacity>
+      {viewMode === 'albums' && (
+        <View style={styles.albumsContainer}>
+          {/* Header */}
+          <View style={[styles.albumsHeader, { marginTop: insets.top + 16 }]}>
+            <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.card }]} onPress={() => setViewMode('globe')}>
+              <Feather name="globe" size={20} color={colors.primary} />
+            </TouchableOpacity>
+            
+            <View style={styles.titleStack}>
+              <Text style={styles.eyebrow}>EXPLORE THE WORLD</Text>
+              <Text style={[styles.mainTitle, { color: colors.foreground }]}>Your Albums</Text>
+              <Text style={[styles.subTitle, { color: colors.mutedForeground }]}>Your journeys, beautifully remembered.</Text>
             </View>
-          ) : (
-            <>
-              {/* Dark Atmospheric Header Area */}
-              <TouchableOpacity activeOpacity={0.9} onPress={() => setViewMode('globe')} style={[styles.darkHeaderBackground, { minHeight: insets.top + 220 }]}>
-                {flagUrl && (
-                  <Image
-                    source={{ uri: flagUrl }}
-                    style={[StyleSheet.absoluteFillObject, { opacity: 0.4 }]}
-                    resizeMode="cover"
-                  />
-                )}
-                <View style={[styles.heroContent, { marginTop: insets.top + 40 }]}>
-                  <Text style={styles.heroEyebrow}>DESTINATION</Text>
-                  <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit>{destination}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                    <Feather name="globe" size={14} color="#D1D5DB" />
-                    <Text style={styles.heroSubtitle}>Tap to explore on globe</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
 
-              {/* Memory Trace Section */}
-              <View style={styles.memorySection}>
-                <View style={styles.memoryHeaderRow}>
-                  <View style={styles.memoryEyebrowRow}>
-                    <Feather name="camera" size={14} color={colors.mutedForeground} />
-                    <Text style={[styles.memoryEyebrow, { color: colors.mutedForeground }]}>MEMORY TRACE</Text>
-                  </View>
+            <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.card }]} onPress={() => setViewMode('globe')}>
+              <Feather name="plus" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
 
-                  {isEditingMemories ? (
-                    <TouchableOpacity style={[styles.addButton, { backgroundColor: '#238310ff' }]} onPress={() => setIsEditingMemories(false)} activeOpacity={0.8}>
-                      <Feather name="check" size={16} color="#ffffff" />
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity style={[styles.addButton, { backgroundColor: colors.foreground, opacity: isUploading ? 0.5 : 1 }]} onPress={pickImage} activeOpacity={0.8} disabled={isUploading}>
-                      {isUploading ? <ActivityIndicator size="small" color={colors.background} style={{ marginRight: 4 }} /> : <Feather name="plus" size={16} color={colors.background} />}
-                      <Text style={[styles.addButtonText, { color: colors.background }]}>{isUploading ? '' : 'Add'}</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+          {/* Search Bar */}
+          <View style={styles.searchPillContainer}>
+            <View style={[styles.searchPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="search" size={18} color={colors.mutedForeground} style={{ marginRight: 8 }} />
+              <TextInput 
+                style={[styles.searchInput, { color: colors.foreground }]}
+                placeholder="Search..."
+                placeholderTextColor={colors.mutedForeground}
+                value={albumSearchQuery}
+                onChangeText={setAlbumSearchQuery}
+              />
+            </View>
+          </View>
 
-                <View style={[styles.polaroidGrid, { height: Math.ceil((memories.length + 1) / 2) * (ITEM_HEIGHT + GAP) }]}>
-                  {memories.map((img) => (
-                    <DraggablePolaroid
-                      key={img}
-                      img={img}
-                      id={img}
-                      isEditing={isEditingMemories}
-                      onStartEditing={() => setIsEditingMemories(true)}
-                      onDelete={handleDeleteMemory}
-                      onReorderComplete={handleReorderComplete}
-                      memoriesLength={memories.length}
-                      positions={positions}
-                      colors={colors}
-                    />
-                  ))}
-                  <TouchableOpacity
-                    style={[
-                      styles.polaroid,
-                      styles.polaroidEmpty,
-                      {
-                        position: 'absolute',
-                        top: Math.floor(memories.length / 2) * (ITEM_HEIGHT + GAP),
-                        left: (memories.length % 2) * (ITEM_WIDTH + GAP),
-                        borderColor: colors.border,
-                        backgroundColor: colors.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255, 255, 255, 0.5)',
-                        opacity: isUploading ? 0.5 : 1
-                      }
-                    ]}
-                    onPress={pickImage}
-                    activeOpacity={0.7}
-                    disabled={isUploading}
-                  >
-                    {isUploading ? <ActivityIndicator size="large" color={colors.mutedForeground} /> : <Feather name="plus" size={32} color={colors.mutedForeground} />}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </>
-          )}
+          {/* Grid */}
+          <FlatList
+            data={filteredAlbums}
+            keyExtractor={(item: any) => item.country}
+            numColumns={2}
+            contentContainerStyle={styles.gridContent}
+            columnWrapperStyle={styles.gridRow}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <AlbumCard 
+                album={item} 
+                colors={colors}
+                onPress={() => {
+                  router.push(('/album/' + item.country) as any);
+                }} 
+              />
+            )}
+            ListEmptyComponent={
+              <Text style={{ textAlign: 'center', marginTop: 40, color: colors.mutedForeground }}>
+                No albums found. Tap + to add a country.
+              </Text>
+            }
+          />
+        </View>
+      )}
 
-          {/* Hero Card Album Modal */}
-          <Modal visible={showAlbumMenu} transparent animationType="fade">
-            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill}>
-              <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowAlbumMenu(false)} />
-
-              <View style={{ flex: 1, justifyContent: 'flex-end' }} pointerEvents="box-none">
-                <Animated.View
-                  entering={SlideInDown.duration(400)}
-                  style={{
-                    backgroundColor: colors.background,
-                    borderTopLeftRadius: 32,
-                    borderTopRightRadius: 32,
-                    paddingTop: 32,
-                    paddingHorizontal: 24,
-                    paddingBottom: insets.bottom + 24,
-                    maxHeight: '85%'
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                    <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 24, color: colors.foreground }}>Your Albums</Text>
-                    <TouchableOpacity onPress={() => setShowAlbumMenu(false)} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.card, justifyContent: 'center', alignItems: 'center' }}>
-                      <Feather name="x" size={20} color={colors.foreground} />
-                    </TouchableOpacity>
-                  </View>
-
-                  {visitedCountries.length === 0 && (
-                    <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', lineHeight: 22 }}>You haven't added any countries yet. Tap "Explore the Globe" to select one!</Text>
-                  )}
-
-                  <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-                    {visitedCountries.map((album, index) => (
-                      <Animated.View key={album.country} entering={FadeInUp.delay(index * 100)}>
-                        <Swipeable
-                          renderRightActions={() => (
-                            <TouchableOpacity
-                              style={{
-                                backgroundColor: '#EF4444',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                width: 80,
-                                borderRadius: 20,
-                                marginBottom: 12,
-                                marginLeft: 12,
-                              }}
-                              onPress={() => {
-                                Alert.alert(
-                                  "Delete Album",
-                                  `Are you sure you want to remove ${album.country}?`,
-                                  [
-                                    { text: "Cancel", style: "cancel" },
-                                    {
-                                      text: "Delete",
-                                      style: "destructive",
-                                      onPress: () => {
-                                        removeCountry(album.country);
-                                        if (album.country === currentCountry) {
-                                          const fallback = visitedCountries.find(c => c.country !== album.country)?.country || 'Japan';
-                                          setCurrentCountry(fallback);
-                                        }
-                                      }
-                                    }
-                                  ]
-                                );
-                              }}
-                            >
-                              <Feather name="trash-2" size={24} color="#FFF" />
-                            </TouchableOpacity>
-                          )}
-                        >
-                          <TouchableOpacity
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              padding: 16,
-                              backgroundColor: colors.card,
-                              borderRadius: 20,
-                              marginBottom: 12,
-                              shadowColor: '#000',
-                              shadowOffset: { width: 0, height: 4 },
-                              shadowOpacity: 0.04,
-                              shadowRadius: 12,
-                              elevation: 2
-                            }}
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              setCurrentCountry(album.country);
-                              setShowAlbumMenu(false);
-                            }}
-                          >
-                            <PhotoStack latestPhotoUrl={album.latestPhotoUrl} index={index} />
-
-                            <View style={{ flex: 1 }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                                {album.flag?.startsWith('http') ? (
-                                  <Image source={{ uri: album.flag }} style={{ width: 22, height: 16, marginRight: 8, borderRadius: 2 }} />
-                                ) : (
-                                  album.flag && <Text style={{ fontSize: 18, marginRight: 6 }}>{album.flag}</Text>
-                                )}
-                                <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 18, color: colors.foreground, flexShrink: 1 }} numberOfLines={1}>
-                                  {album.country}
-                                </Text>
-                              </View>
-                              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.mutedForeground }}>
-                                {album.photoCount} {album.photoCount === 1 ? 'memory' : 'memories'}
-                              </Text>
-                            </View>
-
-                            <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-                          </TouchableOpacity>
-                        </Swipeable>
-                      </Animated.View>
-                    ))}
-                  </ScrollView>
-                </Animated.View>
-              </View>
-            </BlurView>
-          </Modal>
-        </ScrollView>
-      ) : (
+      {viewMode === 'globe' && (
         // ==========================================
         //             GLOBE VIEW
         // ==========================================
@@ -795,7 +384,7 @@ export default function MemoryScreen() {
               >
                 <TouchableOpacity
                   style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}
-                  onPress={() => setViewMode('memory')}
+                  onPress={() => setViewMode('albums')}
                 >
                   <Feather name="arrow-left" size={20} color="#fff" />
                 </TouchableOpacity>
@@ -909,7 +498,7 @@ const styles = StyleSheet.create({
   searchGlass: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', overflow: 'hidden' },
   searchIconBox: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   inputContainer: { position: 'absolute', left: 0, right: 48, height: '100%', justifyContent: 'center', paddingLeft: 16 },
-  searchInput: { fontFamily: 'Inter_500Medium', fontSize: 15, height: '100%', width: '100%', padding: 0 },
+  searchInput: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 15, padding: 0 },
   dropdownContainer: { position: 'absolute', right: 20, zIndex: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 8 },
   dropdownGlass: { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', overflow: 'hidden', maxHeight: 280 },
   listSection: { paddingVertical: 12 },
@@ -920,21 +509,30 @@ const styles = StyleSheet.create({
   suggestionText: { fontFamily: 'Inter_500Medium', fontSize: 15 },
   suggestionSubtext: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 2 },
   loadingContainer: { padding: 24, alignItems: 'center', justifyContent: 'center' },
-  darkHeaderBackground: { backgroundColor: '#1E1B2E', borderBottomLeftRadius: 40, borderBottomRightRadius: 40, overflow: 'hidden' },
-  heroContent: { paddingHorizontal: 24, marginBottom: 32 },
-  heroEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#9CA3AF', letterSpacing: 2, marginBottom: 4 },
-  heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 48, color: '#ffffff', letterSpacing: -1, marginBottom: 8 },
-  heroSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#D1D5DB', lineHeight: 22 },
-  memorySection: { paddingHorizontal: 24, paddingTop: 16, marginBottom: 40 },
-  memoryHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  memoryEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  memoryEyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 12, letterSpacing: 1.5 },
-  addButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111827', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, gap: 6 },
-  addButtonText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#ffffff' },
-  polaroidGrid: { position: 'relative', width: '100%' },
-  polaroid: { width: (SCREEN_WIDTH - 64) / 2, backgroundColor: '#ffffff', padding: 8, borderRadius: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3, marginBottom: 8 },
-  polaroidImage: { width: '100%', aspectRatio: 1, backgroundColor: '#E5E7EB', marginBottom: 12, borderRadius: 2 },
-  polaroidText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#9CA3AF', textAlign: 'center', marginBottom: 4 },
-  deleteBadge: { position: 'absolute', top: -8, right: -8, backgroundColor: '#EF4444', width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  polaroidEmpty: { aspectRatio: 0.85, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#E5E7EB', borderStyle: 'dashed', backgroundColor: 'rgba(255, 255, 255, 0.5)', shadowOpacity: 0, elevation: 0, transform: [{ rotate: '0deg' }] },
+
+  // --- Album Grid Styles ---
+  albumsContainer: { flex: 1, paddingHorizontal: 20 },
+  albumsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
+  iconButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  titleStack: { alignItems: 'center', flex: 1 },
+  eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 1.5, color: '#5c7ce5', textTransform: 'uppercase', marginBottom: 4 },
+  mainTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, marginBottom: 4 },
+  subTitle: { fontFamily: 'Inter_400Regular', fontSize: 12 },
+  searchPillContainer: { marginBottom: 24 },
+  searchPill: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8 },
+  gridContent: { paddingBottom: 100 },
+  gridRow: { justifyContent: 'space-between', marginBottom: 16 },
+
+  // --- Album Card Styles ---
+  albumCard: { width: (SCREEN_WIDTH - 56) / 2, borderRadius: 16, padding: 12, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 2 },
+  thumbnailContainer: { height: 100, width: '100%', position: 'relative', marginBottom: 16 },
+  thumbnailPolaroid: { position: 'absolute', width: '70%', aspectRatio: 1, backgroundColor: '#fff', padding: 4, borderRadius: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  thumbnailImage: { flex: 1, borderRadius: 4, overflow: 'hidden' },
+  flagBadge: { position: 'absolute', bottom: -8, right: '25%', backgroundColor: '#fff', padding: 2, borderRadius: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, zIndex: 10 },
+  flagImage: { width: 24, height: 18, borderRadius: 2 },
+  flagEmoji: { fontSize: 18 },
+  albumMeta: { gap: 2 },
+  albumTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  albumSubtitle: { fontFamily: 'Inter_500Medium', fontSize: 12 },
+  lockOverlay: { position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
 });

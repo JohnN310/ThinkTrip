@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { ProfileProvider } from '../contexts/ProfileContext';
+import { AlbumProvider } from '../contexts/AlbumContext';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { StatusBar } from 'expo-status-bar';
 // import * as Notifications from 'expo-notifications';
@@ -133,14 +134,17 @@ export default function RootLayout() {
           <View style={{ flex: 1 }}>
             <AuthProvider>
               <ProfileProvider>
-                <AuthGuard>
-                  <ThemedStatusBar />
-                  <Stack screenOptions={{ animation: 'fade', animationDuration: 400 }}>
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                    <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
-                  </Stack>
-                </AuthGuard>
+                <AlbumProvider>
+                  <AuthGuard>
+                    <ThemedStatusBar />
+                    <Stack screenOptions={{ animation: 'fade', animationDuration: 400 }}>
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                      <Stack.Screen name="album/[country]" options={{ headerShown: false }} />
+                      <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
+                    </Stack>
+                  </AuthGuard>
+                </AlbumProvider>
               </ProfileProvider>
             </AuthProvider>
 
