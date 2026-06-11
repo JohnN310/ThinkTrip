@@ -60,8 +60,8 @@ const AlbumCard = ({ album, onPress, colors }: { album: any, onPress: () => void
   const isEmpty = album.photoCount === 0;
 
   return (
-    <TouchableOpacity 
-      activeOpacity={0.8} 
+    <TouchableOpacity
+      activeOpacity={0.8}
       onPress={onPress}
       style={[styles.albumCard, { backgroundColor: colors.card, borderColor: colors.border }]}
     >
@@ -83,9 +83,9 @@ const AlbumCard = ({ album, onPress, colors }: { album: any, onPress: () => void
           {album.latestPhotoUrl ? (
             <Image source={{ uri: album.latestPhotoUrl }} style={styles.thumbnailImage} />
           ) : (
-             <View style={[styles.thumbnailImage, { backgroundColor: colors.muted, justifyContent: 'center', alignItems: 'center' }]}>
-                {isEmpty ? <Feather name="lock" size={16} color={colors.mutedForeground} /> : <Feather name="image" size={16} color={colors.mutedForeground} />}
-             </View>
+            <View style={[styles.thumbnailImage, { backgroundColor: colors.muted, justifyContent: 'center', alignItems: 'center' }]}>
+              {isEmpty ? <Feather name="lock" size={16} color={colors.mutedForeground} /> : <Feather name="image" size={16} color={colors.mutedForeground} />}
+            </View>
           )}
         </View>
 
@@ -93,9 +93,9 @@ const AlbumCard = ({ album, onPress, colors }: { album: any, onPress: () => void
         {album.flag && (
           <View style={styles.flagBadge}>
             {album.flag.startsWith('http') ? (
-               <Image source={{ uri: album.flag }} style={styles.flagImage} />
+              <Image source={{ uri: album.flag }} style={styles.flagImage} />
             ) : (
-               <Text style={styles.flagEmoji}>{album.flag}</Text>
+              <Text style={styles.flagEmoji}>{album.flag}</Text>
             )}
           </View>
         )}
@@ -126,7 +126,7 @@ export default function MemoryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, hydrated } = useProfile();
-  
+
   // NEW VIEW STATE
   const [viewMode, setViewMode] = useState<'albums' | 'globe'>('albums');
 
@@ -135,7 +135,7 @@ export default function MemoryScreen() {
   const [albumSearchQuery, setAlbumSearchQuery] = useState('');
 
   // Filter logic for the grid
-  const filteredAlbums = visitedCountries.filter(album => 
+  const filteredAlbums = visitedCountries.filter(album =>
     album.country.toLowerCase().includes(albumSearchQuery.toLowerCase())
   );
 
@@ -299,7 +299,7 @@ export default function MemoryScreen() {
 
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: colors.background }]}>
-      
+
       {viewMode === 'albums' && (
         <View style={styles.albumsContainer}>
           {/* Header */}
@@ -307,11 +307,9 @@ export default function MemoryScreen() {
             <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.card }]} onPress={() => setViewMode('globe')}>
               <Feather name="globe" size={20} color={colors.primary} />
             </TouchableOpacity>
-            
+
             <View style={styles.titleStack}>
-              <Text style={styles.eyebrow}>EXPLORE THE WORLD</Text>
-              <Text style={[styles.mainTitle, { color: colors.foreground }]}>Your Albums</Text>
-              <Text style={[styles.subTitle, { color: colors.mutedForeground }]}>Your journeys, beautifully remembered.</Text>
+              <Text style={[styles.mainTitle, { color: colors.foreground }]}>Albums</Text>
             </View>
 
             <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.card }]} onPress={() => setViewMode('globe')}>
@@ -323,7 +321,7 @@ export default function MemoryScreen() {
           <View style={styles.searchPillContainer}>
             <View style={[styles.searchPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="search" size={18} color={colors.mutedForeground} style={{ marginRight: 8 }} />
-              <TextInput 
+              <TextInput
                 style={[styles.searchInput, { color: colors.foreground }]}
                 placeholder="Search..."
                 placeholderTextColor={colors.mutedForeground}
@@ -342,12 +340,12 @@ export default function MemoryScreen() {
             columnWrapperStyle={styles.gridRow}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
-              <AlbumCard 
-                album={item} 
+              <AlbumCard
+                album={item}
                 colors={colors}
                 onPress={() => {
                   router.push(('/album/' + item.country) as any);
-                }} 
+                }}
               />
             )}
             ListEmptyComponent={
@@ -365,7 +363,7 @@ export default function MemoryScreen() {
         // ==========================================
         <View style={StyleSheet.absoluteFillObject}>
           <GlobeView ref={globeRef} onCountrySelect={handleGlobeCountrySelect} unlockedCountries={unlockedCountries} />
-          
+
           {isSearchActive && (
             <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); toggleSearch(); }}>
               <View style={[StyleSheet.absoluteFillObject, { zIndex: 5 }]} />
@@ -375,11 +373,11 @@ export default function MemoryScreen() {
           {/* Floating Back Button & Search Area */}
           <View pointerEvents="box-none" style={[styles.headerArea, { paddingTop: (insets.top || 20) + 16, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }]}>
             <View style={styles.headerRow} pointerEvents="box-none">
-              <RNAnimated.View 
+              <RNAnimated.View
                 style={[styles.headerTextCol, {
                   opacity: searchAnim.interpolate({ inputRange: [0, 0.3], outputRange: [1, 0] }),
                   transform: [{ scale: searchAnim.interpolate({ inputRange: [0, 0.3], outputRange: [1, 0.8] }) }]
-                }]} 
+                }]}
                 pointerEvents={isSearchActive ? "none" : "auto"}
               >
                 <TouchableOpacity
@@ -423,7 +421,7 @@ export default function MemoryScreen() {
                 { opacity: searchAnim, transform: [{ translateY: searchAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }] }
               ]}
             >
-              {isSearchActive && (
+              {isSearchActive && (searchQuery.trim().length > 0 || recentSearches.length > 0) && (
                 <BlurView intensity={40} tint="dark" style={styles.dropdownGlass}>
                   <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                     {searchQuery.trim().length === 0 && recentSearches.length > 0 && (
@@ -516,7 +514,7 @@ const styles = StyleSheet.create({
   iconButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   titleStack: { alignItems: 'center', flex: 1 },
   eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 1.5, color: '#5c7ce5', textTransform: 'uppercase', marginBottom: 4 },
-  mainTitle: { fontFamily: 'Inter_700Bold', fontSize: 24, marginBottom: 4 },
+  mainTitle: { fontFamily: 'Inter_700Bold', fontSize: 32, marginBottom: 4 },
   subTitle: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   searchPillContainer: { marginBottom: 24 },
   searchPill: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8 },

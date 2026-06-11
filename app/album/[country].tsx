@@ -70,7 +70,7 @@ const DraggablePolaroid = ({ img, id, index, isEditing, onStartEditing, onDelete
 
       const col = Math.floor(currentX / (ITEM_WIDTH + GAP));
       const row = Math.floor(currentY / (ITEM_HEIGHT + GAP));
-      let hoverIndex = row * 3 + col; // Changed from 2 to 3
+      let hoverIndex = row * 3 + col;
       hoverIndex = Math.max(0, Math.min(memoriesLength - 1, hoverIndex));
 
       const oldIndex = positions.value[id];
@@ -304,56 +304,36 @@ export default function AlbumScreen() {
 
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: colors.background }]}>
+      
+      {/* Floating Top Navigation */}
+      <View style={[styles.floatingNav, { top: insets.top + 10 }]}>
+        <TouchableOpacity style={[styles.navButton, { backgroundColor: colors.card }]} onPress={() => router.back()}>
+          <Feather name="chevron-left" size={24} color={colors.foreground} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={[styles.navButton, { backgroundColor: colors.card }]} onPress={pickImage} disabled={isUploading}>
+          {isUploading ? (
+            <ActivityIndicator size="small" color={colors.foreground} />
+          ) : (
+            <Feather name="plus" size={24} color={colors.foreground} />
+          )}
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         bounces={false}
         scrollEnabled={!isEditingMemories}
       >
-        {/* Top Navigation Bar */}
-        <View style={[styles.navBar, { paddingTop: insets.top + 10 }]}>
-          <TouchableOpacity style={[styles.navButton, { backgroundColor: colors.card }]} onPress={() => router.back()}>
-            <Feather name="arrow-left" size={20} color={colors.foreground} />
-          </TouchableOpacity>
-          
-          <View style={styles.titleStack}>
-            <Text style={[styles.eyebrow, { color: colors.primary }]}>DESTINATION</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={[styles.heroTitle, { color: colors.foreground }]} numberOfLines={1}>
-                {destination}
-              </Text>
-              {flagUrl && <Image source={{ uri: flagUrl }} style={styles.inlineFlag} contentFit="cover" />}
-            </View>
-            <Text style={[styles.heroSubtitle, { color: colors.mutedForeground }]}>
-              Your memories, beautifully collected. ✨
-            </Text>
-          </View>
-
-          <TouchableOpacity style={[styles.navButton, { backgroundColor: colors.card }]}>
-            <Feather name="more-horizontal" size={20} color={colors.foreground} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Hero Banner Area (Using expo-image and WebP) */}
-        <View style={styles.bannerContainer}>
+        {/* Full Bleed Hero Image */}
+        <View style={styles.heroContainer}>
           <Image 
-            // Use a .webp URL or a local require('./assets/banner.webp')
             source={{ uri: 'https://images.unsplash.com/photo-1528164344705-47542687000d?auto=format&fit=crop&fm=webp&q=80&w=800' }} 
-            style={styles.bannerImage}
+            style={styles.heroImage}
             contentFit="cover"
             transition={300}
-            cachePolicy="memory-disk" // Aggressive caching for performance
+            cachePolicy="memory-disk"
           />
-          
-          <TouchableOpacity style={[styles.newPostcardBtn, { backgroundColor: colors.primary }]} onPress={pickImage} disabled={isUploading}>
-            {isUploading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Feather name="plus" size={16} color="#fff" />
-                <Text style={styles.newPostcardText}>New Postcard</Text>
-              </>
-            )}
-          </TouchableOpacity>
         </View>
 
         {/* Floating Stats Card */}
@@ -471,23 +451,43 @@ export default function AlbumScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   
-  // Navigation & Hero
-  navBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, marginBottom: 20 },
-  navButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  titleStack: { alignItems: 'center', flex: 1, paddingHorizontal: 12 },
-  eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
-  heroTitle: { fontFamily: 'Inter_700Bold', fontSize: 32, letterSpacing: -0.5 },
-  inlineFlag: { width: 32, height: 24, borderRadius: 4 },
-  heroSubtitle: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 },
+  // Floating Navigation
+  floatingNav: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    zIndex: 10,
+  },
+  navButton: { 
+    width: 44, 
+    height: 44, 
+    borderRadius: 22, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 8, 
+    elevation: 4 
+  },
 
-  // Banner
-  bannerContainer: { paddingHorizontal: 20, position: 'relative', marginBottom: 16, zIndex: 1 },
-  bannerImage: { width: '100%', height: 180, borderRadius: 24 },
-  newPostcardBtn: { position: 'absolute', top: 16, right: 36, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, gap: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+  // Hero Image 
+  heroContainer: { 
+    width: '100%', 
+    marginBottom: 16,
+  },
+  heroImage: { 
+    width: '100%', 
+    height: 260, 
+  },
+
+  // Generic Button Text (retained for the 'Done' editing button)
   newPostcardText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#fff' },
 
   // Floating Stats Card
-  statsCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginTop: -40, borderRadius: 20, padding: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 4, zIndex: 2 },
+  statsCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 20, marginTop: -50, borderRadius: 20, padding: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 4, zIndex: 2 },
   statItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   statDivider: { width: 1, height: 30, backgroundColor: '#E2E8F0' },
   iconPill: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
   doneEditingBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, gap: 6, marginBottom: 16 },
   polaroidGrid: { position: 'relative', width: '100%' },
   
-  // Polaroid Items (Updated width for 3 columns)
+  // Polaroid Items
   polaroid: { width: ITEM_WIDTH, backgroundColor: '#ffffff', padding: 6, borderRadius: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3, marginBottom: 8 },
   polaroidImage: { width: '100%', aspectRatio: 1, backgroundColor: '#E5E7EB', marginBottom: 8, borderRadius: 2 },
   polaroidText: { fontFamily: 'Inter_400Regular', fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginBottom: 2 },
