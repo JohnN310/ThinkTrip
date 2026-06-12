@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
   iconButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   titleStack: { alignItems: 'center', flex: 1 },
   eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 1.5, color: '#5c7ce5', textTransform: 'uppercase', marginBottom: 4 },
-  mainTitle: { fontFamily: 'Inter_700Bold', fontSize: 32, marginBottom: 4 },
+  mainTitle: { fontFamily: 'Inter_700Bold', fontSize: 30, marginBottom: 4 },
   subTitle: { fontFamily: 'Inter_400Regular', fontSize: 12 },
   searchPillContainer: { marginBottom: 24 },
   searchPill: { flexDirection: 'row', alignItems: 'center', height: 48, borderRadius: 24, paddingHorizontal: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8 },

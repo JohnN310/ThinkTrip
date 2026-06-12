@@ -1106,8 +1106,8 @@ const styles = StyleSheet.create({
   subtitle: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22 },
 
   // Hero Card
-  heroCard: { borderRadius: 24, padding: 20, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
+  heroCard: { borderRadius: 24, padding: 16, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 10 },
   avatarWrapper: { position: 'relative' },
   avatar: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontFamily: 'Inter_700Bold', fontSize: 24, letterSpacing: -0.5 },
