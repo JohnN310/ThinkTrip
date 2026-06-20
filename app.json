@@ -65,13 +65,6 @@
         {
           "microphonePermission": "ThinkTrip needs microphone access to translate live conversations."
         }
-      ],
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "ThinkTrip needs microphone access to hear spoken phrases.",
-          "speechRecognitionPermission": "ThinkTrip needs speech recognition to transcribe live dialogue."
-        }
       ]
     ],
     "experiments": {

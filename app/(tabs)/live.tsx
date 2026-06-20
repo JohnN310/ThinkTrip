@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Platform, ScrollView, Modal, Animated } from 'react-native';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import Translate from '@react-native-ml-kit/translate-text'; // --- ML KIT IMPORT (Commented out for testing Gemini translation) ---
+// import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+// import Translate from '@react-native-ml-kit/translate-text'; // --- ML KIT IMPORT (Commented out for testing Gemini translation) ---
 
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
@@ -223,26 +223,26 @@ export default function LiveInteractionScreen() {
     }, [messages.length, myLang.name, localLang.name, isRecording]);
 
 
-    useSpeechRecognitionEvent('result', (event) => {
-        const transcript = event.results[0]?.transcript || '';
-        if (!event.isFinal) {
-            if (transcript) setLiveTranscript(transcript);
-        } else {
-            if (activeSpeaker && transcript) {
-                processConversation(transcript, activeSpeaker);
-            }
-            resetRecordingState();
-        }
-    });
+    // useSpeechRecognitionEvent('result', (event) => {
+    //     const transcript = event.results[0]?.transcript || '';
+    //     if (!event.isFinal) {
+    //         if (transcript) setLiveTranscript(transcript);
+    //     } else {
+    //         if (activeSpeaker && transcript) {
+    //             processConversation(transcript, activeSpeaker);
+    //         }
+    //         resetRecordingState();
+    //     }
+    // });
 
-    useSpeechRecognitionEvent('error', (event) => {
-        if (event.error === 'no-speech' || event.error === 'aborted') {
-            console.log('Speech recognition stopped:', event.error, event.message);
-        } else {
-            console.error('Speech recognition error:', event.error, event.message);
-        }
-        resetRecordingState();
-    });
+    // useSpeechRecognitionEvent('error', (event) => {
+    //     if (event.error === 'no-speech' || event.error === 'aborted') {
+    //         console.log('Speech recognition stopped:', event.error, event.message);
+    //     } else {
+    //         console.error('Speech recognition error:', event.error, event.message);
+    //     }
+    //     resetRecordingState();
+    // });
 
     const resetRecordingState = () => {
         setIsRecording(false);
@@ -252,9 +252,9 @@ export default function LiveInteractionScreen() {
 
     const startRecording = async (speaker: 'me' | 'local') => {
         // Add this guard
-        if (isRecording) {
-            ExpoSpeechRecognitionModule.abort();
-        }
+        // if (isRecording) {
+        //     ExpoSpeechRecognitionModule.abort();
+        // }
 
         if (profile.hapticsEnabled && Platform.OS !== 'web') {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -264,29 +264,37 @@ export default function LiveInteractionScreen() {
         if (isSpeaking) Speech.stop();
 
         setActiveSpeaker(speaker);
-        setLiveTranscript('');
+        setLiveTranscript('Voice recognition disabled for now...');
         setIsRecording(true);
 
-        try {
-            const langCode = speaker === 'me' ? myLang.bcp47 : localLang.bcp47;
-
-            const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-            if (permissions.status !== 'granted') {
-                console.warn('Speech recognition permissions not granted');
-                resetRecordingState();
-                return;
+        // Mock completion after 3 seconds
+        setTimeout(() => {
+            if (activeSpeaker) {
+               processConversation("This is a mocked sentence.", speaker);
             }
-
-            ExpoSpeechRecognitionModule.start({
-                lang: langCode,
-                interimResults: true,
-                // Continuous mode is optional, but stopping it properly will trigger the 'result' with isFinal=true
-                continuous: false
-            });
-        } catch (e) {
-            console.error("Voice start failed:", e);
             resetRecordingState();
-        }
+        }, 3000);
+
+        // try {
+        //     const langCode = speaker === 'me' ? myLang.bcp47 : localLang.bcp47;
+        //
+        //     const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        //     if (permissions.status !== 'granted') {
+        //         console.warn('Speech recognition permissions not granted');
+        //         resetRecordingState();
+        //         return;
+        //     }
+        //
+        //     ExpoSpeechRecognitionModule.start({
+        //         lang: langCode,
+        //         interimResults: true,
+        //         // Continuous mode is optional, but stopping it properly will trigger the 'result' with isFinal=true
+        //         continuous: false
+        //     });
+        // } catch (e) {
+        //     console.error("Voice start failed:", e);
+        //     resetRecordingState();
+        // }
     };
 
     const toggleRecording = (speaker: 'me' | 'local') => {
@@ -296,11 +304,11 @@ export default function LiveInteractionScreen() {
             const textToProcess = liveTranscript.trim();
 
             // Force abort to prevent the library from sending a duplicate final result
-            try { ExpoSpeechRecognitionModule.abort(); } catch (e) { console.error(e); }
+            // try { ExpoSpeechRecognitionModule.abort(); } catch (e) { console.error(e); }
             resetRecordingState();
 
             // Process whatever was heard so far
-            if (textToProcess && currentSpeaker) {
+            if (textToProcess && textToProcess !== 'Voice recognition disabled for now...' && currentSpeaker) {
                 processConversation(textToProcess, currentSpeaker);
             }
 
@@ -336,27 +344,27 @@ export default function LiveInteractionScreen() {
                 // ==============================================================
                 // --- GEMINI AI TRANSLATION ---
                 // ==============================================================
-                // const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-                // if (!apiKey) throw new Error("Missing API Key");
+                const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+                if (!apiKey) throw new Error("Missing API Key");
 
-                // const genAI = new GoogleGenerativeAI(apiKey);
-                // const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+                const genAI = new GoogleGenerativeAI(apiKey);
+                const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
-                // const prompt = `Translate the following text from ${sourceLangName} to ${targetLangName}. Return ONLY the pure translated text, nothing else.\n\nText: "${text}"`;
+                const prompt = `Translate the following text from ${sourceLangName} to ${targetLangName}. Return ONLY the pure translated text, nothing else.\n\nText: "${text}"`;
 
-                // const result = await model.generateContent(prompt);
-                // translated = result.response.text().trim().replace(/^["']|["']$/g, '');
+                const result = await model.generateContent(prompt);
+                translated = result.response.text().trim().replace(/^["']|["']$/g, '');
 
                 // ==============================================================
                 // --- ML KIT APPROACH (Commented out) ---
                 // ==============================================================
 
-                translated = (await Translate.translate({
-                    text,
-                    sourceLanguage: sourceLang as any,
-                    targetLanguage: targetLang as any,
-                    downloadModelIfNeeded: true,
-                })) as unknown as string;
+                // translated = (await Translate.translate({
+                //     text,
+                //     sourceLanguage: sourceLang as any,
+                //     targetLanguage: targetLang as any,
+                //     downloadModelIfNeeded: true,
+                // })) as unknown as string;
 
             }
         } catch (e) {
